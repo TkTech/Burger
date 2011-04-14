@@ -39,7 +39,41 @@ _Field = namedtuple("Field", (
 ))
 
 class Field(_Field):
-    pass
+    @property
+    def is_public(self):
+        return True if self.flags & 0x0001 else False
+        
+    @property
+    def is_private(self):
+        return True if self.flags & 0x0002 else False
+        
+    @property
+    def is_protected(self):
+        return True if self.flags & 0x0004 else False
+        
+    @property
+    def is_static(self):
+        return True if self.flags & 0x0008 else False
+        
+    @property
+    def is_final(self):
+        return True if self.flags & 0x0010 else False
+        
+    @property
+    def is_volatile(self):
+        return True if self.flags & 0x0040 else False
+        
+    @property
+    def is_transient(self):
+        return True if self.flags & 0x0080 else False
+        
+    @property
+    def is_synthetic(self):
+        return True if self.flags & 0x1000 else False
+        
+    @property
+    def is_enum(self):
+        return True if self.flags & 0x4000 else False
 
 class FieldTable(dict):
     def __init__(self, src, constants):
