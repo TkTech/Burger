@@ -36,7 +36,7 @@ _Attribute = namedtuple("Attribute", (
 
 class Attribute(object):
     def __init__(self, constants, name_index, name, data):
-        self.name_index = name_index,
+        self.name_index = name_index
         self.name = name
         self.data = data
 
@@ -49,6 +49,10 @@ class Attribute(object):
                 return tmp[0] if len(tmp) == 1 else tmp
 
             self.parse(src, constants)
+
+    def __repr__(self):
+        f = "Attribute(name=%r, name_index=%r, data=...)"
+        return f % (self.name, self.name_index)
 
 # Used by the CodeAttribute to represent exception ranges
 CodeException = namedtuple("CodeException", [
