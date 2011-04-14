@@ -176,4 +176,36 @@ class ClassFile(object):
             return self._attributes
 
         raise ClassError("class not loaded")
+        
+    @property
+    def is_public(self):
+        return True if self.flags & 0x0001 else False
+
+    @property
+    def is_final(self):
+        return True if self.flags & 0x0010 else False
+
+    @property
+    def is_super(self):
+        return True if self.flags & 0x0020 else False
+
+    @property
+    def is_interface(self):
+        return True if self.flags & 0x0200 else False
+
+    @property
+    def is_abstract(self):
+        return True if self.flags & 0x0400 else False
+
+    @property
+    def is_synthetic(self):
+        return True if self.flags & 0x1000 else False
+
+    @property
+    def is_annotation(self):
+        return True if self.flags & 0x2000 else False
+
+    @property
+    def is_enum(self):
+        return True if self.flags & 0x4000 else False
 
