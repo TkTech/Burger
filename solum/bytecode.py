@@ -21,15 +21,24 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-__all__ = ["OperandTypes", "StreamAssembler", "StreamDisassembler"]
+__all__ = [
+    "OperandTypes",
+    "StreamAssembler",
+    "StreamDisassembler",     
+    "BytecodeError"
+]
 
 import struct
 try:
     from collections import namedtuple
-except Import:
+except ImportError:
     from .compat.namedtuple import namedtuple
 
-from exceptions import BytecodeError
+class BytecodeError(Exception):
+    """
+    Raised when any generic error occurs while asssembling or
+    disassembling Java bytecode.
+    """
 
 class OperandTypes(object):
     """
@@ -310,7 +319,7 @@ class StreamDisassembler(object):
         opcode = self.unpack(">B")[0]
         
         if opcode not in _op_table:
-            raise BytecodeError("unknown opcode 0x{0:X}".format(opcode))
+            raise BytecodeError("unknown opcode 0x%X" % opcode)
             
         instruction = _op_table[opcode]
         name = instruction[0]
@@ -333,7 +342,7 @@ class StreamDisassembler(object):
         elif opcode == 0xAA:
             # Eat the alignment padding
             padding = 3 - ((self.pos + 1) % 4)
-            self.unpack(">{0}x".format(padding))
+            self.unpack(">%sx" % padding)
             
             default, low, high = self.unpack(">III")
             count = high - low + 1
@@ -407,7 +416,7 @@ class StreamAssembler(object):
             # Padding to align the bytes so that the next read is 4-byte
             # aligned.
             padding = 3 - (self.pos % 4)
-            self.out.write(struct.pack(">{0}x".format(padding)))
+            self.out.write(struct.pack(">%sx" % padding))
                 
             self.out.write(struct.pack(">III", 
                 ins.operands[0].value,

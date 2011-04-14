@@ -122,5 +122,14 @@ class AttributeTable(list):
 
         return (a for a in self)
 
-    def find_one(self):
-        pass
+    def find_one(self, name=None):
+        if name:
+            for attrib in self:
+                if attrib.name == name:
+                    return attrib
+            return None
+        else:
+            return self[0] if self else None
+
+
+
