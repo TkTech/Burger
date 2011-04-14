@@ -41,6 +41,11 @@ _Method = namedtuple("Method", (
 
 class Method(_Method):
     @property
+    def code(self):
+        """Returns the Code attribute, if there is one"""
+        return self.attributes.find_one(name="Code")
+
+    @property
     def is_public(self):
         return True if self.flags & 0x0001 else False
         
