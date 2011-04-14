@@ -40,7 +40,53 @@ _Method = namedtuple("Method", (
 ))
 
 class Method(_Method):
-    pass
+    @property
+    def is_public(self):
+        return True if self.flags & 0x0001 else False
+        
+    @property
+    def is_private(self):
+        return True if self.flags & 0x0002 else False
+        
+    @property
+    def is_protected(self):
+        return True if self.flags & 0x0004 else False
+        
+    @property
+    def is_static(self):
+        return True if self.flags & 0x0008 else False
+        
+    @property
+    def is_final(self):
+        return True if self.flags & 0x0010 else False
+        
+    @property
+    def is_synchronized(self):
+        return True if self.flags & 0x0020 else False
+    
+    @property
+    def is_bridge(self):
+        return True if self.flags & 0x0040 else False
+        
+    @property
+    def is_varargs(self):
+        return True if self.flags & 0x0080 else False
+        
+    @property
+    def is_native(self):
+        return True if self.flags & 0x0100 else False
+        
+    @property
+    def is_abstract(self):
+        return True if self.flags & 0x0400 else False
+        
+    @property
+    def is_strict(self):
+        return True if self.flags & 0x0800 else False
+        
+    @property
+    def is_synthetic(self):
+        return True if self.flags & 0x1000 else False
 
 class MethodTable(list):
     def __init__(self, src, constants):
