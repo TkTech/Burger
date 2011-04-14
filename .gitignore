@@ -1,0 +1,5 @@
+*.pyc
+*.class
+*.jar
+*.swp
+test.py
