@@ -23,16 +23,13 @@ THE SOFTWARE.
 """
 __all__ = [
     "OperandTypes",
+    "BytecodeError",
     "StreamAssembler",
-    "StreamDisassembler",     
-    "BytecodeError"
+    "StreamDisassembler"
 ]
 
 import struct
-try:
-    from collections import namedtuple
-except ImportError:
-    from .compat.namedtuple import namedtuple
+from collections import namedtuple
 
 class BytecodeError(Exception):
     """
@@ -435,3 +432,4 @@ class StreamAssembler(object):
             raise BytecodeError("unknown opcode 0x{}")
             
         self.pos += packed_instruction_size(instruction)
+

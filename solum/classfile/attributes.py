@@ -21,119 +21,88 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-try:
-    from collections import namedtuple
-except ImportError:
-    from ..compat.namedtuple import namedtuple
+__all__ = ["AttributeTable"]
 
-import struct
-    
-_Attribute = namedtuple("Attribute", (
-    "name_index",
-    "name",
-    "data"
-))
+from collections import namedtuple
 
 class Attribute(object):
-    def __init__(self, constants, name_index, name, data):
-        self.name_index = name_index
-        self.name = name
-        self.data = data
+    """
+    Generic Attribute.
+    """
+    def __init__(self, read, constants):
+        length = read(">I")[0]
+        self.data = read(">%ss" % length)[0]
 
-        if hasattr(self, "parse"):
-            self._pos = 0
-            def src(format):
-                length = struct.calcsize(format)
-                tmp = struct.unpack_from(format, self.data, self._pos)
-                self._pos += length
-                return tmp[0] if len(tmp) == 1 else tmp
-
-            self.parse(src, constants)
-
-    def __repr__(self):
-        f = "Attribute(name=%r, name_index=%r, data=...)"
-        return f % (self.name, self.name_index)
-
-# Used by the CodeAttribute to represent exception ranges
 CodeException = namedtuple("CodeException", [
     "start_pc",
     "end_pc",
     "handler_pc",
     "catch_type"
 ])
+class CodeAttribute(object):
+    """
+    Implements the Code attribute (S4.8.3).
+    """
+    def __init__(self, read, constants):
+        length = read(">I")[0] # We don't really care...
+        self.max_stack, self.max_locals, code_len = read(">HHI")
+        self.code, exp_len = read(">%ssH" % code_len)
 
-class CodeAttribute(Attribute):
-    def parse(self, src, constants):
-        self.max_stack, self.max_locals, code_len = src(">HHI")
-        self.code, exp_len = src(">%ssH" % code_len)
-
-        self.exceptions = []
-        while exp_len > 0:
-            self.exceptions.append(CodeException(*src(">HHHH")))
+        self.exception_table = []
+        while exp_len:
             exp_len -= 1
+            self.exception_table.append(CodeException(*read(">HHHH")))
 
-        self.attributes = AttributeTable(src, constants)
+        self.attributes = AttributeTable(read, constants)
 
-    def __repr__(self):
-        f = "Code(max_stack=%r, max_locals=%r, code=..., exceptions=%r)"
-        return f % (self.max_stack, self.max_locals, self.exceptions)
-
-_attributes = {
-    "Code": CodeAttribute
+_attribute_map = {
+    "Code": CodeAttribute,
 }
 
-class AttributeTable(list):
-    def __init__(self, src, constants):
-        attrib_len = src(">H")
+class AttributeTable(object):
+    def __init__(self, read, constants):
+        self.__store = []
 
-        while attrib_len > 0:
-            name_i, length = src(">HI")
-            data = src(">%ss" % length)
+        attrib_count = read(">H")[0]
+
+        while attrib_count:
+            attrib_count -= 1
+
+            name_i = read(">H")[0]
             name = constants[name_i]["value"]
 
-            self.append(_attributes.get(name, Attribute)(
-                constants,
-                name_i,
-                constants[name_i]["value"],
-                data
-            ))
-            attrib_len -= 1
+            attrib = _attribute_map.get(name, Attribute)( read, constants)
+            attrib.name = name
+            self.storage.append(attrib)
 
-    def find(self, name=None):
-        """
-        Returns all methods that match the given keywords. If no arguments are
-        given, return all methods. The order of the returned list is the same
-        as the order on disk.
+    @property
+    def storage(self):
+        return self.__store
 
-        Note: Use ifind() for a more efficient version that returns a
-              generator.
-        """
-        if name:
-            return [a for a in self if a.name == name]
+    def find(self, name=None, f=None):
+        if not name:
+            return self.storage
 
-        return list(self)
+        ret = []
+        for attribute in self.storage:
+            if name and attribute.name != name:
+                continue
 
-    def ifind(self, name=None):
-        """
-        Identical to find, with the exception that it returns a generator
-        instead of a list.
+            if f and not f(attribute):
+                continue
 
-        Note: This method cannot be used in concjunction with jar.map() when
-              parallel=True, as generators cannot be pickled.
-        """
-        if name:
-            return (a for a in self if a.name == name)
+            ret.append(attribute)
 
-        return (a for a in self)
+        return attribute
 
-    def find_one(self, name=None):
-        if name:
-            for attrib in self:
-                if attrib.name == name:
-                    return attrib
-            return None
-        else:
-            return self[0] if self else None
+    def find_one(self, name=None, f=None):
+        for attribute in self.storage:
+            if name and name != attribute.name:
+                continue
 
+            if f and not f(attribute):
+                continue
 
+            return attribute
 
+        return None

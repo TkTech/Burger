@@ -21,191 +21,180 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-from struct import calcsize, unpack_from
+__all__ = ["ClassFile", "ClassError"]
+
+import struct
 
 from .constants import ConstantPool
 from .fields import FieldTable
-from .methods import MethodTable 
+from .methods import MethodTable
 from .attributes import AttributeTable
 
 class ClassError(Exception):
     """
-    Raised as a generic exception when a class parsing or class
-    specification violation is encounter.
+    Raised as a generic error whenever an error occurs with class
+    parsing or if something (a value, field, keyname, etc...) violate
+    the class file specification.
     """
 
 class ClassFile(object):
-    """
-    Todo: Needs better documentation! 
-    """
-    def __init__(self, str_or_file, str_as_buffer=False):
+    def __init__(self, source, str_as_buffer=False):
         """
-        Loads an existing .class file from `str_or_file`. By default, treat
-        `str_or_file` as either a path to a file or as a file-like object.
-        If `str_as_buffer` is True, assume `str_or_file` is the valid contents
-        of a class file.
+        Load the ClassFile from the given `source`, which may be a file-like
+        object, a path, or (if `str_as_buffer` is True) as the contents of
+        a class.
+
+        Note: If passing the value from JarFile.map_classes(), `str_as_buffer`
+              should be True.
         """
         if str_as_buffer:
-            self._load_from_buffer(str_or_file)
-        elif hasattr(str_or_file, "read"):
-            self._load_from_file(str_or_file)
+            # Assume the source is the binary contents of a ClassFile
+            self._load_from_buffer(source)
+        elif hasattr(source, "read"):
+            # Assume we have a file-like object
+            self._load_from_file(source)
         else:
-            self._load_from_path(str_or_file)
+            # Assume we have the path to a class file
+            self._load_from_path(source)
 
-    def _load_from_path(self, path):
-        fin = open(path, "rb")
-        self._load_from_file(fin)
+    def _load_from_path(self, source):
+        """Attempts to load the ClassFile from the file at `source`."""
+        fin = open(source, "rb")
+        self._load_from_file(source)
         fin.close()
 
-    def _load_from_file(self, fin):
-        tmp = fin.read()
-        self._load_from_buffer(tmp)
-        del tmp
+    def _load_from_file(self, source):
+        """Attempts to load the ClassFile from the given file-like-object."""
+        contents = source.read()
+        self._load_from_buffer(contents)
+        # Small bug means we never lose the reference to contents if
+        # we don't nuke it ourselves.
+        del contents
 
-    def _load_from_buffer(self, buff):
-        self._pos = 0
-        def src(format):
-            length = calcsize(format)
-            tmp = unpack_from(format, buff, self._pos)
-            self._pos += length
-            return tmp[0] if len(tmp) == 1 else tmp
+    def _load_from_buffer(self, source):
+        """Attempts to load the ClassFile from the given buffer."""
+        # Set the starting position in the buffer
+        self.__pos = 0
+        def read(format):
+            length = struct.calcsize(format)
+            tmp = struct.unpack_from(format, source, self.__pos)
+            self.__pos += length
+            return tmp
 
-        magic = src(">I")
-        if magic != 0xCAFEBABE:
-            raise ClassError("invalid class file")
+        magic_number = read(">I")[0]
+        if magic_number != 0xCAFEBABE:
+            # Every ClassFile since the dawn of time uses this one
+            # magic number. If it isn't present, it's not a valid ClassFile.
+            raise ClassError("invalid magic number (not a class?)")
 
-        ver_min, ver_major = src(">HH")
-        self.version = (ver_major, ver_min)
-    
-        self._load_constant_pool(src)
+        # Wonder what they were thinking...
+        ver_min, ver_max = read(">HH")
+        self._version = (ver_max, ver_min)
 
-        self.flags, this, superclass, if_count = src(">HHHH")
+        self._constants = ConstantPool(read)
+
+        self._flags, this, superclass = read(">HHH")
 
         self.this = self.constants[this]["name"]["value"]
         self.superclass = self.constants[superclass]["name"]["value"]
 
-        self._interfaces = src(">%sH" % if_count)
+        # Interfaces are literally just a list of indexes into the
+        # constant pool (if any)
+        if_count = read(">H")[0]
+        tmp = read(">%sH" % if_count)
+        self._interfaces = [self.constants[x] for x in tmp]
 
-        self._fields = FieldTable(src, self._constants)
+        self._fields = FieldTable(read, self.constants)
 
-        self._methods = MethodTable(src, self._constants)
-        
-        self._attributes = AttributeTable(src, self._constants)
+        self._methods = MethodTable(read, self.constants)
 
-    def _load_constant_pool(self, _):
+        self._attributes = AttributeTable(read, self.constants)
+    
+    @property
+    def version(self):
         """
-        While this method may seem a bit convoluted, it is by the 
-        fastest solution of the ones I've tested. However, in
-        comparison to the rest of Solum, it is still one of the
-        slowest methods. Have a better solution? Contribute it!
+        Returns a tuple in the form of (major_version, minor_version),
+        representing the version of Java used to construct this ClassFile,
+        or with which it is compatible.
         """
-        constant_pool_count = _(">H")
-        constant_pool = ConstantPool() 
+        return self._version
 
-        x = 1
-        while x < constant_pool_count:
-            tag = _(">B") # The type of constant
-            if tag == 7:
-                constant_pool[x] = { "name_index": _(">H") }
-            elif tag in (9, 10, 11):
-                class_index, name_and_type_index  = _(">HH")
-                constant_pool[x] = {
-                    "class_index": class_index,
-                    "name_and_type_index": name_and_type_index
-                }
-            elif tag == 8:
-                constant_pool[x] = { "string_index": _(">H") }
-            elif tag == 3:
-                constant_pool[x] = { "value": _(">i") }
-            elif tag == 4:
-                constant_pool[x] = { "value": _(">f") }
-            elif tag == 5:
-                constant_pool[x] = { "value": _(">q") }
-            elif tag == 6:
-                constant_pool[x] = { "value": _(">d") }
-            elif tag == 12:
-                name_index, descriptor_index = _(">HH")
-                constant_pool[x] = {
-                    "name_index": name_index,
-                    "descriptor_index": descriptor_index
-                }
-            elif tag == 1:
-                length = _(">H")
-                constant_pool[x] = { "value": _(">%ss" % length) }
-
-            constant_pool[x]["tag"] = tag
-            x += 2 if tag in (5,6) else 1
-
-        for k,v in constant_pool.items():
-            for k2, v2 in v.items():
-                if k2.endswith("_index"):
-                    constant_pool[k][k2[:-6]] = constant_pool[v2]
-
-        self._constants = constant_pool
+    @property
+    def version_string(self):
+        """
+        Returns a human-readable string representing the version of Java used
+        to construct this ClassFile. If version is given, it assumes it is
+        a tuple in the style (major_version, minor_version) and uses that
+        instead.
+        """
+        return {
+            0x2D: "JDK 1.1",
+            0x2E: "JDK 1.2",
+            0x2F: "JDK 1.3",
+            0x30: "JDK 1.4",
+            0x31: "J2SE 5.0",
+            0x32: "J2SE 6.0"
+        }.get(self.version[0], "unknown") 
 
     @property
     def constants(self):
-        if hasattr(self, "_constants"):
-            return self._constants
-
-        raise ClassError("class not loaded")
+        """Returns the ConstantPool instance."""
+        return self._constants
 
     @property
     def interfaces(self):
-        if hasattr(self, "_interfaces"):
-            return self._interfaces
-
-        raise ClassError("class not loaded")
+        """Returns a list of inherited interfaces."""
+        return self._interfaces
 
     @property
     def fields(self):
-        if hasattr(self, "_fields"):
-            return self._fields
-
-        raise ClassError("class not loaded")
+        """Returns a FieldTable instance."""
+        return self._fields
 
     @property
     def methods(self):
-        if hasattr(self, "_methods"):
-            return self._methods
-        raise ClassError("class not loaded")
+        """Returns a MethodTable instance."""
+        return self._methods
 
     @property
     def attributes(self):
-        if hasattr(self, "_attributes"):
-            return self._attributes
+        """Returns an AttributeTable instance."""
+        return self._attributes
 
-        raise ClassError("class not loaded")
-        
+    @property
+    def flags(self):
+        """Returns the access flags for this class."""
+        return self._flags
+
     @property
     def is_public(self):
-        return True if self.flags & 0x0001 else False
-
+        return bool(self.flags & 0x01) 
+    
     @property
     def is_final(self):
-        return True if self.flags & 0x0010 else False
-
+        return bool(self.flags & 0x10) 
+    
     @property
     def is_super(self):
-        return True if self.flags & 0x0020 else False
-
+        return bool(self.flags & 0x20)
+    
     @property
     def is_interface(self):
-        return True if self.flags & 0x0200 else False
-
+        return bool(self.flags & 0x200)
+    
     @property
     def is_abstract(self):
-        return True if self.flags & 0x0400 else False
-
+        return bool(self.flags & 0x400)
+    
     @property
     def is_synthetic(self):
-        return True if self.flags & 0x1000 else False
-
+        return bool(self.flags & 0x1000)
+    
     @property
     def is_annotation(self):
-        return True if self.flags & 0x2000 else False
-
+        return bool(self.flags & 0x2000)
+    
     @property
     def is_enum(self):
-        return True if self.flags & 0x4000 else False
+        return bool(self.flags & 0x4000)
 

@@ -21,7 +21,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-__all__ = ["classfile", "constants"]
+__all__ = ["context"]
 
-from .classfile import ClassFile, ClassError
-from .constants import ConstantType
+from .context import Context

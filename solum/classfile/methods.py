@@ -21,10 +21,9 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-try:
-    from collections import namedtuple
-except ImportError:
-    from ..compat.namedtuple import namedtuple
+__all__ = ["MethodTable"]
+
+from collections import namedtuple
 
 from .attributes import AttributeTable
 from ..descriptor import method_descriptor
@@ -42,99 +41,117 @@ _Method = namedtuple("Method", (
 class Method(_Method):
     @property
     def code(self):
-        """Returns the Code attribute, if there is one"""
+        """Returns the Code attribute, if there is one."""
         return self.attributes.find_one(name="Code")
 
     @property
     def is_public(self):
-        return True if self.flags & 0x0001 else False
+        return bool(self.flags & 0x01)
         
     @property
     def is_private(self):
-        return True if self.flags & 0x0002 else False
+        return bool(self.flags & 0x02)
         
     @property
     def is_protected(self):
-        return True if self.flags & 0x0004 else False
+        return bool(self.flags & 0x04)
         
     @property
     def is_static(self):
-        return True if self.flags & 0x0008 else False
+        return bool(self.flags & 0x08)
         
     @property
     def is_final(self):
-        return True if self.flags & 0x0010 else False
+        return bool(self.flags & 0x10)
         
     @property
     def is_synchronized(self):
-        return True if self.flags & 0x0020 else False
+        return bool(self.flags & 0x20)
     
     @property
     def is_bridge(self):
-        return True if self.flags & 0x0040 else False
+        return bool(self.flags & 0x40)
         
     @property
     def is_varargs(self):
-        return True if self.flags & 0x0080 else False
+        return bool(self.flags & 0x80)
         
     @property
     def is_native(self):
-        return True if self.flags & 0x0100 else False
+        return bool(self.flags & 0x100)
         
     @property
     def is_abstract(self):
-        return True if self.flags & 0x0400 else False
+        return bool(self.flags & 0x400)
         
     @property
     def is_strict(self):
-        return True if self.flags & 0x0800 else False
+        return bool(self.flags & 0x800)
         
     @property
     def is_synthetic(self):
-        return True if self.flags & 0x1000 else False
+        return bool(self.flags & 0x1000)
 
 class MethodTable(list):
-    def __init__(self, src, constants):
-        method_len = src(">H")
+    def __init__(self, read, constants):
+        method_length = read(">H")[0]
 
-        while method_len > 0:
-            flags, name_i, desc_i = src(">HHH")
+        tmp = []
+        while method_length:
+            method_length -= 1
+
+            flags, name_i, desc_i = read(">HHH")
             name = constants[name_i]["value"]
             desc = method_descriptor(constants[desc_i]["value"])
 
-            self.append(Method(
+            tmp.append(Method(
                 flags,
                 name_i,
                 desc_i,
-                AttributeTable(src, constants),
+                AttributeTable(read, constants),
                 name,
                 desc[1],
                 desc[0]
             ))
 
-            method_len -= 1
+        self.__store = tmp
 
-    def find(self, name=None, args=None, returns=None):
-        tmp = []
-        for method in self:
+    @property
+    def storage(self):
+        return self.__store
+
+    def find(self, name=None, args=None, returns=None, f=None):
+        ret = []
+        for method in self.storage:
             if name and name != method.name:
                 continue
+
             if args and args != method.args:
                 continue
+
             if returns and returns != method.returns:
                 continue
-            
-            tmp.append(method)
 
-        return tmp
+            if f and not f(method):
+                continue
 
-    def find_one(self, name=None, args=None, returns=None):
-        for method in self:
+            ret.append(method)
+
+        return ret
+
+
+    def find_one(self, name=None, args=None, returns=None, f=None):
+        for method in self.storage:
             if name and name != method.name:
                 continue
+
             if args and args != method.args:
                 continue
+
             if returns and returns != method.returns:
+                continue
+
+            if f and not f(method):
                 continue
 
             return method

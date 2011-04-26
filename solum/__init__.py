@@ -21,4 +21,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
+__all__ = ["jarfile", "classfile", "context"]
 
+from jarfile import JarFile
+from classfile import ClassFile, ClassError, ConstantType
+from context import Context
