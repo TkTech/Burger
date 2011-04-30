@@ -283,153 +283,139 @@ def packed_instruction_size(instruction):
         
     return size
 
-class StreamDisassembler(object):
-    """
-    Disassembles a stream of JVM instructions given any file-like object
-    providing read(). 
-    
-    Note: read() must block until enough data is available, and return only 
-    on EOF or error.
-    """
+class Disassembler(object):
     def __init__(self, source, starting_pos=0):
-        """
-        Parameters:
+        self._cache = []
+        self._usage = {}
 
-        - `source`: any file-like object providing read().
-        - `starting_pos`: the starting offset for instructions.
-        """
-        self.src = source
-        self.pos = starting_pos
-        
-    def unpack(self, format):
-        return struct.unpack(format, self.src.read(struct.calcsize(format)))
-        
-    def read(self):
-        try:
-            ret = self._read()
-        except struct.error:
-            raise IOError("not enough data available or EOF")
+        if hasattr(source, "read"):
+            self._read = self._load_from_stream(source)
+        else:
+            self._read = self._load_from_str(source, starting_pos)
+
+        self._pre_cache()
+
+    def _load_from_stream(self, source):
+        self._src = source
+        self._pos = 0
+
+        def _read(format_):
+            size = struct.calcsize(format_)
+            self._pos += size
+            try:
+                return struct.unpack(format_, self._src.read(size))
+            except struct.error, e:
+                raise IOError(str(e))
+
+        return _read
+
+    def _load_from_str(self, source, starting_pos=0):
+        self._src = source
+        self._pos = starting_pos
+
+        def _read(format_):
+            size = struct.calcsize(format_)
+            try:
+                ret = struct.unpack_from(format_, self._src, self._pos)
+            except struct.error, e:
+                raise IOError(str(e))
+            self._pos += size
+            return ret
             
-        return ret
-        
-    def _read(self):
-        opcode = self.unpack(">B")[0]
-        
+        return _read
+
+    def _pre_cache(self):
+        while self._src:
+            try:
+                ins = self._read_ins()
+            except IOError:
+                return
+
+            if not ins:
+                return
+
+            self._cache.append(ins)
+
+    def _read_ins(self):
+        read = self._read
+        opcode = read(">B")[0]
+
         if opcode not in _op_table:
             raise BytecodeError("unknown opcode 0x%X" % opcode)
-            
+
         instruction = _op_table[opcode]
         name = instruction[0]
         operands = instruction[1]
-        
+
         final_operands = []
         final_wide = False
-        
-        # Instruction has operands (this also means we can short-circuit
-        # the special opcodes )
+
         if operands:
-            for operand in operands:
-                final_operands.append(
-                    Operand(operand[1], self.unpack(operand[0])[0])
-                )
-        # lookupswitch
+            final_operands = [(x[1], read(x[0])[0]) for x in operands]
+        # Lookupswitch
         elif opcode == 0xAB:
-            raise NotImplementedError("lookupswitch")
-        # tableswitch
+            # Read and discard the 4-byte alignment padding
+            padding = 4 - (self._pos % 4)
+            read("%sx" % padding)
+            # The default branch offset, and the number of value/offset pairs
+            default, npairs = read(">ii")
+            final_operands.append((4, default))
+
+            while npairs:
+                final_operands.append((4,) + read(">ii"))
+                npairs -= 1
+
+        # Tableswitch
         elif opcode == 0xAA:
-            # Eat the alignment padding
-            padding = 3 - ((self.pos + 1) % 4)
-            self.unpack(">%sx" % padding)
-            
-            default, low, high = self.unpack(">III")
+            padding = 4 - (self._pos % 4)
+            read("%sx" % padding)
+            default, low, high = read(">iii")
             count = high - low + 1
-            
-            final_operands = [
-                Operand(3, default), 
-                Operand(3, low), 
-                Operand(3, high)
-            ]
-            
-            for jump in range(count):
-                final_operands.append(Operand(4, self.unpack(">i")[0]))
-        # wide
-        elif opcode == 0xC4:
-            pass
-        
-        # Construct and return the final instruction   
-        ins = Instruction(name, opcode, self.pos, final_wide, final_operands)
-        self.pos += packed_instruction_size(ins)
-        return ins
-        
-    def iter_ins(self):
-        while 1:
-            try:
-                yield self.read()
-            except IOError:
-                return
-        
-class StreamAssembler(object):
-    """
-    Assembles a stream of JVM instructions in their Instruction form,
-    writing them to any file-like object providing write().
-    """
-    def __init__(self, fobj, starting_pos=0):
-        self.out = fobj
-        self.pos = starting_pos
-        
-    def write(self, instruction):
-        ins = instruction
-        if not ins.wide and ins.opcode not in (0xAB, 0xAA, 0xC4):
-            # Write the opcode
-            self.out.write(struct.pack(">B", ins.opcode))
-            operands = _op_table[ins.opcode][1]
-            # Write each field
-            if operands:
-                if len(operands) != len(ins.operands):
-                    raise BytecodeError(
-                        "mismatch in number of instruction params")
-                    
-                for pos, operand in enumerate(operands):
-                    self.out.write(struct.pack(operand[0], 
-                        ins.operands[pos].value))
-                        
-        # Variable-length instruction "wide"
-        elif ins.wide:
-            # The "wide" opcode
-            self.out.write(struct.pack(">B", 0xC4))
-            # The "real" opcode
-            self.out.write(struct.pack(">B", ins.opcode))
-            self.out.write(struct.pack(">H", ins.operands[0].value))
-            # "iinc" special case
-            if ins.opcode == 0x84:
-                self.out.write(struct.pack(">H", ins.operands[1].value))
-        
-        # Variable-length instruction "lookupswitch"
-        elif ins.opcode == 0xAB:
-            raise NotImplementedError("lookupswitch")
-            
-        # Variable-length instruction "tableswitch"
-        elif ins.opcode == 0xAA:
-            # Padding to align the bytes so that the next read is 4-byte
-            # aligned.
-            padding = 3 - (self.pos % 4)
-            self.out.write(struct.pack(">%sx" % padding))
-                
-            self.out.write(struct.pack(">III", 
-                ins.operands[0].value,
-                ins.operands[1].value,
-                ins.operands[2].value
-            ))
-            
-            count = ins.operands[2] - ins.operands[1] + 1
-            
-            for jump in range(count):
-                self.out.write(struct.pack(">i", 
-                    ins.operands[3 + jump].vaue
-                ))
-            
+
+            final_operands.append((4, default))
+
+            while count:
+                final_operands.append((4, read(">i")[0]))
+                count -= 1
+
+        # Wide
+        elif opcode == 0xCa:
+            opcode = read(">B")[0]
+            final_operands.append((2, read(">H")[0]))
+            # Special case for iinc
+            if opcode == 0x84:
+                final_operands.append((3, read(">H")[0]))
+
+            final_wide = True
+
+        ins = Instruction(name, opcode, self._pos, final_wide, final_operands)
+        if name not in self._usage:
+            self._usage[name] = 1
         else:
-            raise BytecodeError("unknown opcode 0x{}")
-            
-        self.pos += packed_instruction_size(instruction)
+            self._usage[name] += 1
+
+        return ins
+
+    def __iter__(self):
+        return self.forward()
+
+    def __getitem__(self, index):
+        return self._cache[index]
+
+    def __len__(self):
+        return len(self._cache)
+
+    def forward(self):
+        return self._cache.__iter__()
+
+    def reverse(self):
+        return reversed(self._cache)
+
+    @property
+    def usage(self):
+        """
+        Returns a pre-computed dictionary representing the number
+        of times (the value) each instruction (the key) is present.
+        """
+        return self._usage.copy()
 

@@ -23,10 +23,16 @@ THE SOFTWARE.
 """
 __all__ = ["MethodTable"]
 
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
+
 from collections import namedtuple
 
 from .attributes import AttributeTable
 from ..descriptor import method_descriptor
+from ..bytecode import Disassembler
 
 _Method = namedtuple("Method", (
     "flags",
@@ -43,6 +49,13 @@ class Method(_Method):
     def code(self):
         """Returns the Code attribute, if there is one."""
         return self.attributes.find_one(name="Code")
+
+    @property
+    def instructions(self):
+        if not hasattr(self, "_dism"):
+            self._dism = Disassembler(self.code.code)
+
+        return self._dism
 
     @property
     def is_public(self):
