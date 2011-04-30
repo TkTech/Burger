@@ -62,7 +62,7 @@ class JarFile(ZipFile):
     def __getitem__(self, index):
         return self.zp.read(index)
                 
-    def map_classes(self, f, files=None, parallel=False):
+    def map(self, f, files=None, parallel=False):
         """
         For each file in `files`, call `f`, passing it a string 
         containing the contents of the file. If `parallel` is True,

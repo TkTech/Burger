@@ -60,7 +60,7 @@ class ClassFile(object):
     def _load_from_path(self, source):
         """Attempts to load the ClassFile from the file at `source`."""
         fin = open(source, "rb")
-        self._load_from_file(source)
+        self._load_from_file(fin)
         fin.close()
 
     def _load_from_file(self, source):
