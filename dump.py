@@ -43,6 +43,13 @@ def first_pass(buff):
         # We've found the packet superclass.
         return ("packet_superclass", cf.this)
 
+    # The individual packet classes have a unique signature.
+    pread = cf.methods.find_one(args=("java.io.DataInputStream",))
+    pwrite = cf.methods.find_one(args=("java.io.DataOutputStream",))
+    size = cf.methods.find_one(returns="int", args=())
+
+    if pread and pwrite and size:
+        return ("packet", cf.this)
 
 def main(argv=None):
     if not argv:
