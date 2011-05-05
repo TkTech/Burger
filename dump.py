@@ -112,6 +112,18 @@ def packet_ids(jar, name):
 
     return ret
 
+def notch_lang(contents):
+    contents = contents.split("\n")
+    for line in contents:
+        line = line.strip()
+        if not line:
+            continue
+
+        tag, value = line.split("=", 1)
+        category, name = tag.split(".", 1)
+
+        yield (category, name, value)
+
 def items_pass(jar, name):
     """
     Get as much item information as we can from the constructors
@@ -130,7 +142,7 @@ def items_pass(jar, name):
         # before the next 'new' statement, discard it.
         if ins.name == "new":
             if name and class_name and id_ is not None:
-                ret[id_ + 256] = {
+                ret[name] = {
                     "class": class_name,
                     "id": id_ + 256,
                     "slug": name
@@ -153,6 +165,21 @@ def items_pass(jar, name):
             const = cf.constants[const_i]
             name = const["string"]["value"]
 
+    # Merge the full item names and descriptions
+    en_US = jar["lang/en_US.lang"]
+    for category, name, value in notch_lang(en_US):
+        if category != "item":
+            continue
+
+        real_name = name[:-5]
+        if real_name not in ret:
+            ret[real_name] = {}
+
+        if name.endswith(".desc"):
+            ret[real_name]["desc"] = value
+        else:
+            ret[real_name]["name"] = value
+
     return ret
 
 def stats_US(jar):
@@ -161,27 +188,18 @@ def stats_US(jar):
     """
     ret = dict(stat={}, achievement={})
     # Get the contents of the stats language file
-    sf = jar["lang/stats_US.lang"]
-    sf = sf.split("\n")
-    for line in sf:
-        line = line.strip()
-        if not line:
-            continue
-
-        tag, desc = line.split("=", 1)
-        category, name = tag.split(".", 1)
-
+    stats_US = jar["lang/stats_US.lang"]
+    for category, name, value in notch_lang(stats_US):
         if category == "stat":
-            ret["stat"][name] = desc
-        elif category == "achievement":
+            ret["stat"][name] = value
+        if category == "achievement":
             real_name = name[:-5] if name.endswith(".desc") else name
             if real_name not in ret["achievement"]:
                 ret["achievement"][real_name] = {}
-
             if name.endswith(".desc"):
-                ret["achievement"][real_name]["desc"] = desc
+                ret["achievement"][real_name]["desc"] = value
             else:
-                ret["achievement"][name]["name"] = desc
+                ret["achievement"][name]["name"] = value
 
     return ret
 
