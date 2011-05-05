@@ -77,6 +77,36 @@ def first_pass(buff):
     if const:
         return ("recipe_cloth", cf.this)
 
+def stats_US(jar):
+    """
+    Get's statistics and achievements names and descriptions.
+    """
+    ret = dict(stat={}, achievement={})
+    # Get the contents of the stats language file
+    sf = jar["lang/stats_US.lang"]
+    sf = sf.split("\n")
+    for line in sf:
+        line = line.strip()
+        if not line:
+            continue
+
+        tag, desc = line.split("=", 1)
+        category, name = tag.split(".", 1)
+
+        if category == "stat":
+            ret["stat"][name] = desc
+        elif category == "achievement":
+            real_name = name[:-5] if name.endswith(".desc") else name
+            if real_name not in ret["achievement"]:
+                ret["achievement"][real_name] = {}
+
+            if name.endswith(".desc"):
+                ret["achievement"][real_name]["desc"] = desc
+            else:
+                ret["achievement"][name]["name"] = name
+
+    return ret
+
 def main(argv=None):
     if not argv:
         argv = []
@@ -97,19 +127,19 @@ def main(argv=None):
             output = open(a, "wb")
 
     for i,arg in enumerate(args, 1):
+        out = {}
         if verbose:
             print u"\u2192 Opening %s (%s/%s)..." % (arg, i, len(args))
 
         jar = JarFile(arg)
         mapped = jar.map(first_pass, parallel=True)
-        mapped = filter(lambda f: f, mapped)
+        out["class_map"] = mapped = filter(lambda f: f, mapped)
 
         if verbose:
             print u"  \u21b3 %s matche(s) on first pass" % (len(mapped))
 
-        out = {
-            "class_map": mapped
-        }
+        out.update(stats_US(jar))
+
         json.dump(out, output, sort_keys=True, indent=4)
         output.write("\n")
 
