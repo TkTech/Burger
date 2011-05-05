@@ -31,7 +31,7 @@ try:
 except ImportError:
     _MULTIPROCESSING = False
 
-class JarFile(ZipFile):
+class JarFile(object):
     """
     Implements a loose container around ZipFile to assist with common
     JAR-related tasks, as well as to streamline asynchronous processing
