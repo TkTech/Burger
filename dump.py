@@ -191,6 +191,76 @@ def items_pass(jar, name):
 
     return ret
 
+def blocks_pass(jar, name):
+    """
+    Get data about blocks.
+    """
+
+    cf = ClassFile(jar[name], str_as_buffer=True)
+    static_init = cf.methods.find_one("<clinit>")
+
+    ret = {}
+
+    stack = []
+    current = {}
+
+    it = iter(static_init.instructions)
+
+    while True:
+        ins = next(it)
+        if ins.name == "newarray":
+            break
+    else:
+        # Couldn't find any array constructors, so something's very wrong.
+        # Let's just cut our losses and return.
+        return ret
+
+    number = None
+
+    for ins in it:
+        if ins.name == "new":
+            # Start a new block.
+            stack = []
+            current = {}
+            number = None
+        elif ins.name.startswith("iconst"):
+            stack.append(int(ins.name[-1]))
+        elif ins.name.endswith("ipush"):
+            stack.append(ins.operands[0][1])
+        elif ins.name == "ldc":
+            const_i = ins.operands[0][1]
+            const = cf.constants[const_i]
+            if "name" in const:
+                # It's a class. Weird.
+                stack.append("%s.class" % const["name"]["value"])
+            elif "string" in const:
+                # String constant.
+                stack.append(const["string"]["value"])
+            else:
+                # Numeric constant of some sort.
+                stack.append(const["value"])
+        elif ins.name.startswith("invoke"):
+            const_i = ins.operands[0][1]
+            const = cf.constants[const_i]
+            field_name = const["name_and_type"]["name"]["value"]
+            if not stack:
+                current[field_name] = True
+            elif len(stack) == 1:
+                current[field_name] = stack[0]
+            else:
+                current[field_name] = stack
+            if field_name == "<init>" and stack:
+                number = stack[0]
+            stack = []
+        elif ins.name == "putstatic":
+            const_i = ins.operands[0][1]
+            const = cf.constants[const_i]
+            field_name = const["name_and_type"]["name"]["value"]
+            current["field"] = field_name
+            ret[number] = current
+
+    return ret
+
 def stats_US(jar):
     """
     Get's statistic and achievement name's and description's.
@@ -247,6 +317,9 @@ def main(argv=None):
             elif type_ == "item_superclass":
                 # Get the basic item constructors
                 out["items"] = items_pass(jar, "%s.class" % name)
+            elif type_ == "block_superclass":
+                # Retrieve block information
+                out["blocks"] = blocks_pass(jar, "%s.class" % name)
 
         json.dump(out, output, sort_keys=True, indent=4)
         output.write("\n")
