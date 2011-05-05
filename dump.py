@@ -2,7 +2,6 @@
 # -*- coding: utf8 -*-
 import sys
 import getopt
-import pprint
 import json
 
 from solum import JarFile, ClassFile, ConstantType
@@ -103,13 +102,17 @@ def packet_ids(jar, name):
             server = stack.pop()
             id_ = stack.pop()
 
-            ret[name] = {"id": id_, "from_client": bool(client), "from_server": bool(server)}
+            ret[name] = {
+                "id": id_, 
+                "from_client": bool(client), 
+                "from_server": bool(server)
+            }
 
     return ret
 
 def stats_US(jar):
     """
-    Get's statistics and achievements names and descriptions.
+    Get's statistic and achievement name's and description's.
     """
     ret = dict(stat={}, achievement={})
     # Get the contents of the stats language file
@@ -141,19 +144,16 @@ def main(argv=None):
     if not argv:
         argv = []
 
-    verbose = False
     output = sys.stdout
 
     try:
-        opts, args = getopt.gnu_getopt(argv, "o:v", ["output="])
+        opts, args = getopt.gnu_getopt(argv, "o:", ["output="])
     except getopt.GetoptError, err:
         print str(err)
         sys.exit(1)
 
     for o, a in opts:
-        if o == "-v":
-            verbose = True
-        elif o in ("-o", "--output"):
+        if o in ("-o", "--output"):
             output = open(a, "wb")
 
     for i,arg in enumerate(args, 1):
@@ -163,13 +163,13 @@ def main(argv=None):
         # The first pass aims to map as much as we can immediately, so we
         # what is where without having to do constant iterations.
         mapped = jar.map(first_pass, parallel=True)
-        out["class_map"] = mapped = filter(lambda f: f, mapped)
+        mapped = filter(lambda f: f, mapped)
 
         # Get the statistics and achievement text
         out.update(stats_US(jar))
 
         # Get the packet ID's (if we know where the superclass is)
-        for type_, name in out["class_map"]:
+        for type_, name in mapped:
             if type_ == "packet_superclass":
                 out["packets"] = packet_ids(jar, "%s.class" % name)
                 break
