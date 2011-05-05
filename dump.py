@@ -68,6 +68,15 @@ def first_pass(buff):
     if const:
         return ("recipe_cloth", cf.this)
 
+    # Item superclass
+    const = cf.constants.find_one(
+       ConstantType.STRING,
+       lambda c: "crafting results" in c["string"]["value"]
+    )
+
+    if const:
+        return ("item_superclass", cf.this)
+
 def packet_ids(jar, name):
     """
     Get all of the packet ID's for each class.
@@ -99,6 +108,49 @@ def packet_ids(jar, name):
                 "from_client": bool(client), 
                 "from_server": bool(server)
             }
+
+    return ret
+
+def items_pass(jar, name):
+    """
+    Get as much item information as we can from the constructors
+    """
+    cf = ClassFile(jar[name], str_as_buffer=True)
+
+    ret = {}
+    static_init = cf.methods.find_one(name="<clinit>")
+
+    class_name = None
+    name = None
+    id_ = None
+
+    for ins in static_init.instructions:
+        # Note, if we don't have at least 3 static function calls
+        # before the next 'new' statement, discard it.
+        if ins.name == "new":
+            if name and class_name and id_ is not None:
+                ret[name] = {
+                    "class": class_name,
+                    "id": id_ + 256,
+                    "slug": name
+                }
+
+            const_i = ins.operands[0][1]
+            const = cf.constants[const_i]
+            class_name = const["name"]["value"]
+
+            id_ = None
+            name = None
+        elif ins.name.startswith("iconst"):
+            if id_ is None:
+                id_ = int(ins.name[-1])
+        elif ins.name.endswith("ipush"):
+            if id_ is None:
+                id_ = ins.operands[0][1]
+        elif ins.name == "ldc":
+            const_i = ins.operands[0][1]
+            const = cf.constants[const_i]
+            name = const["string"]["value"]
 
     return ret
 
@@ -160,11 +212,13 @@ def main(argv=None):
         # Get the statistics and achievement text
         out.update(stats_US(jar))
 
-        # Get the packet ID's (if we know where the superclass is)
         for type_, name in mapped:
             if type_ == "packet_superclass":
+                # Get the packet ID's (if we know where the superclass is)
                 out["packets"] = packet_ids(jar, "%s.class" % name)
-                break
+            elif type_ == "item_superclass":
+                # Get the basic item constructors
+                out["items"] = items_pass(jar, "%s.class" % name)
 
         json.dump(out, output, sort_keys=True, indent=4)
         output.write("\n")
