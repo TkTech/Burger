@@ -51,6 +51,34 @@ def first_pass(buff):
     if pread and pwrite and size:
         return ("packet", cf.this)
 
+    # The main recipe superclass.
+    const = cf.constants.find_one(
+        ConstantType.STRING,
+        lambda c: "X#X" in c["string"]["value"]
+    )
+
+    if const:
+        return ("recipe_superclass", cf.this)
+
+    # First of 2 auxilary recipe classes. Appears to be items with
+    # inventory, + sandstone.
+    const = cf.constants.find_one(
+        ConstantType.STRING,
+        lambda c: c["string"]["value"] == "# #"
+    )
+
+    if const:
+        return ("recipe_inventory", cf.this)
+
+    # Second auxilary recipe class. Appears to be coloured cloth?
+    const = cf.constants.find_one(
+        ConstantType.STRING,
+        lambda c: c["string"]["value"] == "###"
+    )
+
+    if const:
+        return ("recipe_cloth", cf.this)
+
 def main(argv=None):
     if not argv:
         argv = []
