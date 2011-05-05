@@ -103,8 +103,9 @@ def packet_ids(jar, name):
             server = stack.pop()
             id_ = stack.pop()
 
-            ret[name] = {
+            ret[id_] = {
                 "id": id_, 
+                "class": name,
                 "from_client": bool(client), 
                 "from_server": bool(server)
             }
@@ -129,7 +130,7 @@ def items_pass(jar, name):
         # before the next 'new' statement, discard it.
         if ins.name == "new":
             if name and class_name and id_ is not None:
-                ret[name] = {
+                ret[id_ + 256] = {
                     "class": class_name,
                     "id": id_ + 256,
                     "slug": name
