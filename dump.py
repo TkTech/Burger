@@ -77,6 +77,36 @@ def first_pass(buff):
     if const:
         return ("recipe_cloth", cf.this)
 
+def packet_ids(jar, name):
+    """
+    Get all of the packet ID's for each class.
+    """
+    cf = ClassFile(jar[name], str_as_buffer=True)
+    
+    ret = {}
+    stack = []
+    static_init = cf.methods.find_one(name="<clinit>")
+
+    for ins in static_init.instructions:
+        # iconst_N (-1 => 5) push N onto the stack
+        if ins.name.startswith("iconst"):
+            stack.append(int(ins.name[-1]))
+        # [bs]ipush push a byte or short (respectively) onto the stack
+        elif ins.name.endswith("ipush"):
+            stack.append(ins.operands[0][1])
+        elif ins.name == "ldc":
+            const_i = ins.operands[0][1]
+            const = cf.constants[const_i]
+            name = const["name"]["value"]
+
+            client = stack.pop()
+            server = stack.pop()
+            id_ = stack.pop()
+
+            ret[name] = {"id": id_, "from_client": bool(client), "from_server": bool(server)}
+
+    return ret
+
 def stats_US(jar):
     """
     Get's statistics and achievements names and descriptions.
@@ -103,7 +133,7 @@ def stats_US(jar):
             if name.endswith(".desc"):
                 ret["achievement"][real_name]["desc"] = desc
             else:
-                ret["achievement"][name]["name"] = name
+                ret["achievement"][name]["name"] = desc
 
     return ret
 
@@ -128,17 +158,21 @@ def main(argv=None):
 
     for i,arg in enumerate(args, 1):
         out = {}
-        if verbose:
-            print u"\u2192 Opening %s (%s/%s)..." % (arg, i, len(args))
-
         jar = JarFile(arg)
+
+        # The first pass aims to map as much as we can immediately, so we
+        # what is where without having to do constant iterations.
         mapped = jar.map(first_pass, parallel=True)
         out["class_map"] = mapped = filter(lambda f: f, mapped)
 
-        if verbose:
-            print u"  \u21b3 %s matche(s) on first pass" % (len(mapped))
-
+        # Get the statistics and achievement text
         out.update(stats_US(jar))
+
+        # Get the packet ID's (if we know where the superclass is)
+        for type_, name in out["class_map"]:
+            if type_ == "packet_superclass":
+                out["packets"] = packet_ids(jar, "%s.class" % name)
+                break
 
         json.dump(out, output, sort_keys=True, indent=4)
         output.write("\n")
