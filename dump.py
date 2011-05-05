@@ -3,11 +3,9 @@
 import sys
 import getopt
 import pprint
+import json
 
 from solum import JarFile, ClassFile, ConstantType
-
-VERBOSE = False
-OUTPUT = sys.stdout
 
 def first_pass(buff):
     """
@@ -83,17 +81,40 @@ def main(argv=None):
     if not argv:
         argv = []
 
+    verbose = False
+    output = sys.stdout
+
     try:
-        opts, args = getopt.getopt(argv, "ho:v", ["help", "output="])
+        opts, args = getopt.gnu_getopt(argv, "o:v", ["output="])
     except getopt.GetoptError, err:
         print str(err)
         sys.exit(1)
 
-    for arg in args:
+    for o, a in opts:
+        if o == "-v":
+            verbose = True
+        elif o in ("-o", "--output"):
+            output = open(a, "wb")
+
+    for i,arg in enumerate(args, 1):
+        if verbose:
+            print u"\u2192 Opening %s (%s/%s)..." % (arg, i, len(args))
+
         jar = JarFile(arg)
         mapped = jar.map(first_pass, parallel=True)
         mapped = filter(lambda f: f, mapped)
-        pprint.pprint(mapped)
+
+        if verbose:
+            print u"  \u21b3 %s matche(s) on first pass" % (len(mapped))
+
+        out = {
+            "class_map": mapped
+        }
+        json.dump(out, output, sort_keys=True, indent=4)
+        output.write("\n")
+
+    if output is not sys.stdout:
+        output.close()
 
 if __name__ == "__main__":
     main(sys.argv[1:])
