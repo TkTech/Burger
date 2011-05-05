@@ -136,16 +136,18 @@ def items_pass(jar, name):
     class_name = None
     name = None
     id_ = None
+    field = None
 
     for ins in static_init.instructions:
         # Note, if we don't have at least 3 static function calls
         # before the next 'new' statement, discard it.
         if ins.name == "new":
-            if name and class_name and id_ is not None:
+            if name and class_name and id_ is not None and field:
                 ret[name] = {
                     "class": class_name,
                     "id": id_ + 256,
-                    "slug": name
+                    "slug": name,
+                    "assigned_to_field": field
                 }
 
             const_i = ins.operands[0][1]
@@ -154,6 +156,7 @@ def items_pass(jar, name):
 
             id_ = None
             name = None
+            field = None
         elif ins.name.startswith("iconst"):
             if id_ is None:
                 id_ = int(ins.name[-1])
@@ -164,6 +167,12 @@ def items_pass(jar, name):
             const_i = ins.operands[0][1]
             const = cf.constants[const_i]
             name = const["string"]["value"]
+        elif ins.name == "putstatic":
+            const_i = ins.operands[0][1]
+            const = cf.constants[const_i]
+            field_name = const["name_and_type"]["name"]["value"]
+
+            field = field_name
 
     # Merge the full item names and descriptions
     en_US = jar["lang/en_US.lang"]
