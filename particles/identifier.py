@@ -109,7 +109,7 @@ class IdentifierParticle(Particle):
     DEPENDS = []
 
     @staticmethod
-    def act(aggregate, jar):
+    def act(aggregate, jar, verbose=False):
         mapped = jar.map(identify, parallel=True)
         mapped = filter(lambda f: f, mapped)
         classes = aggregate.setdefault("classes", {})

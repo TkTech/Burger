@@ -26,7 +26,7 @@ class Particle(object):
     DEPENDS = None
 
     @staticmethod
-    def act(aggregate, jar):
+    def act(aggregate, jar, verbose=False):
         raise NotImplementedError()
 
     @staticmethod

@@ -26,7 +26,7 @@ import sys
 import getopt
 import json
 
-from collections import deque, defaultdict
+from collections import deque
 
 from solum import JarFile
 
@@ -58,8 +58,12 @@ if __name__ == "__main__":
     try:
         opts, args = getopt.gnu_getopt(
             sys.argv[1:],
-            "p:o:",
-            ["particles=", "output="]
+            "p:o:v",
+            [
+                "particles=",
+                "output=", 
+                "verbose"
+            ]
         )
     except getopt.GetoptError, err:
         print str(err)
@@ -68,12 +72,15 @@ if __name__ == "__main__":
     # Default options
     particles = None
     output = sys.stdout
+    verbose = False
 
     for o, a in opts:
         if o in ("-p", "--particles"):
             particles = a.split(",")
         elif o in ("-o", "--output"):
             output = open(a, "ab")
+        elif o in ("-v", "--verbose"):
+            verbose = True
     
     # Load all the particles we want
     loaded_particles = import_particles(particles)
@@ -99,11 +106,11 @@ if __name__ == "__main__":
         to_be_run.appendleft(particle_provides[dk])
 
     for arg in args:
-        aggregate = defaultdict(dict)
+        aggregate = {}
         jar = JarFile(arg)
 
         for particle in to_be_run:
-            particle.act(aggregate, jar)
+            particle.act(aggregate, jar, verbose)
 
         json.dump(aggregate, output, sort_keys=True, indent=4)
         output.write("\n")

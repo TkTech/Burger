@@ -40,15 +40,13 @@ class LanguageParticle(Particle):
     DEPENDS = []
 
     @staticmethod
-    def act(aggregate, jar):
-        def load_lang(contents):
-            for category, name, value in Particle.parse_lang(contents):
-                if category not in aggregate["lang"]:
-                    aggregate["lang"][category] = {}
-
-                aggregate["lang"][category][name] = value
-
+    def act(aggregate, jar, verbose=False):
         aggregate["lang"] = {}
-        load_lang(jar["lang/stats_US.lang"])
-        load_lang(jar["lang/en_US.lang"])
+        LanguageParticle.load_language(aggregate, jar["lang/stats_US.lang"])
+        LanguageParticle.load_language(aggregate, jar["lang/en_US.lang"])
 
+    @staticmethod
+    def load_language(aggregate, contents):
+        for category, name, value in Particle.parse_lang(contents):
+            cat = aggregate["lang"].setdefault(category, {})
+            cat[name] = value

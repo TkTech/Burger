@@ -36,7 +36,7 @@ class StatsParticle(Particle):
     ]
 
     @staticmethod
-    def act(aggregate, jar):
+    def act(aggregate, jar, verbose=False):
         stat_lang = aggregate["lang"]["stat"]
         stats = aggregate.setdefault("stats", {})
 
