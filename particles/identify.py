@@ -96,14 +96,14 @@ def identify(buff):
     if const:
         return ("item.superclass", cf.this)    
 
-class IdentifierParticle(Particle):
+class IdentifyParticle(Particle):
     PROVIDES = [
-        "block.superclass",
-        "packet.superclass",
-        "recipe.superclass",
-        "recipe.inventory",
-        "recipe.cloth",
-        "item.superclass"
+        "identify.block.superclass",
+        "identify.packet.superclass",
+        "identify.recipe.superclass",
+        "identify.recipe.inventory",
+        "identify.recipe.cloth",
+        "identify.item.superclass"
     ]
 
     DEPENDS = []

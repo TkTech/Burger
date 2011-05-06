@@ -32,21 +32,21 @@ class LanguageParticle(Particle):
     """
 
     PROVIDES = [
-        "lang.stats",
-        "lang.achievements",
-        "lang.gui"
+        "language.stats",
+        "language.achievements",
+        "language.gui"
     ]
 
     DEPENDS = []
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
-        aggregate["lang"] = {}
+        aggregate["language"] = {}
         LanguageParticle.load_language(aggregate, jar["lang/stats_US.lang"])
         LanguageParticle.load_language(aggregate, jar["lang/en_US.lang"])
 
     @staticmethod
     def load_language(aggregate, contents):
         for category, name, value in Particle.parse_lang(contents):
-            cat = aggregate["lang"].setdefault(category, {})
+            cat = aggregate["language"].setdefault(category, {})
             cat[name] = value

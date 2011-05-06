@@ -25,26 +25,25 @@ from .particle import Particle
 
 class StatsParticle(Particle):
     PROVIDES = [
-        "stats.name",
-        "achievement.name",
-        "achievement.desc"
+        "stats.statistics",
+        "stats.achievements"
     ]
 
     DEPENDS = [
-        "lang.stats",
-        "lang.achievements"
+        "language.stats",
+        "language.achievements"
     ]
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
-        stat_lang = aggregate["lang"]["stat"]
+        stat_lang = aggregate["language"]["stat"]
         stats = aggregate.setdefault("stats", {})
 
         for sk, sv in stat_lang.iteritems():
             item = stats.setdefault(sk, {})
             item["desc"] = sv
 
-        achievement_lang = aggregate["lang"]["achievement"]
+        achievement_lang = aggregate["language"]["achievement"]
         achievements = aggregate.setdefault("achievements", {})
 
         for ak, av in achievement_lang.iteritems():
