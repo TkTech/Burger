@@ -47,6 +47,7 @@ class PacketsParticle(Particle):
         stack = []
 
         packets = aggregate.setdefault("packets", {})
+        packet = packets.setdefault("packet", {})
 
         for ins in method.instructions:
             # Pushes an integer constant onto the stack
@@ -65,10 +66,13 @@ class PacketsParticle(Particle):
                 server = stack.pop()
                 id_ = stack.pop()
 
-                packets[id_] = {
+                packet[id_] = {
                     "id": id_,
                     "class": name,
                     "from_client": bool(client),
                     "from_server": bool(server)
                 }
+
+        info = packets.setdefault("info", {})
+        info["count"] = len(packet)
 
