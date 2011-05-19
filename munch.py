@@ -64,7 +64,7 @@ if __name__ == "__main__":
     try:
         opts, args = getopt.gnu_getopt(
             sys.argv[1:],
-            "p:o:vu:p:dl",
+            "t:o:vu:p:dl",
             [
                 "toppings=",
                 "output=",
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     list_toppings = False
 
     for o, a in opts:
-        if o in ("-p", "--toppings"):
+        if o in ("-t", "--toppings"):
             toppings = a.split(",")
         elif o in ("-o", "--output"):
             output = open(a, "ab")
