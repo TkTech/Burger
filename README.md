@@ -10,7 +10,7 @@ a few specifically. Each topping is then aggregated by
 `munch.py` into the whole and output as a JSON dictionary.
 
 ## Usage
-The simplest way to use Burger is to pass the -d or --download
+The simplest way to use Burger is to pass the `-d` or `--download`
 flag, which will download the minecraft client for you.
 
     $ python munch.py --download
@@ -25,12 +25,12 @@ We can redirect the output from the default `stdout` by passing
     
     $ python munch.py -d --output output.json
 
-We can see what toppings are available by passing -l or --list.
+We can see what toppings are available by passing `-l` or `--list`.
 
     $ python munch.py --list
 
 We can also run specific toppings by passing a comma-delimited list
-to -t or --toppings. If a topping cannot be used because it's
+to `-t` or `--toppings`. If a topping cannot be used because it's
 missing a dependency, it will output an error telling you what 
 also needs to be included.
 
