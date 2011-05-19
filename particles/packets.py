@@ -25,6 +25,7 @@ from solum import ClassFile, ConstantType
 
 from .particle import Particle
 
+
 class PacketsParticle(Particle):
     PROVIDES = [
         "packets.ids",
@@ -75,4 +76,3 @@ class PacketsParticle(Particle):
 
         info = packets.setdefault("info", {})
         info["count"] = len(packet)
-
