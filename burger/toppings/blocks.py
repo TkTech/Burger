@@ -81,6 +81,8 @@ class BlocksTopping(Topping):
                 }
             elif ins.name.startswith("iconst"):
                 stack.append(int(ins.name[-1]))
+            elif ins.name.startswith("fconst"):
+                stack.append(float(ins.name[-1]))
             elif ins.name.endswith("ipush"):
                 stack.append(ins.operands[0][1])
             elif ins.name == "ldc":
@@ -121,12 +123,26 @@ class BlocksTopping(Topping):
         # to make sense of what it all means. So,
         #   1. Find the function that returns 'this' and accepts a string.
         #      This is the name setting function.
-        #   2. The first parameter of a blocks <init> function will/should
+        #   2. Find the function that returns 'this' and accepts a float.
+        #      This is the function that sets the hardness.
+        #   3. The first parameter of a blocks <init> function will/should
         #      be the block's data ID.
         name_setter = cf.methods.find_one(
             returns=superclass,
             args=("java.lang.String",)
         ).name
+
+        hardness_setters = cf.methods.find(
+            returns=superclass,
+            args=("float",),
+            f=lambda x: x.is_protected
+        )
+
+        for method in hardness_setters:
+            for ins in method.instructions:
+                if ins.name == "ifge":
+                    hardness_setter = method.name
+                    break
 
         for blk in tmp:
             final = {}
@@ -143,6 +159,11 @@ class BlocksTopping(Topping):
                 # which is a special item with many ID's. Not much
                 # we can do here.
                 continue
+
+            if hardness_setter not in blk["calls"]:
+                final["hardness"] = 0.00
+            else:
+                final["hardness"] = blk["calls"][hardness_setter][0]
 
             final["id"] = init[0]
             final["field"] = blk["assigned_to_field"]
