@@ -21,25 +21,32 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-class Particle(object):
-    PROVIDES = None
-    DEPENDS = None
+from .topping import Topping
+
+class LanguageTopping(Topping):
+    """Provides the contents of the English language files.
+
+    Looks into the contents of en_US.lang and stats_US.lang,
+    returning their contents as a list of tuples in the form
+    (category, name, value).
+    """
+
+    PROVIDES = [
+        "language.stats",
+        "language.achievements",
+        "language.gui"
+    ]
+
+    DEPENDS = []
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
-        raise NotImplementedError()
+        aggregate["language"] = {}
+        LanguageTopping.load_language(aggregate, jar["lang/stats_US.lang"])
+        LanguageTopping.load_language(aggregate, jar["lang/en_US.lang"])
 
     @staticmethod
-    def parse_lang(contents):
-        contents = contents.split("\n")
-        for line in contents:
-            line = line.strip()
-            if not line:
-                continue
-
-            tag, value = line.split("=", 1)
-            category, name = tag.split(".", 1)
-
-            yield (category, name, value)
-    
-
+    def load_language(aggregate, contents):
+        for category, name, value in Topping.parse_lang(contents):
+            cat = aggregate["language"].setdefault(category, {})
+            cat[name] = value

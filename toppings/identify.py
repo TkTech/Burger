@@ -23,7 +23,7 @@ THE SOFTWARE.
 """
 from solum import ClassFile, ConstantType
 
-from .particle import Particle
+from .topping import Topping
 
 def identify(buff):
     """
@@ -96,7 +96,7 @@ def identify(buff):
     if const:
         return ("item.superclass", cf.this)    
 
-class IdentifyParticle(Particle):
+class IdentifyTopping(Topping):
     PROVIDES = [
         "identify.block.superclass",
         "identify.packet.superclass",

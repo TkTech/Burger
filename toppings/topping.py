@@ -21,36 +21,25 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-from .particle import Particle
-
-class StatsParticle(Particle):
-    PROVIDES = [
-        "stats.statistics",
-        "stats.achievements"
-    ]
-
-    DEPENDS = [
-        "language.stats",
-        "language.achievements"
-    ]
+class Topping(object):
+    PROVIDES = None
+    DEPENDS = None
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
-        stat_lang = aggregate["language"]["stat"]
-        stats = aggregate.setdefault("stats", {})
+        raise NotImplementedError()
 
-        for sk, sv in stat_lang.iteritems():
-            item = stats.setdefault(sk, {})
-            item["desc"] = sv
+    @staticmethod
+    def parse_lang(contents):
+        contents = contents.split("\n")
+        for line in contents:
+            line = line.strip()
+            if not line:
+                continue
 
-        achievement_lang = aggregate["language"]["achievement"]
-        achievements = aggregate.setdefault("achievements", {})
+            tag, value = line.split("=", 1)
+            category, name = tag.split(".", 1)
 
-        for ak, av in achievement_lang.iteritems():
-            real_name = ak[:-5] if ak.endswith(".desc") else ak
-            item = achievements.setdefault(real_name, {})
-            if ak.endswith(".desc"):
-                item["desc"] = av
-            else:
-                item["name"] = av
+            yield (category, name, value)
+    
 

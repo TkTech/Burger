@@ -30,29 +30,29 @@ from collections import deque
 
 from solum import JarFile
 
-def import_particles(particles=None):
-    """Loads subclasses of Particle.
+def import_toppings(toppings=None):
+    """Loads subclasses of Topping.
 
-    :param particles: An optional list of particles to load.
-    :type particles: list.
+    :param toppings: An optional list of toppings to load.
+    :type toppings: list.
     :returns: list -- found subclasses.
     """
     this_dir = os.path.dirname(__file__)
-    particles_dir = os.path.join(this_dir, "particles")
-    from_list = ["particle"]
+    toppings_dir = os.path.join(this_dir, "toppings")
+    from_list = ["topping"]
 
-    if particles is not None:
-        from_list.extend(particles)
+    if toppings is not None:
+        from_list.extend(toppings)
     else:
-        for root, dirs, files in os.walk(particles_dir):
+        for root, dirs, files in os.walk(toppings_dir):
             for file_ in files:
                 if not file_.endswith(".py") or file_.startswith("__"):
                     continue
 
                 from_list.append(file_[:-3])
 
-    imports = __import__("particles", fromlist=from_list)
-    return imports.particle.Particle.__subclasses__()
+    imports = __import__("toppings", fromlist=from_list)
+    return imports.topping.Topping.__subclasses__()
 
 if __name__ == "__main__":
     try:
@@ -60,7 +60,7 @@ if __name__ == "__main__":
             sys.argv[1:],
             "p:o:v",
             [
-                "particles=",
+                "toppings=",
                 "output=", 
                 "verbose"
             ]
@@ -70,47 +70,47 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # Default options
-    particles = None
+    toppings = None
     output = sys.stdout
     verbose = False
 
     for o, a in opts:
-        if o in ("-p", "--particles"):
-            particles = a.split(",")
+        if o in ("-p", "--toppings"):
+            toppings = a.split(",")
         elif o in ("-o", "--output"):
             output = open(a, "ab")
         elif o in ("-v", "--verbose"):
             verbose = True
     
-    # Load all the particles we want
-    loaded_particles = import_particles(particles)
+    # Load all the toppings we want
+    loaded_toppings = import_toppings(toppings)
 
     # Builds the dependency dictionary so we can order
-    # particle execution.
-    particle_provides = {}
-    particle_depends = {}
-    for particle in loaded_particles:
-        for provided in particle.PROVIDES:
-            particle_provides[provided] = particle
+    # topping execution.
+    topping_provides = {}
+    topping_depends = {}
+    for topping in loaded_toppings:
+        for provided in topping.PROVIDES:
+            topping_provides[provided] = topping
 
-        for depends in particle.DEPENDS:
-            particle_depends[depends] = particle
+        for depends in topping.DEPENDS:
+            topping_depends[depends] = topping
 
-    to_be_run = deque(loaded_particles)
-    for dk, dv in particle_depends.iteritems():
-        if dk not in particle_provides:
+    to_be_run = deque(loaded_toppings)
+    for dk, dv in topping_depends.iteritems():
+        if dk not in topping_provides:
             print "(%s) requires (%s)" % (dv, dk)
             sys.exit(1)
 
-        to_be_run.remove(particle_provides[dk])
-        to_be_run.appendleft(particle_provides[dk])
+        to_be_run.remove(topping_provides[dk])
+        to_be_run.appendleft(topping_provides[dk])
 
     for arg in args:
         aggregate = {}
         jar = JarFile(arg)
 
-        for particle in to_be_run:
-            particle.act(aggregate, jar, verbose)
+        for topping in to_be_run:
+            topping.act(aggregate, jar, verbose)
 
         json.dump(aggregate, output, sort_keys=True, indent=4)
         output.write("\n")

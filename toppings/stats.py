@@ -21,32 +21,36 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-from .particle import Particle
+from .topping import Topping
 
-class LanguageParticle(Particle):
-    """Provides the contents of the English language files.
-
-    Looks into the contents of en_US.lang and stats_US.lang,
-    returning their contents as a list of tuples in the form
-    (category, name, value).
-    """
-
+class StatsTopping(Topping):
     PROVIDES = [
-        "language.stats",
-        "language.achievements",
-        "language.gui"
+        "stats.statistics",
+        "stats.achievements"
     ]
 
-    DEPENDS = []
+    DEPENDS = [
+        "language.stats",
+        "language.achievements"
+    ]
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
-        aggregate["language"] = {}
-        LanguageParticle.load_language(aggregate, jar["lang/stats_US.lang"])
-        LanguageParticle.load_language(aggregate, jar["lang/en_US.lang"])
+        stat_lang = aggregate["language"]["stat"]
+        stats = aggregate.setdefault("stats", {})
 
-    @staticmethod
-    def load_language(aggregate, contents):
-        for category, name, value in Particle.parse_lang(contents):
-            cat = aggregate["language"].setdefault(category, {})
-            cat[name] = value
+        for sk, sv in stat_lang.iteritems():
+            item = stats.setdefault(sk, {})
+            item["desc"] = sv
+
+        achievement_lang = aggregate["language"]["achievement"]
+        achievements = aggregate.setdefault("achievements", {})
+
+        for ak, av in achievement_lang.iteritems():
+            real_name = ak[:-5] if ak.endswith(".desc") else ak
+            item = achievements.setdefault(real_name, {})
+            if ak.endswith(".desc"):
+                item["desc"] = av
+            else:
+                item["name"] = av
+

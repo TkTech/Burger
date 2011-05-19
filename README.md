@@ -4,9 +4,9 @@ from the minecraft game for the purpose of writing the protocol
 specification, interoperability, and other neat uses.
 
 ## The Idea
-Burger is made up of *particles*, which can provide and satisfy
+Burger is made up of *toppings*, which can provide and satisfy
 simple dependencies, and which can be run all-together or just
-a few specifically. Each particle is then aggregated by
+a few specifically. Each topping is then aggregated by
 `aggregate.py` into the whole and output as a JSON dictionary.
 
 ## Usage
@@ -20,7 +20,7 @@ We can redirect the output from the default `stdout` by passing
     
     $ python aggregate.py minecraft_server.jar -o output.json
 
-We can also run specific particles (assuming you also specify all
+We can also run specific toppings (assuming you also specify all
 the required dependencies) by passing a comma-delimited list.
 
     $ python aggregate.py minecraft_server.jar -p language,stats

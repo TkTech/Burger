@@ -23,10 +23,10 @@ THE SOFTWARE.
 """
 from solum import ClassFile, ConstantType
 
-from .particle import Particle
+from .topping import Topping
 
 
-class BlocksParticle(Particle):
+class BlocksTopping(Topping):
     PROVIDES = [
         "blocks"
     ]
