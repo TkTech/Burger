@@ -149,3 +149,8 @@ class BlocksParticle(Particle):
             final["class"] = blk["class"]
 
             block[final["id"]] = final
+
+        blocks["info"] = {
+            "count": len(block),
+            "real_count": len(tmp)
+        }
