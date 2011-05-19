@@ -25,44 +25,54 @@ import os
 import sys
 import getopt
 import json
+import getpass
 
 from collections import deque
 
 from solum import JarFile
 
-def import_toppings(toppings=None):
-    """Loads subclasses of Topping.
+from burger.website import Website
 
-    :param toppings: An optional list of toppings to load.
-    :type toppings: list.
-    :returns: list -- found subclasses.
+
+def import_toppings(toppings=None):
+    """
+    Attempts to imports either a list of toppings or, if none were
+    given, attempts to load all available toppings.
     """
     this_dir = os.path.dirname(__file__)
-    toppings_dir = os.path.join(this_dir, "toppings")
+    toppings_dir = os.path.join(this_dir, "burger", "toppings")
     from_list = ["topping"]
 
     if toppings is not None:
         from_list.extend(toppings)
     else:
+        # If we weren't given a list of toppings to load,
+        # traverse the toppings directory and import everything.
         for root, dirs, files in os.walk(toppings_dir):
             for file_ in files:
-                if not file_.endswith(".py") or file_.startswith("__"):
+                if not file_.endswith(".py"):
+                    continue
+                elif file_.startswith("__"):
                     continue
 
                 from_list.append(file_[:-3])
 
-    imports = __import__("toppings", fromlist=from_list)
+    imports = __import__("burger.toppings", fromlist=from_list)
     return imports.topping.Topping.__subclasses__()
 
 if __name__ == "__main__":
     try:
         opts, args = getopt.gnu_getopt(
             sys.argv[1:],
-            "p:o:v",
+            "p:o:vu:p:dl",
             [
                 "toppings=",
-                "output=", 
-                "verbose"
+                "output=",
+                "verbose",
+                "username=",
+                "password=",
+                "download",
+                "list"
             ]
         )
     except getopt.GetoptError, err:
@@ -73,6 +83,10 @@ if __name__ == "__main__":
     toppings = None
     output = sys.stdout
     verbose = False
+    username = None
+    password = None
+    download_fresh_jar = False
+    list_toppings = False
 
     for o, a in opts:
         if o in ("-p", "--toppings"):
@@ -81,9 +95,26 @@ if __name__ == "__main__":
             output = open(a, "ab")
         elif o in ("-v", "--verbose"):
             verbose = True
-    
+        elif o in ("-u", "--username"):
+            username = a
+        elif o in ("-p", "--password"):
+            password = a
+        elif o in ("-d", "--download"):
+            download_fresh_jar = True
+        elif o in ("-l", "--list"):
+            list_toppings = True
+
     # Load all the toppings we want
     loaded_toppings = import_toppings(toppings)
+
+    # List all of the available toppings,
+    # as well as their docstring if available.
+    if list_toppings:
+        for topping in loaded_toppings:
+            print topping
+            if topping.__doc__:
+                print " -- %s" % topping.__doc__
+        sys.exit(0)
 
     # Builds the dependency dictionary so we can order
     # topping execution.
@@ -96,6 +127,11 @@ if __name__ == "__main__":
         for depends in topping.DEPENDS:
             topping_depends[depends] = topping
 
+    # We use a really stupid/simple approach to order
+    # execution of toppings. Care must be taking not
+    # to introduce circular dependencies or Cuthulu
+    # will open the bowls of the earth and ravage
+    # whoever committed the offending topping.
     to_be_run = deque(loaded_toppings)
     for dk, dv in topping_depends.iteritems():
         if dk not in topping_provides:
@@ -105,12 +141,30 @@ if __name__ == "__main__":
         to_be_run.remove(topping_provides[dk])
         to_be_run.appendleft(topping_provides[dk])
 
-    for arg in args:
+    jarlist = args
+
+    # Should we download a new copy of the JAR directly
+    # from minecraft.net?
+    if download_fresh_jar:
+        def reporthook(chunks, chunksize, total):
+            percent = float(chunks) * float(chunksize) / float(total)
+            percent *= 100
+            sys.stdout.write("\rDownloading... %s%%" % int(percent))
+            sys.stdout.flush()
+
+        client_path = Website.client_jar(reporthook=reporthook)
+        sys.stdout.write("\n")
+        jarlist.append(client_path)
+
+    for path in jarlist:
         aggregate = {}
-        jar = JarFile(arg)
+        jar = JarFile(path)
 
         for topping in to_be_run:
             topping.act(aggregate, jar, verbose)
 
         json.dump(aggregate, output, sort_keys=True, indent=4)
         output.write("\n")
+
+    if download_fresh_jar:
+        os.remove(client_path)
