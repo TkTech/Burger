@@ -379,8 +379,9 @@ class Disassembler(object):
                 count -= 1
 
         # Wide
-        elif opcode == 0xCa:
+        elif opcode == 0xC4:
             opcode = read(">B")[0]
+            name = _op_table[opcode][0]
             final_operands.append((2, read(">H")[0]))
             # Special case for iinc
             if opcode == 0x84:
