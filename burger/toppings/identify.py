@@ -103,7 +103,7 @@ def identify(buff):
     )
 
     if const:
-        return ("protocol.version")
+        return ("protocol.version", cf.this)
 
 
 class IdentifyTopping(Topping):
