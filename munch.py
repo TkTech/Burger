@@ -64,7 +64,7 @@ if __name__ == "__main__":
     try:
         opts, args = getopt.gnu_getopt(
             sys.argv[1:],
-            "t:o:vu:p:dl",
+            "t:o:vu:p:dlc",
             [
                 "toppings=",
                 "output=",
@@ -72,7 +72,8 @@ if __name__ == "__main__":
                 "username=",
                 "password=",
                 "download",
-                "list"
+                "list",
+                "compact"
             ]
         )
     except getopt.GetoptError, err:
@@ -87,6 +88,7 @@ if __name__ == "__main__":
     password = None
     download_fresh_jar = False
     list_toppings = False
+    compact = False
 
     for o, a in opts:
         if o in ("-t", "--toppings"):
@@ -95,6 +97,8 @@ if __name__ == "__main__":
             output = open(a, "ab")
         elif o in ("-v", "--verbose"):
             verbose = True
+        elif o in ("-c", "--compact"):
+            compact = True
         elif o in ("-u", "--username"):
             username = a
         elif o in ("-p", "--password"):
@@ -147,6 +151,9 @@ if __name__ == "__main__":
     # from minecraft.net?
     if download_fresh_jar:
         def reporthook(chunks, chunksize, total):
+            if not verbose:
+                return
+
             percent = float(chunks) * float(chunksize) / float(total)
             percent *= 100
             sys.stdout.write("\rDownloading... %s%%" % int(percent))
@@ -163,7 +170,11 @@ if __name__ == "__main__":
         for topping in to_be_run:
             topping.act(aggregate, jar, verbose)
 
-        json.dump(aggregate, output, sort_keys=True, indent=4)
+        if not compact:
+            json.dump(aggregate, output, sort_keys=True, indent=4)
+        else:
+            json.dump(aggregate, output)
+
         output.write("\n")
 
     if download_fresh_jar:
