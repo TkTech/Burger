@@ -96,6 +96,16 @@ def identify(buff):
     if const:
         return ("item.superclass", cf.this)    
 
+    # Protocol version (Client)
+    const = cf.constants.find_one(
+        ConstantType.STRING,
+        lambda c: "disconnect.loginFailedInfo" in c["string"]["value"]
+    )
+
+    if const:
+        return ("protocol.version")
+
+
 class IdentifyTopping(Topping):
     PROVIDES = [
         "identify.block.superclass",
@@ -103,7 +113,8 @@ class IdentifyTopping(Topping):
         "identify.recipe.superclass",
         "identify.recipe.inventory",
         "identify.recipe.cloth",
-        "identify.item.superclass"
+        "identify.item.superclass",
+        "identify.protocol.version"
     ]
 
     DEPENDS = []
