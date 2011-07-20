@@ -160,22 +160,32 @@ if __name__ == "__main__":
             sys.stdout.flush()
 
         client_path = Website.client_jar(reporthook=reporthook)
-        sys.stdout.write("\n")
+        if verbose:
+            sys.stdout.write("\n")
         jarlist.append(client_path)
 
+    summary = []
+
     for path in jarlist:
-        aggregate = {}
         jar = JarFile(path)
+        aggregate = {
+            "source": {
+                "file": path,
+                "classes": len(jar.classes),
+                "other": len(jar.other),
+                "size": os.path.getsize(path)
+            }
+        }
 
         for topping in to_be_run:
             topping.act(aggregate, jar, verbose)
 
-        if not compact:
-            json.dump(aggregate, output, sort_keys=True, indent=4)
-        else:
-            json.dump(aggregate, output)
+        summary.append(aggregate)
 
-        output.write("\n")
+    if not compact:
+        json.dump(summary, output, sort_keys=True, indent=4)
+    else:
+        json.dump(summary, output)
 
     if download_fresh_jar:
         os.remove(client_path)
