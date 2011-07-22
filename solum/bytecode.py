@@ -334,7 +334,7 @@ class Disassembler(object):
         final_wide = False
 
         if operands:
-            final_operands = [(x[1], read(x[0])[0]) for x in operands]
+            final_operands = [Operand(x[1], read(x[0])[0]) for x in operands]
         # Lookupswitch
         elif opcode == 0xAB:
             # Read and discard the 4-byte alignment padding
@@ -342,10 +342,10 @@ class Disassembler(object):
             read("%sx" % padding)
             # The default branch offset, and the number of value/offset pairs
             default, npairs = read(">ii")
-            final_operands.append((4, default))
+            final_operands.append(Operand(4, default))
 
             while npairs:
-                final_operands.append((4,) + read(">ii"))
+                final_operands.append(Operand(4, read(">ii")))
                 npairs -= 1
 
         # Tableswitch
@@ -355,20 +355,20 @@ class Disassembler(object):
             default, low, high = read(">iii")
             count = high - low + 1
 
-            final_operands.append((4, default))
+            final_operands.append(Operand(4, default))
 
             while count:
-                final_operands.append((4, read(">i")[0]))
+                final_operands.append(Operand(4, read(">i")[0]))
                 count -= 1
 
         # Wide
         elif opcode == 0xC4:
             opcode = read(">B")[0]
             name = _op_table[opcode][0]
-            final_operands.append((2, read(">H")[0]))
+            final_operands.append(Operand(2, read(">H")[0]))
             # Special case for iinc
             if opcode == 0x84:
-                final_operands.append((3, read(">H")[0]))
+                final_operands.append(Operand(3, read(">H")[0]))
 
             final_wide = True
 
