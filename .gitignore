@@ -3,3 +3,4 @@
 *.jar
 *.swp
 test.py
+build/
