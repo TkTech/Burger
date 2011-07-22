@@ -31,11 +31,13 @@ __all__ = [
 import struct
 from collections import namedtuple
 
+
 class BytecodeError(Exception):
     """
     Raised when any generic error occurs while asssembling or
     disassembling Java bytecode.
     """
+
 
 class OperandTypes(object):
     """
@@ -46,7 +48,7 @@ class OperandTypes(object):
     LOCAL_INDEX = 2
     VALUE = 3
     BRANCH = 4
-    
+
 _op_table = {
     0x32: ["aaload", None, (2, 1)],
     0x53: ["aastore", None, (3, 0)],
@@ -251,18 +253,19 @@ _op_table = {
     0xC4: ["wide", None],
     0xCA: ["breakpoint", None],
     0xFE: ["impdep1", None],
-    0xFF: ["impdep2", None ]
+    0xFF: ["impdep2", None]
 }
 
 Instruction = namedtuple("Instruction", [
-    "name", 
-    "opcode", 
-    "pos", 
+    "name",
+    "opcode",
+    "pos",
     "wide",
     "operands"
 ])
 
 Operand = namedtuple("Operand", ["type", "value"])
+
 
 class Disassembler(object):
     def __init__(self, source, starting_pos=0):
@@ -302,7 +305,6 @@ class Disassembler(object):
                 raise IOError(str(e))
             self._pos += size
             return ret
-            
         return _read
 
     def _pre_cache(self):
@@ -400,4 +402,3 @@ class Disassembler(object):
         of times (the value) each instruction (the key) is present.
         """
         return self._usage.copy()
-
