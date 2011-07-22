@@ -29,7 +29,10 @@ __all__ = [
 ]
 
 import struct
-from collections import namedtuple
+try:
+    from collections import namedtuple
+except ImportError:
+    from .compat import namedtuple
 
 
 class BytecodeError(Exception):

@@ -28,7 +28,10 @@ __all__ = [
     "split_descriptor"
 ]
 
-from collections import namedtuple
+try:
+    from collections import namedtuple
+except ImportError:
+    from .compat import namedtuple
 
 class DescriptorError(Exception):
     """

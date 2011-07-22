@@ -28,7 +28,10 @@ try:
 except ImportError:
     from StringIO import StringIO
 
-from collections import namedtuple
+try:
+    from collections import namedtuple
+except ImportError:
+    from ..compat import namedtuple
 
 from .attributes import AttributeTable
 from ..descriptor import method_descriptor

@@ -23,7 +23,10 @@ THE SOFTWARE.
 """
 __all__ = ["AttributeTable"]
 
-from collections import namedtuple
+try:
+    from collections import namedtuple
+except ImportError:
+    from ..compat import namedtuple
 
 class Attribute(object):
     """

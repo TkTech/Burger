@@ -31,6 +31,7 @@ try:
 except ImportError:
     _MULTIPROCESSING = False
 
+
 class JarFile(object):
     """
     Implements a loose container around ZipFile to assist with common
@@ -44,8 +45,8 @@ class JarFile(object):
         self._manifest = None
 
         # Pre-fill the ZipInfo lists
-        for zi in self.zp.infolist():
-            if zi.filename.endswith(".class"):
+        for zi in self.zp.namelist():
+            if zi.endswith(".class"):
                 self._classes.append(zi)
             else:
                 self._other.append(zi)
@@ -61,10 +62,10 @@ class JarFile(object):
 
     def __getitem__(self, index):
         return self.zp.read(index)
-                
+
     def map(self, f, files=None, parallel=False):
         """
-        For each file in `files`, call `f`, passing it a string 
+        For each file in `files`, call `f`, passing it a string
         containing the contents of the file. If `parallel` is True,
         try to use the multiprocessing module to call `f`.
 
@@ -113,7 +114,6 @@ class JarFile(object):
         end with .class in the archive.
         """
         return self._other
-        
 
     @property
     def zp(self):
@@ -121,7 +121,7 @@ class JarFile(object):
         Returns the underlying ZipFile object.
         """
         return self._zp
-    
+
     @property
     def manifest(self):
         """
@@ -129,4 +129,3 @@ class JarFile(object):
         returns None.
         """
         return self._manifest
-

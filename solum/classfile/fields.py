@@ -23,7 +23,10 @@ THE SOFTWARE.
 """
 __all__ = ["FieldTable"]
 
-from collections import namedtuple
+try:
+    from collections import namedtuple
+except ImportError:
+    from ..compat import namedtuple
 
 from .attributes import AttributeTable
 from ..descriptor import field_descriptor
