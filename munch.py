@@ -24,8 +24,12 @@ THE SOFTWARE.
 import os
 import sys
 import getopt
-import json
 import getpass
+
+try:
+    import json
+except ImportError:
+    import simplejson as json
 
 from collections import deque
 
