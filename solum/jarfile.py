@@ -31,6 +31,8 @@ try:
 except ImportError:
     _MULTIPROCESSING = False
 
+from .classfile import ClassFile
+
 
 class JarFile(object):
     """
@@ -44,7 +46,6 @@ class JarFile(object):
         self._other = []
         self._manifest = None
 
-        # Pre-fill the ZipInfo lists
         for zi in self.zp.namelist():
             if zi.endswith(".class"):
                 self._classes.append(zi)
@@ -63,7 +64,7 @@ class JarFile(object):
     def __getitem__(self, index):
         return self.zp.read(index)
 
-    def map(self, f, files=None, parallel=False):
+    def map(self, f, files=None, parallel=False, error=False):
         """
         For each file in `files`, call `f`, passing it a string
         containing the contents of the file. If `parallel` is True,
@@ -80,6 +81,8 @@ class JarFile(object):
         if not files:
             files = self.classes
 
+        if parallel and error and not _MULTIPROCESSING:
+            raise RuntimeError("Unable to use the multiprocessing module")
         if not _MULTIPROCESSING or not parallel:
             return self._map_single(f, files=files)
         else:
