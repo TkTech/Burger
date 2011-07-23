@@ -23,6 +23,7 @@ THE SOFTWARE.
 """
 __all__ = ["ConstantPool", "ConstantType"]
 
+
 class ConstantType(object):
     CLASS = 7
     FIELD_REF = 9
@@ -35,6 +36,7 @@ class ConstantType(object):
     DOUBLE = 6
     NAME_AND_TYPE = 12
     UTF8 = 1
+
 
 class ConstantPool(object):
     def __init__(self, read):
@@ -81,15 +83,15 @@ class ConstantPool(object):
 
             tmp[x]["tag"] = tag
 
-            x += 2 if tag in (5,6) else 1
+            x += 2 if tag in (5, 6) else 1
 
         # Resolve any indexes and store them
-        for k,v in tmp.items():
-            for k2,v2 in v.items():
+        for k, v in tmp.items():
+            for k2, v2 in v.items():
                 if k2.endswith("_index"):
                     tmp[k][k2[:-6]] = tmp[v2]
 
-        self.__store = tmp;
+        self.__store = tmp
 
     def __getitem__(self, index):
         return self.storage[index]
@@ -139,4 +141,3 @@ class ConstantPool(object):
         between releases.
         """
         return self.__store
-
