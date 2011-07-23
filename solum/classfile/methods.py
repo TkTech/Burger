@@ -47,6 +47,7 @@ _Method = namedtuple("Method", (
     "args"
 ))
 
+
 class Method(_Method):
     @property
     def code(self):
@@ -63,50 +64,51 @@ class Method(_Method):
     @property
     def is_public(self):
         return bool(self.flags & 0x01)
-        
+
     @property
     def is_private(self):
         return bool(self.flags & 0x02)
-        
+
     @property
     def is_protected(self):
         return bool(self.flags & 0x04)
-        
+
     @property
     def is_static(self):
         return bool(self.flags & 0x08)
-        
+
     @property
     def is_final(self):
         return bool(self.flags & 0x10)
-        
+
     @property
     def is_synchronized(self):
         return bool(self.flags & 0x20)
-    
+
     @property
     def is_bridge(self):
         return bool(self.flags & 0x40)
-        
+
     @property
     def is_varargs(self):
         return bool(self.flags & 0x80)
-        
+
     @property
     def is_native(self):
         return bool(self.flags & 0x100)
-        
+
     @property
     def is_abstract(self):
         return bool(self.flags & 0x400)
-        
+
     @property
     def is_strict(self):
         return bool(self.flags & 0x800)
-        
+
     @property
     def is_synthetic(self):
         return bool(self.flags & 0x1000)
+
 
 class MethodTable(list):
     def __init__(self, read, constants):
@@ -152,9 +154,7 @@ class MethodTable(list):
                 continue
 
             ret.append(method)
-
         return ret
-
 
     def find_one(self, name=None, args=None, returns=None, f=None):
         for method in self.storage:
