@@ -26,7 +26,8 @@ __all__ = [
     "BytecodeError",
     "StreamAssembler",
     "StreamDisassembler",
-    "Operand"
+    "Operand",
+    "OperandType"
 ]
 
 import struct
@@ -43,7 +44,7 @@ class BytecodeError(Exception):
     """
 
 
-class OperandTypes(object):
+class OperandType(object):
     """
     Represents the field parameters for opcodes.
     """

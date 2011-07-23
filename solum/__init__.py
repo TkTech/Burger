@@ -26,4 +26,4 @@ __all__ = ["jarfile", "classfile", "context"]
 from jarfile import JarFile
 from classfile import ClassFile, ClassError, ConstantType
 from context import Context
-from bytecode import Operand
+from bytecode import Operand, OperandType
