@@ -271,6 +271,23 @@ Instruction = namedtuple("Instruction", [
 Operand = namedtuple("Operand", ["type", "value"])
 
 
+def packed_instruction_size(instruction):
+    """
+    Returns the size in bytes of any known instruction given its
+    `Instruction` representation.
+    """
+    ins = instruction
+    if ins.wide:
+        size = 6 if ins.opcode == 0x84 else 4
+    else:
+        size = 1
+        operands = _op_table[ins.opcode][1]
+        if operands:
+            for operand in operands:
+                size += struct.calcsize(operand[0])
+    return size
+
+
 class Disassembler(object):
     def __init__(self, source, starting_pos=0):
         self._cache = []
