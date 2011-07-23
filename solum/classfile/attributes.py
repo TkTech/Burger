@@ -28,6 +28,7 @@ try:
 except ImportError:
     from ..compat import namedtuple
 
+
 class Attribute(object):
     """
     Generic Attribute.
@@ -42,12 +43,14 @@ CodeException = namedtuple("CodeException", [
     "handler_pc",
     "catch_type"
 ])
+
+
 class CodeAttribute(object):
     """
     Implements the Code attribute (S4.8.3).
     """
     def __init__(self, read, constants):
-        length = read(">I")[0] # We don't really care...
+        length = read(">I")[0]
         self.max_stack, self.max_locals, code_len = read(">HHI")
         self.code, exp_len = read(">%ssH" % code_len)
 
@@ -62,6 +65,7 @@ _attribute_map = {
     "Code": CodeAttribute,
 }
 
+
 class AttributeTable(object):
     def __init__(self, read, constants):
         self.__store = []
@@ -74,7 +78,7 @@ class AttributeTable(object):
             name_i = read(">H")[0]
             name = constants[name_i]["value"]
 
-            attrib = _attribute_map.get(name, Attribute)( read, constants)
+            attrib = _attribute_map.get(name, Attribute)(read, constants)
             attrib.name = name
             self.storage.append(attrib)
 
