@@ -26,7 +26,7 @@ from distutils.core import setup
 setup(
     name = "Sŏlum",
     packages = ["solum", "solum.classfile", "solum.context"],
-    version = "0.0.2",
+    version = "0.2.0",
     description = "A low-level library for JVM class file disassembly.",
     author = "Tyler Kennedy",
     author_email = "tk@tkte.ch",
