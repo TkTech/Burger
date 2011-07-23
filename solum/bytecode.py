@@ -359,7 +359,7 @@ class Disassembler(object):
             default, low, high = read(">iii")
             count = high - low + 1
 
-            final_operands.append(Operand(4, default))
+            final_operands.append(Operand(4, (default, low, high)))
 
             while count:
                 final_operands.append(Operand(4, read(">i")[0]))
