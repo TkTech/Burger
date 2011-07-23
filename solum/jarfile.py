@@ -79,7 +79,7 @@ class JarFile(object):
         if not cf_name.endswith(".class"):
             cf_name = "%s.class" % cf_name
 
-        cf = ClassFile(self[cf_name], str_as_buffer=True)
+        cf = ClassFile(self.read(cf_name), str_as_buffer=True)
         return cf
 
     @property
@@ -107,5 +107,14 @@ class JarFile(object):
 
     @property
     def count(self):
-        """Returns the number of items contained in this JAR."""
+        """The number of items contained in this JAR."""
         return len(self.zp.infolist())
+
+    @property
+    def class_count(self):
+        """The number of classes contained in this JAR."""
+        return len(self._classes)
+
+    def read(self, name):
+        """Returns the contents of the file `name`."""
+        return self.zp.read(name)
