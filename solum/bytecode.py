@@ -278,7 +278,11 @@ def packed_instruction_size(instruction):
     `Instruction` representation.
     """
     ins = instruction
-    if ins.wide:
+    if ins.opcode == 0xAA:
+        size = (2 + len(ins.operands)) * 4 + 4 - (ins.pos+1) % 4 + 1
+    elif ins.opcode == 0xAB:
+        size = len(ins.operands) * 8 + 4 - (ins.pos+1) % 4 + 1
+    elif ins.wide:
         size = 6 if ins.opcode == 0x84 else 4
     else:
         size = 1
