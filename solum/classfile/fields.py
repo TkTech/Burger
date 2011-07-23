@@ -40,6 +40,7 @@ _Field = namedtuple("Field", (
     "type_"
 ))
 
+
 class Field(_Field):
     @property
     def is_public(self):
@@ -76,6 +77,7 @@ class Field(_Field):
     @property
     def is_enum(self):
         return bool(self.flags & 0x4000)
+
 
 class FieldTable(object):
     def __init__(self, read, constants):
@@ -118,4 +120,3 @@ class FieldTable(object):
             return [v for v in storage.itervalues() if v.type_ == type_]
         else:
             return filter(f, storage.itervalues())
-
