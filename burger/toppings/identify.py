@@ -25,7 +25,7 @@ from solum import ClassFile, ConstantType
 
 from .topping import Topping
 
-def identify(buff):
+def identify(cf):
     """
     The first pass across the JAR will identify all possible classes it
     can, maping them by the 'type' it implements.
@@ -34,10 +34,6 @@ def identify(buff):
     check for known signatures and predictable constants. In the next pass,
     we'll have the initial mapping from this pass available to us.
     """
-    # str_as_buffer is required, else it'll treat the string buffer
-    # as a file path.
-    cf = ClassFile(buff, str_as_buffer=True)
-
     # First up, finding the "block superclass" (as we'll call it).
     # We'll look for one of the debugging messages.
     const = cf.constants.find_one(
@@ -121,9 +117,8 @@ class IdentifyTopping(Topping):
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
-        mapped = jar.map(identify, parallel=True)
-        mapped = filter(lambda f: f, mapped)
         classes = aggregate.setdefault("classes", {})
-        for k,v in mapped:
-            classes[k] = v
-
+        for cf in jar.classes:
+            result = identify(cf)
+            if result:
+                classes[result[0]] = result[1]

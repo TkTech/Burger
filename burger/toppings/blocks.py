@@ -38,7 +38,7 @@ class BlocksTopping(Topping):
     @staticmethod
     def act(aggregate, jar, verbose=False):
         superclass = aggregate["classes"]["block.superclass"]
-        cf = ClassFile(jar["%s.class" % superclass], str_as_buffer=True)
+        cf = jar.open_class(superclass)
 
         # Find the static constructor
         method = cf.methods.find_one("<clinit>")

@@ -39,6 +39,7 @@ class PacketsTopping(Topping):
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
+        return
         # Find and open the packet superclass
         superclass = aggregate["classes"]["packet.superclass"]
         cf = ClassFile(jar["%s.class" % superclass], str_as_buffer=True)

@@ -175,8 +175,8 @@ if __name__ == "__main__":
         aggregate = {
             "source": {
                 "file": path,
-                "classes": len(jar.classes),
-                "other": len(jar.other),
+                "classes": jar.class_count,
+                "other": jar.count,
                 "size": os.path.getsize(path)
             }
         }

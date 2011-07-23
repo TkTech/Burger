@@ -43,7 +43,7 @@ class RecipesTopping(Topping):
         recipes = aggregate.setdefault("recipes", {})
         tmp_recipes = []
 
-        cf = ClassFile(jar["%s.class" % superclass], str_as_buffer=True)
+        cf = jar.open_class(superclass)
 
         # Find the loader function, which takes nothing, returns nothing,
         # and is private.
