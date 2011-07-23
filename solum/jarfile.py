@@ -25,20 +25,13 @@ __all__ = ["JarFile"]
 
 from zipfile import ZipFile
 
-try:
-    import multiprocessing
-    _MULTIPROCESSING = True
-except ImportError:
-    _MULTIPROCESSING = False
-
 from .classfile import ClassFile
 
 
 class JarFile(object):
     """
     Implements a loose container around ZipFile to assist with common
-    JAR-related tasks, as well as to streamline asynchronous processing
-    of class files.
+    JAR-related tasks.
     """
     def __init__(self, source):
         self._zp = ZipFile(source)
@@ -62,76 +55,6 @@ class JarFile(object):
         except KeyError:
             self._manifest = None
 
-    def __getitem__(self, index):
-        return self.zp.read(index)
-
-    def map(self, f, files=None, parallel=False, error=False):
-        """
-        For each file in `files`, call `f`, passing it a string
-        containing the contents of the file. If `parallel` is True,
-        try to use the multiprocessing module to call `f`.
-
-        Note: If you use parallel=True, you must ensure your program
-              accounts for the quirks of the multiprocessing module.
-
-        Note: As a ZipFile object cannot be used across multiple
-              processes, every file from `files` will be loaded into
-              memory. Be wary of extremely large JAR's and memory usage.
-        """
-        # By default pick all .class files.
-        if not files:
-            files = self.classes
-
-        if parallel and error and not _MULTIPROCESSING:
-            raise RuntimeError("unable to load the multiprocessing module")
-        if not _MULTIPROCESSING or not parallel:
-            return self._map_single(f, files=files)
-        else:
-            return self._map_parallel(f, files=files)
-
-    def _map_single(self, f, files):
-        def next_buff():
-            for fl in files:
-                yield self.zp.read(fl)
-        return map(f, next_buff())
-
-    def _map_parallel(self, f, files):
-        if not _MULTIPROCESSING:
-            raise RuntimeError("unable to load the multiprocessing module")
-
-        # The overhead for storing all of these in memory
-        # (generally) is lower than having it perform a switch
-        # to iterate to the next one.
-        buffers = [self.zp.read(fl) for fl in files]
-        chunksize = len(buffers) / multiprocessing.cpu_count()
-
-        pool = multiprocessing.Pool()
-        return pool.map(f, buffers, chunksize=chunksize)
-
-    @property
-    def classes(self):
-        """
-        Returns a list of ZipInfo objects for each file ending with
-        .class in the archive.
-        """
-        return list(self._classes)
-
-    @property
-    def other(self):
-        """
-        Returns a list of ZipInfo object for each file that does not
-        end with .class in the archive.
-        """
-        return list(self._other)
-
-    @property
-    def iterclasses(self):
-        return (y for y in self._classes)
-
-    @property
-    def iteroother(self):
-        return (y for y in self._other)
-
     @property
     def zp(self):
         """
@@ -147,7 +70,7 @@ class JarFile(object):
         """
         return self._manifest
 
-    def get_class(self, cf_name):
+    def open_class(self, cf_name):
         """
         Returns a ClassFile instance for the file cf_name.
         If cf_name does not end in .class, it is added.
@@ -158,3 +81,31 @@ class JarFile(object):
 
         cf = ClassFile(self[cf_name], str_as_buffer=True)
         return cf
+
+    @property
+    def classes(self):
+        """
+        Iterate over all the classes in the JAR, yielding a `Classfile`_ for
+        each.
+        """
+        for c in self._classes:
+            yield self.open_class(c)
+
+    @property
+    def all(self):
+        """
+        Iterate over all files in the JAR, yielding a file-like object for
+        each.
+        """
+        for zi in self.zp.infolist():
+            yield self.zp.open(name.filename)
+
+    @property
+    def class_list(self):
+        """Returns a list of file names for classes in this JAR."""
+        return list(self._classes)
+
+    @property
+    def count(self):
+        """Returns the number of items contained in this JAR."""
+        return len(self.zp.infolist())
