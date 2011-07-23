@@ -30,12 +30,14 @@ from .fields import FieldTable
 from .methods import MethodTable
 from .attributes import AttributeTable
 
+
 class ClassError(Exception):
     """
     Raised as a generic error whenever an error occurs with class
     parsing or if something (a value, field, keyname, etc...) violate
     the class file specification.
     """
+
 
 class ClassFile(object):
     def __init__(self, source, str_as_buffer=False):
@@ -75,6 +77,7 @@ class ClassFile(object):
         """Attempts to load the ClassFile from the given buffer."""
         # Set the starting position in the buffer
         self.__pos = 0
+
         def read(format):
             length = struct.calcsize(format)
             tmp = struct.unpack_from(format, source, self.__pos)
@@ -109,7 +112,7 @@ class ClassFile(object):
         self._methods = MethodTable(read, self.constants)
 
         self._attributes = AttributeTable(read, self.constants)
-    
+
     @property
     def version(self):
         """
@@ -134,7 +137,7 @@ class ClassFile(object):
             0x30: "JDK 1.4",
             0x31: "J2SE 5.0",
             0x32: "J2SE 6.0"
-        }.get(self.version[0], "unknown") 
+        }.get(self.version[0], "unknown")
 
     @property
     def constants(self):
@@ -168,33 +171,32 @@ class ClassFile(object):
 
     @property
     def is_public(self):
-        return bool(self.flags & 0x01) 
-    
+        return bool(self.flags & 0x01)
+
     @property
     def is_final(self):
-        return bool(self.flags & 0x10) 
-    
+        return bool(self.flags & 0x10)
+
     @property
     def is_super(self):
         return bool(self.flags & 0x20)
-    
+
     @property
     def is_interface(self):
         return bool(self.flags & 0x200)
-    
+
     @property
     def is_abstract(self):
         return bool(self.flags & 0x400)
-    
+
     @property
     def is_synthetic(self):
         return bool(self.flags & 0x1000)
-    
+
     @property
     def is_annotation(self):
         return bool(self.flags & 0x2000)
-    
+
     @property
     def is_enum(self):
         return bool(self.flags & 0x4000)
-
