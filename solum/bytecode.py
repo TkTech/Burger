@@ -25,7 +25,8 @@ __all__ = [
     "OperandTypes",
     "BytecodeError",
     "StreamAssembler",
-    "StreamDisassembler"
+    "StreamDisassembler",
+    "Operand"
 ]
 
 import struct

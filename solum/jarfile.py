@@ -46,6 +46,7 @@ class JarFile(object):
         self._other = []
         self._manifest = None
 
+        # FIXME: Find a ZipInfo workaround for < 2.5.
         for zi in self.zp.namelist():
             if zi.endswith(".class"):
                 self._classes.append(zi)
@@ -82,19 +83,21 @@ class JarFile(object):
             files = self.classes
 
         if parallel and error and not _MULTIPROCESSING:
-            raise RuntimeError("Unable to use the multiprocessing module")
+            raise RuntimeError("unable to load the multiprocessing module")
         if not _MULTIPROCESSING or not parallel:
             return self._map_single(f, files=files)
         else:
             return self._map_parallel(f, files=files)
 
     def _map_single(self, f, files):
-        buffers = [self.zp.read(fl) for fl in files]
-        return map(f, buffers)
+        def next_buff():
+            for fl in files:
+                yield self.zp.read(fl)
+        return map(f, next_buff())
 
     def _map_parallel(self, f, files):
         if not _MULTIPROCESSING:
-            return RuntimeError("unable to load the multiprocessing module")
+            raise RuntimeError("unable to load the multiprocessing module")
 
         buffers = [self.zp.read(fl) for fl in files]
         chunksize = len(buffers) / multiprocessing.cpu_count()
@@ -132,3 +135,15 @@ class JarFile(object):
         returns None.
         """
         return self._manifest
+
+    def get_class(self, cf_name):
+        """
+        Returns a ClassFile instance for the file cf_name.
+        If cf_name does not end in .class, it is added.
+        Returns None if there is no such file.
+        """
+        if not cf_name.endswith(".class"):
+            cf_name = "%s.class" % cf_name
+
+        cf = ClassFile(self[cf_name], str_as_buffer=True)
+        return cf
