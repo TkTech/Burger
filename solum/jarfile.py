@@ -99,6 +99,9 @@ class JarFile(object):
         if not _MULTIPROCESSING:
             raise RuntimeError("unable to load the multiprocessing module")
 
+        # The overhead for storing all of these in memory
+        # (generally) is lower than having it perform a switch
+        # to iterate to the next one.
         buffers = [self.zp.read(fl) for fl in files]
         chunksize = len(buffers) / multiprocessing.cpu_count()
 
@@ -111,7 +114,7 @@ class JarFile(object):
         Returns a list of ZipInfo objects for each file ending with
         .class in the archive.
         """
-        return self._classes
+        return list(self._classes)
 
     @property
     def other(self):
@@ -119,7 +122,15 @@ class JarFile(object):
         Returns a list of ZipInfo object for each file that does not
         end with .class in the archive.
         """
-        return self._other
+        return list(self._other)
+
+    @property
+    def iterclasses(self):
+        return (y for y in self._classes)
+
+    @property
+    def iteroother(self):
+        return (y for y in self._other)
 
     @property
     def zp(self):
