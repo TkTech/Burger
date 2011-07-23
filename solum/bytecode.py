@@ -343,6 +343,7 @@ class Disassembler(object):
     def _read_ins(self):
         read = self._read
         opcode = read(">B")[0]
+        pos = self._pos - 1
 
         if opcode not in _op_table:
             raise BytecodeError("unknown opcode 0x%X" % opcode)
@@ -393,7 +394,7 @@ class Disassembler(object):
 
             final_wide = True
 
-        ins = Instruction(name, opcode, self._pos, final_wide, final_operands)
+        ins = Instruction(name, opcode, pos, final_wide, final_operands)
         if name not in self._usage:
             self._usage[name] = 1
         else:
