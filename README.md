@@ -13,6 +13,7 @@ from solum import JarFile
 
 if __name__ == "__main__":
     jar = JarFile(sys.argv[1])
+```
 
 ### Getting the contents of a single file
 ```python
