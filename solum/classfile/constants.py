@@ -82,6 +82,7 @@ class ConstantPool(object):
                 tmp[x] = {"value": read(">%ss" % length)[0]}
 
             tmp[x]["tag"] = tag
+            tmp[x]["pos"] = x
 
             x += 2 if tag in (5, 6) else 1
 
@@ -105,7 +106,7 @@ class ConstantPool(object):
         empty list.
         """
         if not tag and not f:
-            return self.storage.items()
+            return self.storage.values()
 
         ret = []
         for v in self.storage.itervalues():
