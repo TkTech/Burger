@@ -4,6 +4,8 @@ Solum is [intended] to be a very simple library for inspecting and disassembling
 **Note**: When poking around, keep in mind that you can `print` just about everything returned by methods of `ClassFile`. This can give you quick insight into what's available.
 
 ## Playing with JAR files
+First and foremost, remember that JAR's are just .zip files with a different extension. You can access Python's ZipFile instance as the `zp` property of a JarFile(). The `JarFile` class exists to make a few Java-specific tasks easier.
+
 ### Opening a Jar
 ```python
 import sys
@@ -11,31 +13,6 @@ from solum import JarFile
 
 if __name__ == "__main__":
     jar = JarFile(sys.argv[1])
-```
-### Getting the manifest
-```python
-import sys
-from solum import JarFile
-
-if __name__ == "__main__":
-    jar = JarFile(sys.argv[1])
-    print jar.manifest
-```
-
-### Listing files
-```python
-import sys
-from solum import JarFile
-
-if __name__ == "__main__":
-    jar = JarFile(sys.argv[1])
-    # Print all non-class files
-    for other in jar.other:
-        print other.filename
-    # Print all classes
-    for class_ in jar.classes:
-        print class_.filename
-```
 
 ### Getting the contents of a single file
 ```python
@@ -44,47 +21,21 @@ from solum import JarFile
 
 if __name__ == "__main__":
     jar = JarFile(sys.argv[1])
-    print jar["title/splashes.txt"]
+    print jar.read("title/splashes.txt")
 ```
 
-### Mapping
-This is where things start to become interesting. Using the JarFile's mapping functions, we can efficiently operate over sets of files.
-
+### Getting a class
 ```python
 import sys
 from solum import JarFile
 
-def map_test(buff):
-    pass
-
 if __name__ == "__main__":
     jar = JarFile(sys.argv[1])
-    results = jar.map(map_test)
+    cf = jar.open_class("HelloWorld")  # The .class is optional
 ```
-
-By default, this will map every .class file present in the JAR, returning a list of return values from `map_test`. We can also specify only a few files to work with by passing them into `files`.
-
-```python
-
-import sys
-from solum import JarFile
-
-def map_test(buff):
-    pass
-
-if __name__ == "__main__":
-    jar = JarFile(sys.argv[1])
-    results = jar.map(map_test, files=jar.other)
-```
-
-We can also ask it to map the files using the `multiprocessing` module when available by passing `parallel=True`. Remember to account for the quirks in the `multiprocessing` module if you're using this.
-
-```python
-results = jar.map(map_test, files=jar.other, parallel=True)
-````
 
 ## Playing with .class files
-Every class in Java is represented by a .class file. The entire contents of a class is available within  the context of one of these files.
+Every class in Java is represented by a .class file. The entire contents of a class is available within the context of one of these files.
 
 ### Opening a .class
 Opening these directly using Solum is as painless as opening a Jar.
