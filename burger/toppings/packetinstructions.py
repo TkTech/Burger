@@ -24,7 +24,6 @@ THE SOFTWARE.
 from solum import ClassFile, JarFile
 from solum.descriptor import method_descriptor
 from solum.classfile.constants import ConstantType
-from solum.bytecode import packed_instruction_size
 from .topping import Topping
 
 class PacketInstructionsTopping(Topping):
@@ -64,6 +63,31 @@ class PacketInstructionsTopping(Topping):
         "short": 2
     }
 
+    CONDITIONS = {
+        "eq": "!=",
+        "ne": "==",
+        "lt": "<=",
+        "le": "<",
+        "gt": ">=",
+        "ge": ">"
+    }
+
+    MATH = {
+        "add": "+",
+        "and": "&",
+        "div": "/",
+        "mul": "*",
+        "or": "|",
+        "rem": "%",
+        "shl": "<<",
+        "shr": ">>",
+        "sub": "-",
+        "ushr": ">>",
+        "xor": "^"
+    }
+
+    CACHE = {}
+
     @staticmethod
     def act(aggregate, jar, verbose=False):
         """Finds all packets and decompiles them"""
@@ -101,7 +125,8 @@ class PacketInstructionsTopping(Topping):
             ConstantType.LONG: "value",
             ConstantType.CLASS: "name_index",
             ConstantType.FIELD_REF: "name_and_type_index",
-            ConstantType.METHOD_REF: "name_and_type_index"
+            ConstantType.METHOD_REF: "name_and_type_index",
+            ConstantType.INTERFACE_METHOD_REF: "name_and_type_index"
             }
         follow.update(custom_follow)
         if tag == ConstantType.UTF8:
@@ -135,7 +160,7 @@ class PacketInstructionsTopping(Topping):
         return sorted(operations, key=lambda op: op.position)
 
     @staticmethod
-    def operations(jar, classname, args=('java.io.DataOutputStream',), methodname=None):
+    def operations(jar, classname, args=('java.io.DataOutputStream',), methodname=None, arg_names=["", "stream"]):
         """Gets the instructions of the specified method"""
 
         # Find the writing method
@@ -148,31 +173,59 @@ class PacketInstructionsTopping(Topping):
 
         # Decode the instructions
         operations = []
-
+        operands = []
+        
         for instruction in method.instructions:
-            if instruction.name == "invokevirtual":
-                type = PacketInstructionsTopping.find_name(cf, instruction)
-                if PacketInstructionsTopping.TYPES.has_key(type):
-                    operations.append(Operation(instruction.pos, "write").set("type", PacketInstructionsTopping.TYPES[type]))
-                else:
-                    descriptor = PacketInstructionsTopping.find_descriptor(cf, instruction)
-                    if type == "write":
-                        operations.append(Operation(instruction.pos, "write").set("type", "byte[]" if descriptor.find("[B") >= 0 else "byte"))
-                    elif descriptor.find("Ljava/io/DataOutputStream") >= 0:
-                        operations += PacketInstructionsTopping.sub_operations(jar, cf, instruction)
-            elif instruction.name == "invokestatic":
+            # Method calls
+            if instruction.name in ["invokevirtual", "invokestatic", "invokespecial", "invokeinterface"]:
+                name = PacketInstructionsTopping.find_name(cf, instruction)
                 descriptor = PacketInstructionsTopping.find_descriptor(cf, instruction)
-                if descriptor == "(Ljava/lang/String;Ljava/io/DataOutputStream;)V":
-                    operations.append(Operation(instruction.pos, "write").set("type", "string16"))
-                elif descriptor.find("Ljava/io/DataOutputStream") >= 0:
-                    operations += PacketInstructionsTopping.sub_operations(jar, cf, instruction)
-            elif instruction.name == "invokespecial":
-                operations += PacketInstructionsTopping.sub_operations(jar, cf, instruction)
+                if PacketInstructionsTopping.TYPES.has_key(name):
+                    operations.append(Operation(instruction.pos, "write").set("type", PacketInstructionsTopping.TYPES[name]).set("field", operands.pop()))
+                elif name == "write":
+                    if descriptor.find("[BII") >= 0:
+                        operands.pop()
+                        operands.pop()
+                    operations.append(Operation(instruction.pos, "write").set("type", "byte[]" if descriptor.find("[B") >= 0 else "byte").set("field", operands.pop()))
+                elif descriptor == "(Ljava/lang/String;Ljava/io/DataOutputStream;)V":
+                    operands.pop()
+                    operations.append(Operation(instruction.pos, "write").set("type", "string16").set("field", operands.pop()))
+                else:
+                    descriptor = method_descriptor(descriptor)
+                   
+                    name = PacketInstructionsTopping.find_name(cf, instruction)
+                    num_arguments = len(descriptor[0])
+                    if num_arguments > 0:
+                        arguments = operands[-len(descriptor[0]):]
+                    else:
+                        arguments = []
+                    for i in range(num_arguments):
+                        operands.pop()
+                    obj = "static" if instruction.name == "invokestatic" else operands.pop()
+                    if descriptor[1] != "void":
+                        operands.append("%s%s%s(%s)" % (obj, "." if obj != "" else "", name, ",".join(arguments)))
+
+                    if "java.io.DataOutputStream" in descriptor[0]:
+                        operations += PacketInstructionsTopping.sub_operations(jar, cf, instruction, [obj] + arguments if obj != "static" else arguments)
+                
+            # Conditional statements and loops
             elif instruction.name.startswith("if"):
-                operations.append(Operation(instruction.pos,"if"))
+                if instruction.name == "ifnonnull":
+                    condition = "%s == null" % operands.pop()
+                elif instruction.name == "ifnull":
+                    condition = "%s != null" % operands.pop()
+                else:
+                    if instruction.name[4:7] == "cmp":
+                        comperation = instruction.name[7:]
+                        fields = [operands.pop(), operands.pop()]
+                    else:
+                        comperation = instruction.name[2:]
+                        fields = [operands.pop(), 0]
+                    condition = "%s %s %s" % (fields[0], PacketInstructionsTopping.CONDITIONS[comperation], fields[1])
+                operations.append(Operation(instruction.pos,"if").set("condition", condition))
                 operations.append(Operation(PacketInstructionsTopping.target(instruction),"endif"))
             elif instruction.name == "tableswitch":
-                operations.append(Operation(instruction.pos, "switch"))
+                operations.append(Operation(instruction.pos, "switch").set("field", operands.pop()))
                 low = instruction.operands[0][1][1]
                 for opr in range(1, len(instruction.operands)):
                     target = PacketInstructionsTopping.target(instruction, opr)
@@ -191,19 +244,58 @@ class PacketInstructionsTopping(Topping):
                     endif.operation = "endloop"
                     PacketInstructionsTopping.find_next(operations, target, "if").operation = "loop"
 
+            # Operations
+            elif PacketInstructionsTopping.MATH.has_key(instruction.name[1:]):
+                operands.append("({1} {2} {0})".format(operands.pop(), operands.pop(), PacketInstructionsTopping.MATH[instruction.name[1:]]))
+            elif instruction.name[1:] == "inc":
+                operations.append(Operation(instruction.pos, "increment").set("field", "var%d" % instruction.operands[0][1]).set("amount", instruction.operands[1][1]))
+            elif instruction.name[1:] == "neg":
+                operands.append("-%s" % operands.pop())
+                    
+            # Operands
+            elif instruction.name == "getfield":
+                operand = operands.pop()
+                operands.append("%s%s%s" % (operand, "." if operand != "" else "", PacketInstructionsTopping.find_name(cf, instruction)))
+            elif instruction.name[1:].startswith("load_"):
+                index = instruction.name[6:]
+                operands.append(arg_names[int(index)] if len(arg_names) > int(index) else "var" + index)
+            elif instruction.name.startswith("iconst_"):
+                value = instruction.name[7:]
+                if value == "m1":
+                    value = -1
+                operands.append(str(int(value)))
+            elif instruction.name[1:] == "aload":
+                operands.append("{1}[{0}]".format(operands.pop(), operands.pop()))
+            elif instruction.name[1:] == "load":
+                operands.append("unknown")
+            elif instruction.name == "arraylength":
+                operands.append("%s.length" % operands.pop())
+            elif instruction.name == "bipush":
+                operands.append(hex(instruction.operands[0][1]))
+            elif instruction.name[1:] == "ipush":
+                operands.append(instruction.operands[0][1])
+
         return operations
 
     @staticmethod
-    def sub_operations(jar, cf, instruction):
+    def sub_operations(jar, cf, instruction, arg_names=[""]):
         """Gets the instrcutions of a different class"""
         invoked_class = PacketInstructionsTopping.find_class(cf, instruction)
         name = PacketInstructionsTopping.find_name(cf, instruction)
-        args = method_descriptor(PacketInstructionsTopping.find_descriptor(cf, instruction))[0]
-        operations = PacketInstructionsTopping.operations(jar, invoked_class, args, name)
+        descriptor = PacketInstructionsTopping.find_descriptor(cf, instruction)
+        args = method_descriptor(descriptor)[0]
+        cache_key = "%s/%s/%s/%s" % (invoked_class, name, descriptor, ",".join(arg_names))
+
+        if PacketInstructionsTopping.CACHE.has_key(cache_key):
+            return PacketInstructionsTopping.CACHE[cache_key]
+        
+        operations = PacketInstructionsTopping.operations(jar, invoked_class, args, name, arg_names)
         position = 0
         for operation in PacketInstructionsTopping.ordered_operations(operations):
             position += 0.01
             operation.position = instruction.pos + (position)
+
+        PacketInstructionsTopping.CACHE[cache_key] = operations
 
         return operations
 
@@ -215,29 +307,33 @@ class PacketInstructionsTopping(Topping):
         aggregate = {"instructions": head}
         size = 0
 
+        block_start = ["if", "loop", "switch", "else"]
+        block_end = ["endif", "endloop", "endswitch", "else"]
+
         for operation in PacketInstructionsTopping.ordered_operations(operations):
             if operation.operation == "write":
-                head.append({"operation": "write", "type": operation.type})
                 if size != None:
                     if len(stack) == 1 and PacketInstructionsTopping.SIZES.has_key(operation.type):
                         size += PacketInstructionsTopping.SIZES[operation.type]
                     else:
                         size = None
-            elif operation.operation == "case":
-                head.append({"operation": "case", "value": operation.value})
-            elif operation.operation in ["break"]:
-                head.append({"operation": operation.operation})
-            else:
-                if operation.operation in ["endif", "endloop", "endswitch", "else"]:
+            
+            obj = operation.__dict__.copy()
+            obj.pop("position")
+            if operation.operation in block_end + block_start:
+                if operation.operation in block_end:
                     if len(head) == 0:
                         stack[-2].pop()
                     stack.pop()
                     head = stack[-1]
-                if operation.operation in ["if", "loop", "switch", "else"]:
+                if operation.operation in block_start:
                     new_head = []
                     stack.append(new_head)
-                    head.append({"operation": operation.operation, "instructions":new_head})
+                    obj["instructions"] = new_head
+                    head.append(obj)
                     head = new_head
+            else:
+                head.append(obj)
 
         if size != None:
             aggregate["size"] = size
