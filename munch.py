@@ -149,7 +149,7 @@ if __name__ == "__main__":
         to_be_run.remove(topping_provides[dk])
         to_be_run.appendleft(topping_provides[dk])
 
-    jarlist = args
+    jarlist = []
 
     # Should we download a new copy of the JAR directly
     # from minecraft.net?
@@ -167,6 +167,8 @@ if __name__ == "__main__":
         if verbose:
             sys.stdout.write("\n")
         jarlist.append(client_path)
+
+    jarlist.extend(args)
 
     summary = []
 
