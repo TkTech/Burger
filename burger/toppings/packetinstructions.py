@@ -21,15 +21,19 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
+
+from types import LambdaType
+
 from solum import ClassFile, JarFile
 from solum.descriptor import method_descriptor, field_descriptor
 from solum.classfile.constants import ConstantType
+
 from .topping import Topping
-from types import LambdaType, IntType, TupleType
+
 
 class PacketInstructionsTopping(Topping):
     """Provides the instructions used to construct a packet"""
-    
+
     PROVIDES = [
         "packets.instructions",
         "packets.sizes"
@@ -89,68 +93,68 @@ class PacketInstructionsTopping(Topping):
     CACHE = {}
 
     OPCODES = {
-        0x30: (2, "{1}[{0}]"),                  # Taload
-        0x4f: (3),                              # Tastore
-        0x94: (2, "compare({0}, {1})"),         # Tcmp<op>
-        0xac: (1),                              # Treturn
-        0x36: (1),                              # Tstore
-        0x43: (1),                              # Tstore_<n>
-        0x01: (0, "null"),                      # aconst_null
-        0x25: (0, "{1}"),                       # aload
-        0x2a: (0, "{1}", lambda op: op - 0x2a), # aload_<n>
-        0xbd: (1, "new {1.class}[{0}]"),        # anewarray
-        0xbe: (1, "{0}.length"),                # arraylength
-        0xbf: (1),                              # athrow
-        0x10: (0, "0x{0.value:x}"),             # bipush
-        0xc0: (1, "(({1.classname}){0})"),      # checkcast
-        0x90: (1, "((double){0})", 2),          # d2f
-        0x8e: (1, "((int){0})"),                # d2i
-        0x8f: (1, "((long){0}", 2),             # d2l
-        0x31: (2, "{0}[{1}]", 2),               # daload
-        0x0e: (0, "{0}.0", lambda op: op - 14), # dconst_<d>
-        0x18: (0, "{1}", 2),                    # dload
-        0x26: (0, "{1}", lambda op: op-0x26, 2),# dload_<n>
-        0x8d: (1, "((double){0})", 2),          # f2d
-        0x8b: (1, "((int){0})"),                # f2i
-        0x8c: (1, "((long){0})", 2),            # f2l
-        0x0b: (0, "{0}", lambda op: op - 11),   # fconst_<f>
-        0x17: (0, "{1}"),                       # fload
-        0x22: (0, "{1}", lambda op: op - 0x22), # fload_<n>
-        0xb4: (1, "{0}.{1.name}"),              # getfield
-        0xb2: (0, "{0.class}.{0.name}"),        # getstatic
-        0x91: (1, "((byte){0})"),               # i2b
-        0x92: (1, "((chat){0})"),               # i2c
-        0x87: (1, "((double){0})", 2),          # i2d
-        0x86: (1, "((float){0})"),              # i2f
-        0x85: (1, "((long){0})", 2),            # i2l
-        0x93: (1, "((short){0})"),              # i2s
-        0x2e: (2, "{1}[{0}]"),                  # iaload
-        0x02: (0, "{0}", lambda op: op - 3),    # iconst_<i>
-        0x15: (0, "{1}"),                       # iload
-        0x1a: (0, "{1}", lambda op: op - 0x1a), # iload_<n>
-        0xc1: (1, "({0} instanceof {1.class})"),# instanceof
-        0x8a: (1, "((double){0})", 2),          # l2d
-        0x89: (1, "((float){0})"),              # l2f
-        0x88: (1, "((int){0})"),                # l2i
-        0x2f: (2, "{0}[{1}]", 2),               # laload
-        0x09: (0, "{0}", lambda op: op - 9),    # lconst_<l>
-        0x12: (0, "{0.name}"),                  # ldc
-        0x14: (0, "{0.name}", 2),               # ldc2_w
-        0x16: (0, "{1}", 2),                    # lload
-        0x1e: (0, "{1}", lambda op: op-0x1e, 2),# lload_<n>
-        0xc2: (0),                              # monitorenter
-        0xbb: (0, "new {0.class}"),             # new
-        0xbc: (1, "new {1.atype}[{0}]"),        # newarray
-        0x00: (0),                              # nop
-        0x57: (1),                              # pop
-        0xb5: (2),                              # putfield
-        0xb3: (1),                              # putstatic
-        0xa9: (0),                              # ret
-        0xb1: (0),                              # return
-        0x35: (2, "{1}[{0}]", 2),               # saload
-        0x11: (0, "{0}"),                       # sipush
-        0xc4: (0),                              # wide
-        
+        0x30: (2, "{1}[{0}]"),                      # Taload
+        0x4f: (3),                                  # Tastore
+        0x94: (2, "compare({0}, {1})"),             # Tcmp<op>
+        0xac: (1),                                  # Treturn
+        0x36: (1),                                  # Tstore
+        0x43: (1),                                  # Tstore_<n>
+        0x01: (0, "null"),                          # aconst_null
+        0x25: (0, "{1}"),                           # aload
+        0x2a: (0, "{1}", lambda op: op - 0x2a),     # aload_<n>
+        0xbd: (1, "new {1.class}[{0}]"),            # anewarray
+        0xbe: (1, "{0}.length"),                    # arraylength
+        0xbf: (1),                                  # athrow
+        0x10: (0, "0x{0.value:x}"),                 # bipush
+        0xc0: (1, "(({1.classname}){0})"),          # checkcast
+        0x90: (1, "((double){0})", 2),              # d2f
+        0x8e: (1, "((int){0})"),                    # d2i
+        0x8f: (1, "((long){0}", 2),                 # d2l
+        0x31: (2, "{0}[{1}]", 2),                   # daload
+        0x0e: (0, "{0}.0", lambda op: op - 14),     # dconst_<d>
+        0x18: (0, "{1}", 2),                        # dload
+        0x26: (0, "{1}", lambda op: op - 0x26, 2),  # dload_<n>
+        0x8d: (1, "((double){0})", 2),              # f2d
+        0x8b: (1, "((int){0})"),                    # f2i
+        0x8c: (1, "((long){0})", 2),                # f2l
+        0x0b: (0, "{0}", lambda op: op - 11),       # fconst_<f>
+        0x17: (0, "{1}"),                           # fload
+        0x22: (0, "{1}", lambda op: op - 0x22),     # fload_<n>
+        0xb4: (1, "{0}.{1.name}"),                  # getfield
+        0xb2: (0, "{0.class}.{0.name}"),            # getstatic
+        0x91: (1, "((byte){0})"),                   # i2b
+        0x92: (1, "((chat){0})"),                   # i2c
+        0x87: (1, "((double){0})", 2),              # i2d
+        0x86: (1, "((float){0})"),                  # i2f
+        0x85: (1, "((long){0})", 2),                # i2l
+        0x93: (1, "((short){0})"),                  # i2s
+        0x2e: (2, "{1}[{0}]"),                      # iaload
+        0x02: (0, "{0}", lambda op: op - 3),        # iconst_<i>
+        0x15: (0, "{1}"),                           # iload
+        0x1a: (0, "{1}", lambda op: op - 0x1a),     # iload_<n>
+        0xc1: (1, "({0} instanceof {1.class})"),    # instanceof
+        0x8a: (1, "((double){0})", 2),              # l2d
+        0x89: (1, "((float){0})"),                  # l2f
+        0x88: (1, "((int){0})"),                    # l2i
+        0x2f: (2, "{0}[{1}]", 2),                   # laload
+        0x09: (0, "{0}", lambda op: op - 9),        # lconst_<l>
+        0x12: (0, "{0.name}"),                      # ldc
+        0x14: (0, "{0.name}", 2),                   # ldc2_w
+        0x16: (0, "{1}", 2),                        # lload
+        0x1e: (0, "{1}", lambda op: op - 0x1e, 2),  # lload_<n>
+        0xc2: (0),                                  # monitorenter
+        0xbb: (0, "new {0.class}"),                 # new
+        0xbc: (1, "new {1.atype}[{0}]"),            # newarray
+        0x00: (0),                                  # nop
+        0x57: (1),                                  # pop
+        0xb5: (2),                                  # putfield
+        0xb3: (1),                                  # putstatic
+        0xa9: (0),                                  # ret
+        0xb1: (0),                                  # return
+        0x35: (2, "{1}[{0}]", 2),                   # saload
+        0x11: (0, "{0}"),                           # sipush
+        0xc4: (0),                                  # wide
+
     }
 
     @staticmethod
@@ -158,13 +162,19 @@ class PacketInstructionsTopping(Topping):
         """Finds all packets and decompiles them"""
         for packet in aggregate["packets"]["packet"].values():
             try:
-                packet.update(PacketInstructionsTopping.format(PacketInstructionsTopping.operations(jar, packet["class"])))
+                packet.update(_PIT.format(
+                    _PIT.operations(jar, packet["class"])
+                ))
             except:
                 if verbose:
-                    print "Error: Failed to parse instructions of packet {0} ({1})".format(packet["id"], packet["class"])
-                    
+                    print "Error: Failed to parse instructions",
+                    print "of packet {0} ({1})".format(
+                        packet["id"], packet["class"]
+                    )
+
     @staticmethod
-    def operations(jar, classname, args=('java.io.DataOutputStream',), methodname=None, arg_names=["this", "stream"]):
+    def operations(jar, classname, args=('java.io.DataOutputStream',),
+                   methodname=None, arg_names=["this", "stream"]):
         """Gets the instructions of the specified method"""
 
         # Find the writing method
@@ -185,31 +195,41 @@ class PacketInstructionsTopping(Topping):
 
         for instruction in method.instructions:
             opcode = instruction.opcode
-            operands = [InstructionField(operand, instruction, cf.constants) for operand in instruction.operands]
+            operands = [InstructionField(operand, instruction, cf.constants)
+                        for operand in instruction.operands]
 
             # Shortcut if
             if instruction.pos == shortif_pos:
                 category = stack[-1].category
-                stack.append(Operand("(({0}) ? {2} : {1})".format(shortif_cond, stack.pop(), stack.pop()), category))
+                stack.append(Operand("(({0}) ? {2} : {1})".format(
+                    shortif_cond, stack.pop(), stack.pop()
+                ), category))
 
             # Method calls
             if opcode >= 0xb6 and opcode <= 0xb9:
                 name = operands[0].name
-                descriptor = operands[0].descriptor
-                if InstrTop.TYPES.has_key(name):
-                    operations.append(Operation(instruction.pos, "write").set("type", InstrTop.TYPES[name]).set("field", stack.pop()))
+                desc = operands[0].descriptor
+                if name in _PIT.TYPES:
+                    operations.append(Operation(instruction.pos, "write",
+                                                type=_PIT.TYPES[name],
+                                                field=stack.pop()))
                     stack.pop()
                 elif name == "write":
-                    if descriptor.find("[BII") >= 0:
+                    if desc.find("[BII") >= 0:
                         stack.pop()
                         stack.pop()
-                    operations.append(Operation(instruction.pos, "write").set("type", "byte[]" if descriptor.find("[B") >= 0 else "byte").set("field", stack.pop()))
+                    operations.append(Operation(
+                        instruction.pos, "write",
+                        type="byte[]" if desc.find("[B") >= 0 else "byte",
+                        field=stack.pop()))
                     stack.pop()
-                elif descriptor == "(Ljava/lang/String;Ljava/io/DataOutputStream;)V":
+                elif desc == "(Ljava/lang/String;Ljava/io/DataOutputStream;)V":
                     stack.pop()
-                    operations.append(Operation(instruction.pos, "write").set("type", "string16").set("field", stack.pop()))
+                    operations.append(Operation(instruction.pos, "write",
+                                                type="string16",
+                                                field=stack.pop()))
                 else:
-                    descriptor = method_descriptor(descriptor)
+                    descriptor = method_descriptor(desc)
                     num_arguments = len(descriptor[0])
                     if num_arguments > 0:
                         arguments = stack[-len(descriptor[0]):]
@@ -217,13 +237,21 @@ class PacketInstructionsTopping(Topping):
                         arguments = []
                     for i in range(num_arguments):
                         stack.pop()
-                    obj = "static" if opcode == 0xb8 else stack.pop() 
+                    obj = "static" if opcode == 0xb8 else stack.pop()
                     if descriptor[1] != "void":
-                        stack.append(Operand("{0}.{1}({2})".format(obj, name, InstrTop.join(arguments)), 2 if descriptor[1] in ["long", "double"] else 1))
+                        stack.append(Operand(
+                            "{0}.{1}({2})".format(
+                                obj, name, _PIT.join(arguments)
+                            ),
+                            2 if descriptor[1] in ["long", "double"] else 1)
+                        )
 
                     if "java.io.DataOutputStream" in descriptor[0]:
-                        operations += InstrTop.sub_operations(jar, cf, instruction, operands[0], [obj] + arguments if obj != "static" else arguments)
-                        
+                        operations += _PIT.sub_operations(
+                            jar, cf, instruction, operands[0],
+                            [obj] + arguments if obj != "static" else arguments
+                        )
+
             # Conditional statements and loops
             elif opcode in [0xc7, 0xc6] or opcode >= 0x99 and opcode <= 0xa6:
                 if opcode == 0xc7:
@@ -231,41 +259,51 @@ class PacketInstructionsTopping(Topping):
                 elif opcode == 0xc6:
                     condition = "%s != null" % stack.pop()
                 else:
-                    if opcode <= 0x9e:      # if
+                    if opcode <= 0x9e:                  # if
                         comperation = opcode - 0x99
                         fields = [0, stack.pop()]
-                    elif opcode <= 0xa4:    # if_icmp
+                    elif opcode <= 0xa4:                # if_icmp
                         comperation = opcode - 0x9f
                         fields = [stack.pop(), stack.pop()]
-                    else:                   # if_acmp
+                    else:                               # if_acmp
                         comperation = opcode - 0xa5
                         fields = [operands.pop(), operands.pop()]
                     if comperation == 0 and fields[0] == 0:
                         condition = fields[1]
                     else:
-                        condition = "{1} {2} {0}".format(fields[0], fields[1], InstrTop.CONDITIONS[comperation])
-                operations.append(Operation(instruction.pos,"if").set("condition", condition))
-                operations.append(Operation(operands[0].target,"endif"))
+                        condition = "{1} {2} {0}".format(
+                            fields[0], fields[1], _PIT.CONDITIONS[comperation]
+                        )
+                operations.append(Operation(instruction.pos, "if",
+                                            condition=condition))
+                operations.append(Operation(operands[0].target, "endif"))
                 shortif_cond = condition
-            elif opcode == 0xaa:            # tableswitch
-                operations.append(Operation(instruction.pos, "switch").set("field", stack.pop()))
+
+            elif opcode == 0xaa:                        # tableswitch
+                operations.append(Operation(instruction.pos, "switch",
+                                            field=stack.pop()))
                 low = operands[0].value[1]
                 for opr in range(1, len(operands)):
                     target = operands[opr].target
-                    operations.append(Operation(target, "case").set("value", low + opr -  1))
+                    operations.append(Operation(target, "case",
+                                                value=low + opr - 1))
                 operations.append(Operation(operands[0].target, "endswitch"))
-            elif opcode == 0xab:            # lookupswitch
-                operations.append(Operation(instruction.pos, "switch").set("field", stack.pop()))
+
+            elif opcode == 0xab:                        # lookupswitch
+                operations.append(Operation(instruction.pos, "switch",
+                                            field=stack.pop()))
                 for opr in range(1, len(operands)):
                     target = operands[opr].find_target(1)
-                    operations.append(Operation(target, "case").set("value", operands[opr].value[0]))
+                    operations.append(Operation(target, "case",
+                                                value=operands[opr].value[0]))
                 operations.append(Operation(operands[0].target, "endswitch"))
-            elif opcode == 0xa7:            # goto
+
+            elif opcode == 0xa7:                        # goto
                 target = operands[0].target
-                endif = InstrTop.find_next(operations, instruction.pos, "endif")
-                case = InstrTop.find_next(operations, instruction.pos, "case")
+                endif = _PIT.find_next(operations, instruction.pos, "endif")
+                case = _PIT.find_next(operations, instruction.pos, "case")
                 if case != None and target > case.position:
-                    operations.append(Operation(instruction.pos, "break"))  
+                    operations.append(Operation(instruction.pos, "break"))
                 elif target > instruction.pos:
                     endif.operation = "else"
                     operations.append(Operation(target, "endif"))
@@ -273,74 +311,88 @@ class PacketInstructionsTopping(Topping):
                         shortif_pos = target
                 else:
                     endif.operation = "endloop"
-                    InstrTop.find_next(operations, target, "if").operation = "loop"
+                    _PIT.find_next(operations, target, "if").operation = "loop"
 
             # Math
             elif opcode >= 0x74 and opcode <= 0x77:
                 category = stack[-1].category
                 stack.append(Operand("(- {0})".format(stack.pop), category))
-            elif opcode >= 0x60 and opcode <= 0x7f: # Tneg
+            elif opcode >= 0x60 and opcode <= 0x7f:     # Tneg
                 lookup_opcode = opcode
-                while not InstrTop.MATH.has_key(lookup_opcode):
+                while not lookup_opcode in _PIT.MATH:
                     lookop_opcode -= 1
                 category = stack[-1].category
-                stack.append(Operand("({1} {2} {0})".format(stack.pop(), stack.pop(), InstrTop.MATH[lookup_opcode]), category))
-            elif opcode == 0x84:            # iinc
-                operations.append(Operation(instruction.pos, "increment").set("field", "var{0}".format(operands[0])).set("amount", operands[1]))
+                stack.append(Operand(
+                    "({1} {2} {0})".format(
+                        stack.pop(), stack.pop(),
+                        _PIT.MATH[lookup_opcode]
+                    ), category
+                ))
+            elif opcode == 0x84:                        # iinc
+                operations.append(Operation(instruction.pos, "increment",
+                                            field="var{0}".format(operands[0]),
+                                            amount=operands[1]))
 
             # Other manually handled opcodes
-            elif opcode == 0xc5:            # multianewarray
+            elif opcode == 0xc5:                        # multianewarray
                 operand = ""
                 for i in range(operands[1].value):
                     operand = "[{0}]{1}".format(stack.pop(), operand)
-                stack.append(Operand("new {0}{1}".format(operands[0].type, operand)))
-            elif opcode == 0x58:            # pop2
+                stack.append(Operand(
+                    "new {0}{1}".format(operands[0].type, operand)))
+            elif opcode == 0x58:                        # pop2
                 if stack.pop().category != 2:
                     stack.pop()
-            elif opcode == 0x5f:            # swap
+            elif opcode == 0x5f:                        # swap
                 stack += [stack.pop(), stack.pop()]
-            elif opcode == 0x59:            # dup
+            elif opcode == 0x59:                        # dup
                 stack.append(stack[-1])
-            elif opcode == 0x5a:            # dup_x1
+            elif opcode == 0x5a:                        # dup_x1
                 stack.insert(-2, stack[-1])
-            elif opcode == 0x5b:            # dup_x2
+            elif opcode == 0x5b:                        # dup_x2
                 stack.insert(-2 if stack[-2].category == 2 else -3, stack[-1])
-            elif opcode == 0x5c:            # dup2
+            elif opcode == 0x5c:                        # dup2
                 if stack[-1].category == 2:
                     stack.append(stack[-1])
                 else:
-                    stack += stack[-2:] 
-            elif opcode == 0x5d:            # dup2_x1
+                    stack += stack[-2:]
+            elif opcode == 0x5d:                        # dup2_x1
                 if stack[-1].category == 2:
                     stack.insert(-2, stack[-1])
                 else:
                     stack.insert(-3, stack[-2])
                     stack.insert(-3, stack[-1])
-            elif opcode == 0x5e:            # dup2_x2
+            elif opcode == 0x5e:                        # dup2_x2
                 if stack[-1].category == 2:
-                    stack.insert(-2 if stack[-2].category == 2 else -3, stack[-1])
+                    stack.insert(
+                        -2 if stack[-2].category == 2 else -3, stack[-1]
+                    )
                 else:
-                    stack.insert(-3 if stack[-3].category == 2 else -4, stack[-2])
-                    stack.insert(-3 if stack[-3].category == 2 else -4, stack[-1])
-   
+                    stack.insert(
+                        -3 if stack[-3].category == 2 else -4, stack[-2]
+                    )
+                    stack.insert(
+                        -3 if stack[-3].category == 2 else -4, stack[-1]
+                    )
+
             # Unhandled opcodes
             elif opcode in [0xc8, 0xa8, 0xc9]:
                 raise Exception("unhandled opcode 0x{0:x}".format(opcode))
-                       
+
             # Default handlers
             else:
                 lookup_opcode = opcode
-                while not InstrTop.OPCODES.has_key(lookup_opcode):
+                while not lookup_opcode in _PIT.OPCODES:
                     lookup_opcode -= 1
 
-                handler = InstrTop.OPCODES[lookup_opcode]
+                handler = _PIT.OPCODES[lookup_opcode]
                 index = 0
 
-                if type(handler) == IntType:
+                if isinstance(handler, int):
                     handler = [handler]
 
                 assert len(stack) >= handler[index]
-                
+
                 for i in range(handler[index]):
                     operands.insert(0, stack.pop())
 
@@ -350,16 +402,22 @@ class PacketInstructionsTopping(Topping):
                     format = handler[index]
                     index += 1
 
-                    if len(handler) > index and type(handler[index]) == LambdaType:
+                    if (len(handler) > index and
+                        isinstance(handler[index], LambdaType)):
                         value = handler[index](opcode)
                         operands.append(value)
-                        operands.append(arg_names[value] if value < len(arg_names) else "var{0}".format(value))
+                        operands.append(arg_names[value]
+                                        if value < len(arg_names)
+                                        else "var{0}".format(value))
                         index += 1
                     elif len(operands) >= 1:
                         value = operands[0].value
-                        operands.append(arg_names[value] if value < len(arg_names) else "var{0}".format(value))
-                        
-                    if len(handler) > index and type(handler[index]) == IntType:
+                        operands.append(arg_names[value]
+                                        if value < len(arg_names)
+                                        else "var{0}".format(value))
+
+                    if (len(handler) > index and
+                        isinstance(handler[index], int)):
                         category = handler[index]
                     else:
                         category = 1
@@ -378,12 +436,12 @@ class PacketInstructionsTopping(Topping):
 
     @staticmethod
     def find_next(operations, position, operation_search):
-        """Finds the next operation of the type operation_search starting at the given position"""        
-        for operation in InstrTop.ordered_operations(operations):
-            if operation.position > position and operation.operation == operation_search:
+        """Finds an operation"""
+        for operation in _PIT.ordered_operations(operations):
+            if (operation.position > position and
+                operation.operation == operation_search):
                 return operation
 
-    
     @staticmethod
     def ordered_operations(operations):
         """Orders the operatoin by their actual position"""
@@ -396,25 +454,26 @@ class PacketInstructionsTopping(Topping):
         name = operand.name
         descriptor = operand.descriptor
         args = method_descriptor(descriptor)[0]
-        cache_key = "%s/%s/%s/%s" % (invoked_class, name, descriptor, InstrTop.join(arg_names, ","))
+        cache_key = "%s/%s/%s/%s" % (invoked_class, name,
+                                     descriptor, _PIT.join(arg_names, ","))
 
-        if InstrTop.CACHE.has_key(cache_key):
-            return InstrTop.CACHE[cache_key]
-        
-        operations = InstrTop.operations(jar, invoked_class, args, name, arg_names)
+        if cache_key in _PIT.CACHE:
+            return _PIT.CACHE[cache_key]
+
+        operations = _PIT.operations(jar, invoked_class, args, name, arg_names)
         position = 0
-        for operation in InstrTop.ordered_operations(operations):
+        for operation in _PIT.ordered_operations(operations):
             position += 0.01
             operation.position = instruction.pos + (position)
 
-        InstrTop.CACHE[cache_key] = operations
+        _PIT.CACHE[cache_key] = operations
 
         return operations
 
     @staticmethod
     def format(operations):
         """Constructs output structure"""
-        
+
         head = []
         stack = [head]
         aggregate = {"instructions": head}
@@ -423,14 +482,14 @@ class PacketInstructionsTopping(Topping):
         block_start = ["if", "loop", "switch", "else"]
         block_end = ["endif", "endloop", "endswitch", "else"]
 
-        for operation in InstrTop.ordered_operations(operations):
+        for operation in _PIT.ordered_operations(operations):
             if operation.operation == "write":
                 if size != None:
-                    if len(stack) == 1 and InstrTop.SIZES.has_key(operation.type):
-                        size += InstrTop.SIZES[operation.type]
+                    if len(stack) == 1 and operation.type in _PIT.SIZES:
+                        size += _PIT.SIZES[operation.type]
                     else:
                         size = None
-            
+
             obj = operation.__dict__.copy()
             obj.pop("position")
             if operation.operation in block_end + block_start:
@@ -453,12 +512,15 @@ class PacketInstructionsTopping(Topping):
 
         return aggregate
 
-    
+
 class Operation:
     """Represents a performed operation"""
-    def __init__(self, position, operation):
+    def __init__(self, position, operation, **args):
         self.position = position
         self.operation = operation
+
+        for arg in args:
+            self.set(arg, args[arg])
 
     def __repr__(self):
         return str(self.__dict__)
@@ -466,6 +528,7 @@ class Operation:
     def set(self, key, value):
         self.__dict__[key] = str(value)
         return self
+
 
 class InstructionField:
     """Represents a operand in a instruction"""
@@ -484,7 +547,7 @@ class InstructionField:
             "atype": self.find_atype,
             "type": self.find_type
         }
-        
+
     def __str__(self):
         return str(self.value)
 
@@ -492,7 +555,7 @@ class InstructionField:
         return self.__str__()
 
     def __getattr__(self, name):
-        if self.handlers.has_key(name):
+        if name in self.handlers:
             return self.handlers[name]()
         else:
             raise AttributeError
@@ -502,7 +565,8 @@ class InstructionField:
 
     def find_class(self):
         """Finds the class defining the method called in instruction"""
-        return self.find_constant({ConstantType.FIELD_REF: "class_index", ConstantType.METHOD_REF: "class_index"})
+        return self.find_constant({ConstantType.FIELD_REF: "class_index",
+                                   ConstantType.METHOD_REF: "class_index"})
 
     def find_name(self):
         """Finds the name of a method called in the suplied instruction"""
@@ -514,7 +578,9 @@ class InstructionField:
 
     def find_descriptor(self):
         """Finds types used in an instruction"""
-        return self.find_constant({ConstantType.NAME_AND_TYPE: "descriptor_index"})
+        return self.find_constant({
+            ConstantType.NAME_AND_TYPE: "descriptor_index"
+        })
 
     def find_constant(self, custom_follow={}, index=None):
         """Walks the constant tree to a name or descriptor"""
@@ -533,24 +599,24 @@ class InstructionField:
         follow.update(custom_follow)
         if tag == ConstantType.UTF8:
             return const["value"]
-        elif follow.has_key(tag):
+        elif tag in follow:
             return self.find_constant(follow, const[follow[tag]])
 
     def find_target(self, index=0):
         """Finds the target of a goto or if instruction"""
-        if type(self.value) == TupleType:
+        if isinstance(self.value, tuple):
             value = self.value[index]
         else:
             value = self.value
-            
+
         return value + self.instruction.pos
 
     def find_type(self):
         """Finds a type used by an instruction"""
         descriptor = self.find_constant()
-        descriptor =  field_descriptor(descriptor)
+        descriptor = field_descriptor(descriptor)
         return descriptor[:descriptor.find("[")]
-        
+
     def find_atype(self):
         """Finds the type used by the `newarray` instruction"""
         return [
@@ -564,6 +630,7 @@ class InstructionField:
             "long"
         ][self.value - 4]
 
+
 class Operand:
     """Represents an operand on the runtime operand stack"""
     def __init__(self, value, category=1):
@@ -576,4 +643,5 @@ class Operand:
     def __repr__(self):
         return "{0} [{1}]".format(self.value, self.category)
 
-InstrTop = PacketInstructionsTopping
+
+_PIT = PacketInstructionsTopping
