@@ -23,6 +23,7 @@ THE SOFTWARE.
 """
 
 import re
+import sys
 from types import LambdaType
 
 from solum import ClassFile, JarFile
@@ -174,9 +175,8 @@ class PacketInstructionsTopping(Topping):
             except:
                 if verbose:
                     print "Error: Failed to parse instructions",
-                    print "of packet {0} ({1})".format(
-                        packet["id"], packet["class"]
-                    )
+                    print "of packet %s (%s)" % (packet["id"],
+                                                 packet["class"])
 
     @staticmethod
     def operations(jar, classname, args=('java.io.DataOutputStream',),
@@ -207,9 +207,11 @@ class PacketInstructionsTopping(Topping):
             # Shortcut if
             if instruction.pos == shortif_pos:
                 category = stack[-1].category
-                stack.append(Operand("(({0}) ? {2} : {1})".format(
-                    shortif_cond, stack.pop(), stack.pop()
-                ), category))
+                stack.append(Operand("((%(cond)s) ? %(sec)s : %(first)s)" % {
+                    "cond": shortif_cond,
+                    "first": stack.pop(),
+                    "sec": stack.pop()
+                }, category))
 
             # Method calls
             if opcode >= 0xb6 and opcode <= 0xb9:
@@ -246,7 +248,7 @@ class PacketInstructionsTopping(Topping):
                     obj = "static" if opcode == 0xb8 else stack.pop()
                     if descriptor[1] != "void":
                         stack.append(Operand(
-                            "{0}.{1}({2})".format(
+                            "%s.%s(%s)" % (
                                 obj, name, _PIT.join(arguments)
                             ),
                             2 if descriptor[1] in ("long", "double") else 1)
@@ -277,8 +279,8 @@ class PacketInstructionsTopping(Topping):
                     if comperation == 0 and fields[0] == 0:
                         condition = fields[1]
                     else:
-                        condition = "{1} {2} {0}".format(
-                            fields[0], fields[1], _PIT.CONDITIONS[comperation]
+                        condition = "%s %s %s" % (
+                            fields[1], _PIT.CONDITIONS[comperation], fields[0]
                         )
                 operations.append(Operation(instruction.pos, "if",
                                             condition=condition))
@@ -322,30 +324,30 @@ class PacketInstructionsTopping(Topping):
             # Math
             elif opcode >= 0x74 and opcode <= 0x77:
                 category = stack[-1].category
-                stack.append(Operand("(- {0})".format(stack.pop), category))
+                stack.append(Operand("(- %s)" % (stack.pop), category))
             elif opcode >= 0x60 and opcode <= 0x7f:     # Tneg
                 lookup_opcode = opcode
                 while not lookup_opcode in _PIT.MATH:
                     lookop_opcode -= 1
                 category = stack[-1].category
                 stack.append(Operand(
-                    "({1} {2} {0})".format(
-                        stack.pop(), stack.pop(),
-                        _PIT.MATH[lookup_opcode]
+                    "(%s %s %s)" % (
+                        _PIT.MATH[lookup_opcode],
+                        stack.pop(), stack.pop()
                     ), category
                 ))
             elif opcode == 0x84:                        # iinc
                 operations.append(Operation(instruction.pos, "increment",
-                                            field="var{0}".format(operands[0]),
+                                            field="var%s" % operands[0],
                                             amount=operands[1]))
 
             # Other manually handled opcodes
             elif opcode == 0xc5:                        # multianewarray
                 operand = ""
                 for i in range(operands[1].value):
-                    operand = "[{0}]{1}".format(stack.pop(), operand)
+                    operand = "[%s]%s" % (stack.pop(), operand)
                 stack.append(Operand(
-                    "new {0}{1}".format(operands[0].type, operand)))
+                    "new %s%s" % (operands[0].type, operand)))
             elif opcode == 0x58:                        # pop2
                 if stack.pop().category != 2:
                     stack.pop()
@@ -383,7 +385,7 @@ class PacketInstructionsTopping(Topping):
 
             # Unhandled opcodes
             elif opcode in [0xc8, 0xa8, 0xc9]:
-                raise Exception("unhandled opcode 0x{0:x}".format(opcode))
+                raise Exception("unhandled opcode 0x%x" % opcode)
 
             # Default handlers
             else:
@@ -414,13 +416,13 @@ class PacketInstructionsTopping(Topping):
                         operands.append(value)
                         operands.append(arg_names[value]
                                         if value < len(arg_names)
-                                        else "var{0}".format(value))
+                                        else "var%s" % value)
                         index += 1
                     elif len(operands) >= 1:
                         value = operands[0].value
                         operands.append(arg_names[value]
                                         if value < len(arg_names)
-                                        else "var{0}".format(value))
+                                        else "var%s" % value)
 
                     if (len(handler) > index and
                         isinstance(handler[index], int)):
@@ -428,7 +430,10 @@ class PacketInstructionsTopping(Topping):
                     else:
                         category = 1
 
-                    stack.append(Operand(format.format(*operands), category))
+                    stack.append(Operand(
+                        StringFormatter.format(format, *operands),
+                        category)
+                    )
 
         return operations
 
@@ -437,7 +442,7 @@ class PacketInstructionsTopping(Topping):
         """Converts a list of object into a comma seperated list"""
         buffer = ""
         for arg in arguments:
-            buffer += "{0}{1}".format(arg, seperator)
+            buffer += "%s%s" % (arg, seperator)
         return buffer[:-len(seperator)]
 
     @staticmethod
@@ -464,9 +469,12 @@ class PacketInstructionsTopping(Topping):
                                      descriptor, _PIT.join(arg_names, ","))
 
         if cache_key in _PIT.CACHE:
-            return _PIT.CACHE[cache_key]
+            cache = _PIT.CACHE[cache_key]
+            operations = [op.clone() for op in cache]
+        else:
+            operations = _PIT.operations(jar, invoked_class,
+                                         args, name, arg_names)
 
-        operations = _PIT.operations(jar, invoked_class, args, name, arg_names)
         position = 0
         for operation in _PIT.ordered_operations(operations):
             position += 0.01
@@ -544,6 +552,12 @@ class Operation:
     def set(self, key, value):
         self.__dict__[key] = str(value)
         return self
+
+    def clone(self):
+        clone = Operation(self.position, self.operation)
+        for name in self.__dict__:
+            clone.set(name, self.__dict__[name])
+        return clone
 
 
 class InstructionField:
@@ -657,7 +671,47 @@ class Operand:
         return str(self.value)
 
     def __repr__(self):
-        return "{0} [{1}]".format(self.value, self.category)
+        return "%s [%s]" % (self.value, self.category)
+
+
+class StringFormatter:
+    """
+    Provides a subset of the features of string.format.
+
+    This class provides a fallback for python versions before 2.6 to use a
+    subset of the string.format functionality. This functionality is limited
+    to the following format:
+
+    {id[.field][:x]}
+
+    """
+
+    NATIVE = sys.version_info >= (2, 6)
+
+    PATTERN = re.compile("{(\d+)(\.(\w+))?(:(\w))?}")
+
+    @staticmethod
+    def format(string, *args):
+        if StringFormatter.NATIVE:
+            return string.format(*args)
+        else:
+            return StringFormatter(string, args).parse()
+
+    def __init__(self, string, values):
+        self.string = string
+        self.values = values
+
+    def parse(self):
+        return re.sub(self.PATTERN, self.match, self.string)
+
+    def match(self, match):
+        value = self.values[int(match.group(1))]
+        if match.group(3) != None:
+            value = getattr(value, match.group(3))
+        if match.group(5) == "x":
+            value = hex(value)[2:]
+
+        return str(value)
 
 
 _PIT = PacketInstructionsTopping
