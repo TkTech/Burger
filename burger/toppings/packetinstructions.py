@@ -22,6 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 
+import re
 from types import LambdaType
 
 from solum import ClassFile, JarFile
@@ -157,6 +158,11 @@ class PacketInstructionsTopping(Topping):
 
     }
 
+    CLEANUP_PATTERN = [
+        (re.compile("^\((.*)\)$"), "\\1"),
+        (re.compile("(^|[() ])this\."), "\\1")
+    ]
+
     @staticmethod
     def act(aggregate, jar, verbose=False):
         """Finds all packets and decompiles them"""
@@ -174,7 +180,7 @@ class PacketInstructionsTopping(Topping):
 
     @staticmethod
     def operations(jar, classname, args=('java.io.DataOutputStream',),
-                   methodname=None, arg_names=["this", "stream"]):
+                   methodname=None, arg_names=("this", "stream")):
         """Gets the instructions of the specified method"""
 
         # Find the writing method
@@ -243,7 +249,7 @@ class PacketInstructionsTopping(Topping):
                             "{0}.{1}({2})".format(
                                 obj, name, _PIT.join(arguments)
                             ),
-                            2 if descriptor[1] in ["long", "double"] else 1)
+                            2 if descriptor[1] in ("long", "double") else 1)
                         )
 
                     if "java.io.DataOutputStream" in descriptor[0]:
@@ -479,8 +485,8 @@ class PacketInstructionsTopping(Topping):
         aggregate = {"instructions": head}
         size = 0
 
-        block_start = ["if", "loop", "switch", "else"]
-        block_end = ["endif", "endloop", "endswitch", "else"]
+        block_start = ("if", "loop", "switch", "else")
+        block_end = ("endif", "endloop", "endswitch", "else")
 
         for operation in _PIT.ordered_operations(operations):
             if operation.operation == "write":
@@ -492,6 +498,10 @@ class PacketInstructionsTopping(Topping):
 
             obj = operation.__dict__.copy()
             obj.pop("position")
+            for field in ("field", "condition"):
+                if field in obj:
+                    obj[field] = _PIT.clean_field(obj[field])
+
             if operation.operation in block_end + block_start:
                 if operation.operation in block_end:
                     if len(head) == 0:
@@ -511,6 +521,12 @@ class PacketInstructionsTopping(Topping):
             aggregate["size"] = size
 
         return aggregate
+
+    @staticmethod
+    def clean_field(field):
+        for pattern in _PIT.CLEANUP_PATTERN:
+            field = re.sub(pattern[0], pattern[1], field)
+        return field
 
 
 class Operation:
