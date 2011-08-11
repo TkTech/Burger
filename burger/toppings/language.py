@@ -32,9 +32,7 @@ class LanguageTopping(Topping):
     """
 
     PROVIDES = [
-        "language.stats",
-        "language.achievements",
-        "language.gui"
+        "language"
     ]
 
     DEPENDS = []

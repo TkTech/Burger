@@ -30,8 +30,7 @@ class StatsTopping(Topping):
     ]
 
     DEPENDS = [
-        "language.stats",
-        "language.achievements"
+        "language"
     ]
 
     @staticmethod
