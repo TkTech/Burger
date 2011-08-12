@@ -34,7 +34,8 @@ class RecipesTopping(Topping):
 
     DEPENDS = [
         "identify.recipe.superclass",
-        "blocks"
+        "blocks",
+        "items"
     ]
 
     @staticmethod
@@ -163,6 +164,11 @@ class RecipesTopping(Topping):
         for id_, block in aggregate["blocks"]["block"].iteritems():
             block_map["%s:%s" % (block_class, block["field"])] = block
 
+        item_class = aggregate["classes"]["item.superclass"]
+        item_map = {}
+        for id_, item in aggregate["items"]["item"].iteritems():
+            item_map["%s:%s" % (item_class, item["field"])] = item
+
         for recipe in tmp_recipes:
             final = {
                 "makes": recipe["makes"],
@@ -178,6 +184,12 @@ class RecipesTopping(Topping):
                 final["name"] = block_map[target]["name"]
                 final["type"] = "block"
                 key = block_map[target]["name"]
+            elif target in item_map:
+                final["name"] = item_map[target]["name"]
+                if "display_name" in item_map[target]:
+                    final["display_name"] = item_map[target]["display_name"]
+                final["type"] = "item"
+                key = item_map[target]["name"]
             else:
                 key = target
 
@@ -191,6 +203,8 @@ class RecipesTopping(Topping):
                         sub = ":".join(recipe["substitutes"][col])
                         if sub in block_map:
                             tmp.append(block_map[sub]["id"])
+                        elif sub in item_map:
+                            tmp.append(item_map[sub]["id"])
                         else:
                             tmp.append(None)
                     else:

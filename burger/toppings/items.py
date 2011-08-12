@@ -46,6 +46,7 @@ class ItemsTopping(Topping):
         method = cf.methods.find_one("<clinit>")
         items = aggregate.setdefault("items", {})
         item_list = items.setdefault("item", {})
+        
         if "item" in aggregate["language"]:
             language = aggregate["language"]["item"]
         else:
@@ -73,6 +74,8 @@ class ItemsTopping(Topping):
                 stack = []
 
             elif opcode == 0xb3:                    # putstatic
+                const = cf.constants[instruction.operands[0][1]]
+                item["field"] = const["name_and_type"]["name"]["value"]
                 item_list[item["id"]] = item
 
             elif opcode >= 0x02 and opcode <= 0x8:  # iconst

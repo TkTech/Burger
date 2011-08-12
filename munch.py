@@ -124,30 +124,46 @@ if __name__ == "__main__":
                 print " -- %s" % topping.__doc__
         sys.exit(0)
 
-    # Builds the dependency dictionary so we can order
-    # topping execution.
+    class DependencyNode:
+        def  __init__(self, topping):
+            self.topping = topping
+            self.provides = topping.PROVIDES
+            self.depends = topping.DEPENDS
+            self.childs = []
+
+        def __repr__(self):
+            return str(self.topping)
+
+    # Order topping execution by building dependency tree
+    topping_nodes = []
     topping_provides = {}
-    topping_depends = {}
     for topping in loaded_toppings:
-        for provided in topping.PROVIDES:
-            topping_provides[provided] = topping
+        topping_node = DependencyNode(topping)
+        topping_nodes.append(topping_node)
+        for provides in topping_node.provides:
+            topping_provides[provides] = topping_node
 
-        for depends in topping.DEPENDS:
-            topping_depends[depends] = topping
+    for topping in topping_nodes:
+        for dependency in topping.depends:
+            if not dependency in topping_provides:
+                print "(%s) requires (%s)" % (topping, dependency)
+                sys.exit(1)
+            topping.childs.append(topping_provides[dependency])
 
-    # We use a really stupid/simple approach to order
-    # execution of toppings. Care must be taking not
-    # to introduce circular dependencies or Cuthulu
-    # will open the bowls of the earth and ravage
-    # whoever committed the offending topping.
-    to_be_run = deque(loaded_toppings)
-    for dk, dv in topping_depends.iteritems():
-        if dk not in topping_provides:
-            print "(%s) requires (%s)" % (dv, dk)
+    to_be_run = []
+    while len(topping_nodes) > 0:
+        stuck = True
+        for topping in topping_nodes:
+            if len(topping.childs) == 0:
+                stuck = False
+                for parent in topping_nodes:
+                    if topping in parent.childs:
+                        parent.childs.remove(topping)
+                to_be_run.append(topping.topping)
+                topping_nodes.remove(topping)
+        if stuck:
+            print "Can't resolve dependencies"
             sys.exit(1)
-
-        to_be_run.remove(topping_provides[dk])
-        to_be_run.appendleft(topping_provides[dk])
 
     jarlist = args
 
