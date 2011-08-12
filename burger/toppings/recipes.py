@@ -41,7 +41,7 @@ class RecipesTopping(Topping):
     @staticmethod
     def act(aggregate, jar, verbose=False):
         superclass = aggregate["classes"]["recipe.superclass"]
-        recipes = aggregate.setdefault("recipes", {})
+        recipes = aggregate.setdefault("recipes", [])
         tmp_recipes = []
 
         cf = jar.open_class(superclass)
@@ -169,6 +169,21 @@ class RecipesTopping(Topping):
         for id_, item in aggregate["items"]["item"].iteritems():
             item_map["%s:%s" % (item_class, item["field"])] = item
 
+        def getName(cls_fld):
+            field = ":".join(cls_fld)
+            if field in block_map:
+                return {
+                    "name": block_map[field]["name"],
+                    "id": block_map[field]["id"]
+                }
+            elif field in item_map:
+                return {
+                    "name":  item_map[field]["name"],
+                    "id":  item_map[field]["id"]
+                }
+            else:
+                return cls_fld
+
         for recipe in tmp_recipes:
             final = {
                 "makes": recipe["makes"],
@@ -178,20 +193,19 @@ class RecipesTopping(Topping):
                 }
             }
 
+            # Try to get the substitutes name
+            subs = recipe["substitutes"]
+            for sub in subs:
+                subs[sub] = getName(subs[sub])
+
             # Try to get the created item/block name.
-            target = ":".join(recipe["recipe_target"])
-            if target in block_map:
-                final["name"] = block_map[target]["name"]
-                final["type"] = "block"
-                key = block_map[target]["name"]
-            elif target in item_map:
-                final["name"] = item_map[target]["name"]
-                if "display_name" in item_map[target]:
-                    final["display_name"] = item_map[target]["display_name"]
-                final["type"] = "item"
-                key = item_map[target]["name"]
+            target = getName(recipe["recipe_target"])
+            if isinstance(target, dict):
+                final["name"] = target["name"]
+                final["id"] = target["id"]
+                final["type"] = "block" if target["id"] < 256 else "item"
             else:
-                key = target
+                final["field"] = target
 
             rmap = []
             for row in recipe["rows"]:
@@ -200,16 +214,13 @@ class RecipesTopping(Topping):
                     if col == ' ':
                         tmp.append(0)
                     elif col in recipe["substitutes"]:
-                        sub = ":".join(recipe["substitutes"][col])
-                        if sub in block_map:
-                            tmp.append(block_map[sub]["id"])
-                        elif sub in item_map:
-                            tmp.append(item_map[sub]["id"])
+                        if isinstance(recipe["substitutes"][col], dict):
+                            tmp.append(recipe["substitutes"][col]["id"])
                         else:
-                            tmp.append(None)
+                            tmp.append(":".join(recipe["substitutes"][col]))
                     else:
                         tmp.append(None)
                 rmap.append(tmp)
 
             final["shape"] = rmap
-            recipes[key] = final
+            recipes.append(final)

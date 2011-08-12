@@ -114,6 +114,7 @@ if __name__ == "__main__":
 
     # Load all the toppings we want
     loaded_toppings = import_toppings(toppings)
+    all_toppings = import_toppings(None)
 
     # List all of the available toppings,
     # as well as their docstring if available.
@@ -143,6 +144,18 @@ if __name__ == "__main__":
         for provides in topping_node.provides:
             topping_provides[provides] = topping_node
 
+    # Include missing dependencies
+    for topping in topping_nodes:
+        for dependency in topping.depends:
+            if not dependency in topping_provides:
+                for other_topping in all_toppings:
+                    if dependency in other_topping.PROVIDES:
+                        topping_node = DependencyNode(other_topping)
+                        topping_nodes.append(topping_node)
+                        for provides in topping_node.provides:
+                            topping_provides[provides] = topping_node
+
+    # Find dependency childs
     for topping in topping_nodes:
         for dependency in topping.depends:
             if not dependency in topping_provides:
@@ -150,6 +163,7 @@ if __name__ == "__main__":
                 sys.exit(1)
             topping.childs.append(topping_provides[dependency])
 
+    # Run leaves first
     to_be_run = []
     while len(topping_nodes) > 0:
         stuck = True
