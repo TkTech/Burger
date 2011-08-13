@@ -24,12 +24,7 @@ THE SOFTWARE.
 from .topping import Topping
 
 class LanguageTopping(Topping):
-    """Provides the contents of the English language files.
-
-    Looks into the contents of en_US.lang and stats_US.lang,
-    returning their contents as a list of tuples in the form
-    (category, name, value).
-    """
+    """Provides the contents of the English language files."""
 
     PROVIDES = [
         "language"

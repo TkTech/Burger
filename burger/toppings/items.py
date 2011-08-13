@@ -28,6 +28,7 @@ from .topping import Topping
 
 
 class ItemsTopping(Topping):
+    """Provides some information on all available items"""
     PROVIDES = [
         "items"
     ]

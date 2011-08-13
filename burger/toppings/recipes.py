@@ -28,6 +28,8 @@ from .topping import Topping
 
 
 class RecipesTopping(Topping):
+    """Provides a list of all possible crafting recipes"""
+    
     PROVIDES = [
         "recipes"
     ]
