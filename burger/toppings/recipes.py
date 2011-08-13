@@ -41,7 +41,7 @@ class RecipesTopping(Topping):
     @staticmethod
     def act(aggregate, jar, verbose=False):
         superclass = aggregate["classes"]["recipe.superclass"]
-        recipes = aggregate.setdefault("recipes", [])
+        recipes = aggregate.setdefault("recipes", {})
         tmp_recipes = []
 
         cf = jar.open_class(superclass)
@@ -204,8 +204,10 @@ class RecipesTopping(Topping):
                 final["name"] = target["name"]
                 final["id"] = target["id"]
                 final["type"] = "block" if target["id"] < 256 else "item"
+                key = target["id"]
             else:
                 final["field"] = target
+                key = ":".join(final["field"])
 
             rmap = []
             for row in recipe["rows"]:
@@ -223,4 +225,6 @@ class RecipesTopping(Topping):
                 rmap.append(tmp)
 
             final["shape"] = rmap
-            recipes.append(final)
+            if key not in recipes:
+                recipes[key] = []
+            recipes[key].append(final)
