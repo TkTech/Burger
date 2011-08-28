@@ -138,7 +138,7 @@ if __name__ == "__main__":
         
     # Get the toppings we want  
     if toppings is None:
-        loaded_toppings = all_toppings
+        loaded_toppings = all_toppings.values()
     else:
         loaded_toppings = []
         for topping in toppings:
