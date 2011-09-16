@@ -38,31 +38,43 @@ from solum import JarFile
 from burger.website import Website
 
 
-def import_toppings(toppings=None):
+def import_toppings():
     """
     Attempts to imports either a list of toppings or, if none were
     given, attempts to load all available toppings.
     """
     this_dir = os.path.dirname(__file__)
     toppings_dir = os.path.join(this_dir, "burger", "toppings")
-    from_list = ["topping"]
+    from_list = []
 
-    if toppings is not None:
-        from_list.extend(toppings)
-    else:
-        # If we weren't given a list of toppings to load,
-        # traverse the toppings directory and import everything.
-        for root, dirs, files in os.walk(toppings_dir):
-            for file_ in files:
-                if not file_.endswith(".py"):
-                    continue
-                elif file_.startswith("__"):
-                    continue
+    # Traverse the toppings directory and import everything.
+    for root, dirs, files in os.walk(toppings_dir):
+        for file_ in files:
+            if not file_.endswith(".py"):
+                continue
+            elif file_.startswith("__"):
+                continue
+            elif file_ == "topping.py":
+                continue
 
-                from_list.append(file_[:-3])
+            from_list.append(file_[:-3])
 
-    imports = __import__("burger.toppings", fromlist=from_list)
-    return imports.topping.Topping.__subclasses__()
+    from burger.toppings.topping import Topping
+    toppings = {}
+    count = 0
+
+    for topping in from_list:
+        module = __import__("burger.toppings.%s" % topping)
+        subclasses = Topping.__subclasses__()
+        if len(subclasses) == count:
+            print "Topping '%s' contains no topping" % topping
+        elif len(subclasses) >= count + 2:
+            print "Topping '%s' contains more than one topping" % topping
+        else:
+            toppings[topping] = subclasses[-1]
+        count = len(subclasses)
+            
+    return toppings
 
 if __name__ == "__main__":
     try:
@@ -111,45 +123,85 @@ if __name__ == "__main__":
             download_fresh_jar = True
         elif o in ("-l", "--list"):
             list_toppings = True
-
-    # Load all the toppings we want
-    loaded_toppings = import_toppings(toppings)
-
+            
+    # Load all toppings
+    all_toppings = import_toppings()
+    
     # List all of the available toppings,
     # as well as their docstring if available.
     if list_toppings:
-        for topping in loaded_toppings:
-            print topping
-            if topping.__doc__:
-                print " -- %s" % topping.__doc__
+        for topping in all_toppings:
+            print "%s" % topping
+            if all_toppings[topping].__doc__:
+                print " -- %s\n" % all_toppings[topping].__doc__
         sys.exit(0)
+        
+    # Get the toppings we want  
+    if toppings is None:
+        loaded_toppings = all_toppings.values()
+    else:
+        loaded_toppings = []
+        for topping in toppings:
+            if topping not in all_toppings:
+                print "Topping '%s' doesn't exist" % topping
+            else:
+                loaded_toppings.append(all_toppings[topping])
 
-    # Builds the dependency dictionary so we can order
-    # topping execution.
+    class DependencyNode:
+        def  __init__(self, topping):
+            self.topping = topping
+            self.provides = topping.PROVIDES
+            self.depends = topping.DEPENDS
+            self.childs = []
+
+        def __repr__(self):
+            return str(self.topping)
+
+    # Order topping execution by building dependency tree
+    topping_nodes = []
     topping_provides = {}
-    topping_depends = {}
     for topping in loaded_toppings:
-        for provided in topping.PROVIDES:
-            topping_provides[provided] = topping
+        topping_node = DependencyNode(topping)
+        topping_nodes.append(topping_node)
+        for provides in topping_node.provides:
+            topping_provides[provides] = topping_node
 
-        for depends in topping.DEPENDS:
-            topping_depends[depends] = topping
+    # Include missing dependencies
+    for topping in topping_nodes:
+        for dependency in topping.depends:
+            if not dependency in topping_provides:
+                for other_topping in all_toppings.values():
+                    if dependency in other_topping.PROVIDES:
+                        topping_node = DependencyNode(other_topping)
+                        topping_nodes.append(topping_node)
+                        for provides in topping_node.provides:
+                            topping_provides[provides] = topping_node
 
-    # We use a really stupid/simple approach to order
-    # execution of toppings. Care must be taking not
-    # to introduce circular dependencies or Cuthulu
-    # will open the bowls of the earth and ravage
-    # whoever committed the offending topping.
-    to_be_run = deque(loaded_toppings)
-    for dk, dv in topping_depends.iteritems():
-        if dk not in topping_provides:
-            print "(%s) requires (%s)" % (dv, dk)
+    # Find dependency childs
+    for topping in topping_nodes:
+        for dependency in topping.depends:
+            if not dependency in topping_provides:
+                print "(%s) requires (%s)" % (topping, dependency)
+                sys.exit(1)
+            topping.childs.append(topping_provides[dependency])
+
+    # Run leaves first
+    to_be_run = []
+    while len(topping_nodes) > 0:
+        stuck = True
+        for topping in topping_nodes:
+            if len(topping.childs) == 0:
+                stuck = False
+                for parent in topping_nodes:
+                    if topping in parent.childs:
+                        parent.childs.remove(topping)
+                to_be_run.append(topping.topping)
+                topping_nodes.remove(topping)
+        if stuck:
+            print "Can't resolve dependencies"
             sys.exit(1)
 
-        to_be_run.remove(topping_provides[dk])
-        to_be_run.appendleft(topping_provides[dk])
-
-    jarlist = []
+    jarlist = args
 
     # Should we download a new copy of the JAR directly
     # from minecraft.net?

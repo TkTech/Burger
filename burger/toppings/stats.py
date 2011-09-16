@@ -24,14 +24,15 @@ THE SOFTWARE.
 from .topping import Topping
 
 class StatsTopping(Topping):
+    """Gets all statistics and statistic related strings"""
+    
     PROVIDES = [
         "stats.statistics",
         "stats.achievements"
     ]
 
     DEPENDS = [
-        "language.stats",
-        "language.achievements"
+        "language"
     ]
 
     @staticmethod

@@ -27,6 +27,8 @@ from .topping import Topping
 
 
 class BlocksTopping(Topping):
+    """Gets all available block types"""
+    
     PROVIDES = [
         "blocks"
     ]
