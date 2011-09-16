@@ -25,6 +25,7 @@ import os
 import sys
 import getopt
 import getpass
+import urllib
 
 try:
     import json
@@ -80,7 +81,7 @@ if __name__ == "__main__":
     try:
         opts, args = getopt.gnu_getopt(
             sys.argv[1:],
-            "t:o:vu:p:dlc",
+            "t:o:vu:p:dlcs:",
             [
                 "toppings=",
                 "output=",
@@ -89,7 +90,9 @@ if __name__ == "__main__":
                 "password=",
                 "download",
                 "list",
-                "compact"
+                "compact",
+                "url=",
+                "source="
             ]
         )
     except getopt.GetoptError, err:
@@ -105,6 +108,7 @@ if __name__ == "__main__":
     download_fresh_jar = False
     list_toppings = False
     compact = False
+    url = None
 
     for o, a in opts:
         if o in ("-t", "--toppings"):
@@ -123,6 +127,8 @@ if __name__ == "__main__":
             download_fresh_jar = True
         elif o in ("-l", "--list"):
             list_toppings = True
+        elif o in ("-s", "--url", "--source"):
+            url = a
 
     # Load all toppings
     all_toppings = import_toppings()
@@ -206,21 +212,13 @@ if __name__ == "__main__":
     # Should we download a new copy of the JAR directly
     # from minecraft.net?
     if download_fresh_jar:
-        def reporthook(chunks, chunksize, total):
-            if not verbose:
-                return
-
-            percent = float(chunks) * float(chunksize) / float(total)
-            percent *= 100
-            sys.stdout.write("\rDownloading... %s%%" % int(percent))
-            sys.stdout.flush()
-
-        client_path = Website.client_jar(reporthook=reporthook)
-        if verbose:
-            sys.stdout.write("\n")
+        client_path = Website.client_jar()
         jarlist.append(client_path)
 
-    jarlist.extend(args)
+    # Download a JAR from the given URL
+    if url:
+        url_path = urllib.urlretrieve(url)[0]
+        jarlist.append(url_path)
 
     summary = []
 
@@ -245,5 +243,8 @@ if __name__ == "__main__":
     else:
         json.dump(summary, output)
 
+    # Cleanup temporary downloads
     if download_fresh_jar:
         os.remove(client_path)
+    if url:
+        os.remove(url_path)
