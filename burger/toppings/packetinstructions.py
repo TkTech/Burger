@@ -34,7 +34,7 @@ from .topping import Topping
 
 
 class PacketInstructionsTopping(Topping):
-    """Provides the instructions used to construct network packets"""
+    """Provides the instructions used to construct network packets."""
 
     PROVIDES = [
         "packets.instructions",

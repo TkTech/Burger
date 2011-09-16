@@ -27,7 +27,7 @@ from .topping import Topping
 
 
 class PacketsTopping(Topping):
-    """Provides minimal information on all network packets"""
+    """Provides minimal information on all network packets."""
 
     PROVIDES = [
         "packets.ids",

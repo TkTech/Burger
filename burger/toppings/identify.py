@@ -25,6 +25,7 @@ from solum import ClassFile, ConstantType
 
 from .topping import Topping
 
+
 def identify(cf):
     """
     The first pass across the JAR will identify all possible classes it
@@ -90,7 +91,7 @@ def identify(cf):
     )
 
     if const:
-        return ("item.superclass", cf.this)    
+        return ("item.superclass", cf.this)
 
     # Protocol version (Client)
     const = cf.constants.find_one(
@@ -103,8 +104,8 @@ def identify(cf):
 
 
 class IdentifyTopping(Topping):
-    """Finds important superclasses needed by other toppings"""
-    
+    """Finds important superclasses needed by other toppings."""
+
     PROVIDES = [
         "identify.block.superclass",
         "identify.packet.superclass",

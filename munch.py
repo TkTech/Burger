@@ -73,7 +73,7 @@ def import_toppings():
         else:
             toppings[topping] = subclasses[-1]
         count = len(subclasses)
-            
+
     return toppings
 
 if __name__ == "__main__":
@@ -123,10 +123,10 @@ if __name__ == "__main__":
             download_fresh_jar = True
         elif o in ("-l", "--list"):
             list_toppings = True
-            
+
     # Load all toppings
     all_toppings = import_toppings()
-    
+
     # List all of the available toppings,
     # as well as their docstring if available.
     if list_toppings:
@@ -135,8 +135,8 @@ if __name__ == "__main__":
             if all_toppings[topping].__doc__:
                 print " -- %s\n" % all_toppings[topping].__doc__
         sys.exit(0)
-        
-    # Get the toppings we want  
+
+    # Get the toppings we want
     if toppings is None:
         loaded_toppings = all_toppings.values()
     else:

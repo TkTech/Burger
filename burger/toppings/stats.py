@@ -23,9 +23,10 @@ THE SOFTWARE.
 """
 from .topping import Topping
 
+
 class StatsTopping(Topping):
-    """Gets all statistics and statistic related strings"""
-    
+    """Gets all statistics and statistic related strings."""
+
     PROVIDES = [
         "stats.statistics",
         "stats.achievements"
@@ -54,4 +55,3 @@ class StatsTopping(Topping):
                 item["desc"] = av
             else:
                 item["name"] = av
-

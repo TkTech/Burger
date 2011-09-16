@@ -23,6 +23,7 @@ THE SOFTWARE.
 """
 from .topping import Topping
 
+
 class LanguageTopping(Topping):
     """Provides the contents of the English language files."""
 
@@ -35,8 +36,14 @@ class LanguageTopping(Topping):
     @staticmethod
     def act(aggregate, jar, verbose=False):
         aggregate["language"] = {}
-        LanguageTopping.load_language(aggregate, jar.read("lang/stats_US.lang"))
-        LanguageTopping.load_language(aggregate, jar.read("lang/en_US.lang"))
+        LanguageTopping.load_language(
+            aggregate,
+            jar.read("lang/stats_US.lang")
+        )
+        LanguageTopping.load_language(
+            aggregate,
+            jar.read("lang/en_US.lang")
+        )
 
     @staticmethod
     def load_language(aggregate, contents):

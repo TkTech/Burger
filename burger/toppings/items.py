@@ -28,7 +28,7 @@ from .topping import Topping
 
 
 class ItemsTopping(Topping):
-    """Provides some information on all available items"""
+    """Provides some information on most available items."""
     PROVIDES = [
         "items"
     ]
@@ -47,7 +47,7 @@ class ItemsTopping(Topping):
         method = cf.methods.find_one("<clinit>")
         items = aggregate.setdefault("items", {})
         item_list = items.setdefault("item", {})
-        
+
         if "item" in aggregate["language"]:
             language = aggregate["language"]["item"]
         else:
