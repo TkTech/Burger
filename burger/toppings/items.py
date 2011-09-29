@@ -90,6 +90,8 @@ class ItemsTopping(Topping):
                     item["icon"] = {"x": stack[0], "y": stack[1]}
                 elif len(stack) == 1:
                     if isinstance(stack[0], str):
+                        if "name" in item:
+                            continue
                         item["name"] = stack[0]
                         language_key = "%s.name" % stack[0]
                         if language != None and language_key in language:
