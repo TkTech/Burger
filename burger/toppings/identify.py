@@ -100,7 +100,16 @@ def identify(cf):
     )
 
     if const:
-        return ("protocol.version", cf.this)
+        return ("nethandler.client", cf.this)
+
+    # Protocol version (Server)
+    const = cf.constants.find_one(
+        ConstantType.STRING,
+        lambda c: "Outdated client!" in c["string"]["value"]
+    )
+
+    if const:
+        return ("nethandler.server", cf.this)
 
 
 class IdentifyTopping(Topping):
@@ -113,7 +122,7 @@ class IdentifyTopping(Topping):
         "identify.recipe.inventory",
         "identify.recipe.cloth",
         "identify.item.superclass",
-        "identify.protocol.version"
+        "identify.nethandler"
     ]
 
     DEPENDS = []
