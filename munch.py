@@ -189,7 +189,8 @@ if __name__ == "__main__":
             if not dependency in topping_provides:
                 print "(%s) requires (%s)" % (topping, dependency)
                 sys.exit(1)
-            topping.childs.append(topping_provides[dependency])
+            if not topping_provides[dependency] in topping.childs:
+                topping.childs.append(topping_provides[dependency])
 
     # Run leaves first
     to_be_run = []
