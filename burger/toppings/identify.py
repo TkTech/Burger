@@ -65,25 +65,6 @@ def identify(cf):
     if const:
         return ("recipe.superclass", cf.this)
 
-    # First of 2 auxilary recipe classes. Appears to be items with
-    # inventory, + sandstone.
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: c["string"]["value"] == "# #"
-    )
-
-    if const:
-        return ("recipe.inventory", cf.this)
-
-    # Second auxilary recipe class. Appears to be coloured cloth?
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: c["string"]["value"] == "###"
-    )
-
-    if const:
-        return ("recipe.cloth", cf.this)
-
     # Item superclass
     const = cf.constants.find_one(
        ConstantType.STRING,

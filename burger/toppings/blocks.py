@@ -133,11 +133,12 @@ class BlocksTopping(Topping):
         #      This is the name setting function.
         #   2. Find the function that returns 'this' and accepts a float.
         #      This is the function that sets the hardness.
-        #   3. Find the field which is set by the second argument of the constructor.
+        #   3. Find the field which is set by the second
+        #      argument of the constructor.
         #      This is the field containing the texture.
         #   4. The first parameter of a blocks <init> function will/should
         #      be the block's data ID.
-        
+
         name_setter = cf.methods.find_one(
             returns=superclass,
             args=("java.lang.String",)
@@ -149,16 +150,17 @@ class BlocksTopping(Topping):
             f=lambda x: x.is_protected
         )
 
-        constructor =  cf.methods.find_one(
-            name = "<init>",
-            f = lambda x: (len(x.args) == 3 and x.args[:2] == ("int", "int")))
+        constructor = cf.methods.find_one(
+            name="<init>",
+            f=lambda x: (len(x.args) == 3 and x.args[:2] == ("int", "int"))
+        )
 
         found_iload = False
         texture_field = None
         for instruction in constructor.instructions:
-            if instruction.opcode == 28: # iload_2
+            if instruction.opcode == 28:                        # iload_2
                 found_iload = True
-            elif found_iload and instruction.opcode == 181: # putfield
+            elif found_iload and instruction.opcode == 181:     # putfield
                 texture_field = cf.constants[instruction.operands[0][1]]
                 texture_field = texture_field["name_and_type"]["name"]["value"]
                 break
@@ -194,13 +196,13 @@ class BlocksTopping(Topping):
             #   1. Directly as the second argument of the constructor
             #   2. In the constructor by setting the field
             #   3. In the constructor calling the constructor of the superclass
-                
+
             texture = None
             if len(init) >= 2 and isinstance(init[1], int) and init[1] > 1:
                 texture = init[1]
             else:
                 block_cf = jar.open_class(final["class"])
-                constructor = block_cf.methods.find_one(name = "<init>")
+                constructor = block_cf.methods.find_one(name="<init>")
                 if (len(init) >= 2 and len(constructor.args) >= 2 and
                     constructor.args[1] == "int" and isinstance(init[1], int)):
                     texture = init[1]
@@ -209,13 +211,16 @@ class BlocksTopping(Topping):
                     for instruction in constructor.instructions:
                         if instruction.name.startswith("iconst_"):
                             stack.append(instruction.opcode - 3)
-                        elif instruction.opcode in (16, 17):        # bipush, sipush
+                        elif instruction.opcode in (16, 17):  # bipush, sipush
                             stack.append(instruction.operands[0][1])
-                        elif instruction.name.startswith("iload_"): # iload_n
+                        elif instruction.name.startswith("iload_"):  # iload_n
                             stack.append(-1)
-                        elif instruction.opcode == 183:             # invokespecial
-                            method = block_cf.constants[instruction.operands[0][1]]
-                            args = method["name_and_type"]["descriptor"]["value"]
+                        elif instruction.opcode == 183:       # invokespecial
+                            method = block_cf.constants[
+                                instruction.operands[0][1]
+                            ]
+                            args = method["name_and_type"]
+                            args = args["descriptor"]["value"]
                             if "II" in args:
                                 stack.append(0)
                                 for c in args:
@@ -224,16 +229,18 @@ class BlocksTopping(Topping):
                                 if "id" not in final:
                                     final["id"] = stack.pop()
                                 break
-                        elif instruction.opcode == 181: # putfield
-                            field = block_cf.constants[instruction.operands[0][1]]
+                        elif instruction.opcode == 181:       # putfield
+                            field = block_cf.constants[
+                                instruction.operands[0][1]
+                            ]
                             field = field["name_and_type"]["name"]["value"]
                             if field == texture_field and len(stack) >= 1:
                                 texture = stack.pop()
                                 break
 
             if texture and texture >= 0:
-                final["texture"] = {"x": texture%16,
-                                    "y": texture/16}
+                final["texture"] = {"x": texture % 16,
+                                    "y": texture / 16}
 
             if "id" in final:
                 block[final["id"]] = final
