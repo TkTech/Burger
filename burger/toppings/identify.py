@@ -74,6 +74,15 @@ def identify(cf):
     if const:
         return ("item.superclass", cf.this)
 
+    # Entity list
+    const = cf.constants.find_one(
+        ConstantType.STRING,
+        lambda c: "Skipping Entity with id " in c["string"]["value"]
+    )
+
+    if const:
+        return ("entity.list", cf.this)
+
     # Protocol version (Client)
     const = cf.constants.find_one(
         ConstantType.STRING,
@@ -103,6 +112,7 @@ class IdentifyTopping(Topping):
         "identify.recipe.inventory",
         "identify.recipe.cloth",
         "identify.item.superclass",
+        "identify.entity.list",
         "identify.nethandler"
     ]
 
@@ -115,3 +125,5 @@ class IdentifyTopping(Topping):
             result = identify(cf)
             if result:
                 classes[result[0]] = result[1]
+                if len(classes) == 6:
+                    break
