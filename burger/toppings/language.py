@@ -38,15 +38,26 @@ class LanguageTopping(Topping):
         aggregate["language"] = {}
         LanguageTopping.load_language(
             aggregate,
-            jar.read("lang/stats_US.lang")
+            jar,
+            "lang/stats_US.lang",
+            verbose
         )
         LanguageTopping.load_language(
             aggregate,
-            jar.read("lang/en_US.lang")
+            jar,
+            "lang/en_US.lang",
+            verbose
         )
 
     @staticmethod
-    def load_language(aggregate, contents):
+    def load_language(aggregate, jar, path, verbose=False):
+        try:
+            contents = jar.read(path)
+        except:
+            if verbose:
+                print "Can't find file %s in jar" % path
+            return
+
         for category, name, value in Topping.parse_lang(contents):
             cat = aggregate["language"].setdefault(category, {})
             cat[name] = value

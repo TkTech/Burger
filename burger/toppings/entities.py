@@ -30,7 +30,7 @@ class EntityTopping(Topping):
     """Gets most entity types."""
 
     PROVIDES = [
-        "entities"
+        "entities.entity"
     ]
 
     DEPENDS = [
@@ -62,49 +62,56 @@ class EntityTopping(Topping):
                     yield ins
 
         for ins in skip_it():
-            if ins.opcode in (18,19): # ldc
+            if ins.opcode in (18,19):  # ldc
                 const = cf.constants[ins.operands[0][1]]
                 if const["tag"] == ConstantType.CLASS:
                     tmp["class"] = const["name"]["value"]
                 elif const["tag"] == ConstantType.STRING:
                     tmp["name"] = const["string"]["value"]
-                else:
-                    print const
-            elif ins.opcode == 16: # bipush
+            elif ins.opcode == 16:  # bipush
                 tmp["id"] = ins.operands[0][1]
-            elif ins.opcode <= 8 and ins.opcode >=2:
+            elif ins.opcode <= 8 and ins.opcode >= 2:
                 tmp["id"] = ins.opcode - 3
-            elif ins.opcode == 184: # invokestatic
+            elif ins.opcode == 184:  # invokestatic
                 entity[tmp["id"]] = tmp
                 tmp = {}
-                
+
         for e in entity.itervalues():
-            cf = jar.open_class(e["class"])
-            method = cf.methods.find_one("<init>")
-            if method:
-                stage = 0
-                tmp = []
-                for ins in method.instructions:
-                    if ins.opcode == 42 and stage == 0: # aload_0
-                        stage = 1
-                    elif ins.opcode == 18:
-                        const = cf.constants[ins.operands[0][1]]
-                        if const["tag"] == ConstantType.FLOAT and stage in (1,2): # ldc:
-                            tmp.append(round(const["value"],1))
-                            stage += 1
-                        else:
-                            stage = 0
-                            tmp = []
-                            if const["tag"] == ConstantType.STRING:
-                                e["texture"] = const["string"]["value"]
-                    elif ins.opcode == 182 and stage == 3: # invokevirtual
-                        e["width"] = tmp[0]
-                        e["height"] = tmp[1]
-                        break
-                    else:
-                        stage = 0
-                        tmp = []
+            size = EntityTopping.size(jar.open_class(e["class"]))
+            if size:
+                e["width"], e["height"], texture = size
+                if texture:
+                    e["texture"] = texture
 
         entities["info"] = {
-            "count": len(entity)
+            "entity_count": len(entity)
         }
+
+    @staticmethod
+    def size(cf):
+        method = cf.methods.find_one("<init>")
+        if method is None:
+            return
+
+        stage = 0
+        tmp = []
+        texture = None
+        for ins in method.instructions:
+            if ins.opcode == 42 and stage == 0:  # aload_0
+                stage = 1
+            elif ins.opcode == 18:
+                const = cf.constants[ins.operands[0][1]]
+                if const["tag"] == ConstantType.FLOAT and stage in (1,2):  # ldc:
+                    tmp.append(round(const["value"],2))
+                    stage += 1
+                else:
+                    stage = 0
+                    tmp = []
+                    if const["tag"] == ConstantType.STRING:
+                        texture = const["string"]["value"]
+            elif ins.opcode == 182 and stage == 3:  # invokevirtual
+                return tmp + [texture]
+                break
+            else:
+                stage = 0
+                tmp = []
