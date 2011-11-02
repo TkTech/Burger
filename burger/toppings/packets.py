@@ -65,8 +65,11 @@ class PacketsTopping(Topping):
                 const = cf.constants[const_i]
                 name = const["name"]["value"]
 
-                client = stack.pop()
-                server = stack.pop()
+                if len(stack) >= 3:
+                    client = stack.pop()
+                    server = stack.pop()
+                else:
+                    client = server = True
                 id_ = stack.pop()
 
                 packet[id_] = {

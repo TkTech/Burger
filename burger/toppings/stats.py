@@ -38,20 +38,22 @@ class StatsTopping(Topping):
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
-        stat_lang = aggregate["language"]["stat"]
         stats = aggregate.setdefault("stats", {})
+        if "stat" in aggregate["language"]:
+            stat_lang = aggregate["language"]["stat"]
 
-        for sk, sv in stat_lang.iteritems():
-            item = stats.setdefault(sk, {})
-            item["desc"] = sv
+            for sk, sv in stat_lang.iteritems():
+                item = stats.setdefault(sk, {})
+                item["desc"] = sv
 
-        achievement_lang = aggregate["language"]["achievement"]
         achievements = aggregate.setdefault("achievements", {})
+        if "achievement" in aggregate["language"]:
+            achievement_lang = aggregate["language"]["achievement"]
 
-        for ak, av in achievement_lang.iteritems():
-            real_name = ak[:-5] if ak.endswith(".desc") else ak
-            item = achievements.setdefault(real_name, {})
-            if ak.endswith(".desc"):
-                item["desc"] = av
-            else:
-                item["name"] = av
+            for ak, av in achievement_lang.iteritems():
+                real_name = ak[:-5] if ak.endswith(".desc") else ak
+                item = achievements.setdefault(real_name, {})
+                if ak.endswith(".desc"):
+                    item["desc"] = av
+                else:
+                    item["name"] = av
