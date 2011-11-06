@@ -24,7 +24,6 @@ THE SOFTWARE.
 import os
 import sys
 import getopt
-import getpass
 import urllib
 
 try:
@@ -65,7 +64,7 @@ def import_toppings():
     count = 0
 
     for topping in from_list:
-        module = __import__("burger.toppings.%s" % topping)
+        __import__("burger.toppings.%s" % topping)
         subclasses = Topping.__subclasses__()
         if len(subclasses) == count:
             print "Topping '%s' contains no topping" % topping

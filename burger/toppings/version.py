@@ -45,7 +45,8 @@ class VersionTopping(Topping):
             login = aggregate["packets"]["packet"][1]["class"]
         except:
             if verbose:
-                print "Unable to find packets needed to determine protocol version"
+                print "Unable to find packets needed",
+                print "to determine protocol version"
             return
 
         # client

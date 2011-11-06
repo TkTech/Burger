@@ -332,7 +332,8 @@ class PacketInstructionsTopping(Topping):
                             shortif_pos = target
                     else:
                         endif.operation = "endloop"
-                        _PIT.find_next(operations, target, "if").operation = "loop"
+                        _PIT.find_next(operations,
+                            target, "if").operation = "loop"
                 elif target > instruction.pos:
                     skip_until = target
 
