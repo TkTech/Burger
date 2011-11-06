@@ -317,14 +317,15 @@ class PacketInstructionsTopping(Topping):
                 case = _PIT.find_next(operations, instruction.pos, "case")
                 if case != None and target > case.position:
                     operations.append(Operation(instruction.pos, "break"))
-                elif target > instruction.pos:
-                    endif.operation = "else"
-                    operations.append(Operation(target, "endif"))
-                    if len(stack) != 0:
-                        shortif_pos = target
-                else:
-                    endif.operation = "endloop"
-                    _PIT.find_next(operations, target, "if").operation = "loop"
+                elif endif != None:
+                    if target > instruction.pos:
+                        endif.operation = "else"
+                        operations.append(Operation(target, "endif"))
+                        if len(stack) != 0:
+                            shortif_pos = target
+                    else:
+                        endif.operation = "endloop"
+                        _PIT.find_next(operations, target, "if").operation = "loop"
 
             # Math
             elif opcode >= 0x74 and opcode <= 0x77:
