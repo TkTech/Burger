@@ -201,10 +201,17 @@ class PacketInstructionsTopping(Topping):
         # Decode the instructions
         operations = []
         stack = []
+        skip_until = -1
         shortif_pos = -1
         shortif_cond = ''
 
         for instruction in method.instructions:
+            if skip_until != -1:
+                if instruction.pos == skip_until:
+                    skip_until = -1
+                else:
+                    continue
+
             opcode = instruction.opcode
             operands = [InstructionField(operand, instruction, cf.constants)
                         for operand in instruction.operands]
@@ -326,6 +333,8 @@ class PacketInstructionsTopping(Topping):
                     else:
                         endif.operation = "endloop"
                         _PIT.find_next(operations, target, "if").operation = "loop"
+                elif target > instruction.pos:
+                    skip_until = target
 
             # Math
             elif opcode >= 0x74 and opcode <= 0x77:
