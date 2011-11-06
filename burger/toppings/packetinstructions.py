@@ -95,7 +95,7 @@ class PacketInstructionsTopping(Topping):
     CACHE = {}
 
     OPCODES = {
-        0x30: (2, "{1}[{0}]"),                      # Taload
+        0x30: (2, "{0}[{1}]"),                      # Taload
         0x4f: (3),                                  # Tastore
         0x94: (2, "compare({0}, {1})"),             # Tcmp<op>
         0xac: (1),                                  # Treturn
@@ -130,7 +130,7 @@ class PacketInstructionsTopping(Topping):
         0x86: (1, "((float){0})"),                  # i2f
         0x85: (1, "((long){0})", 2),                # i2l
         0x93: (1, "((short){0})"),                  # i2s
-        0x2e: (2, "{1}[{0}]"),                      # iaload
+        0x2e: (2, "{0}[{1}]"),                      # iaload
         0x02: (0, "{0}", lambda op: op - 3),        # iconst_<i>
         0x15: (0, "{1}"),                           # iload
         0x1a: (0, "{1}", lambda op: op - 0x1a),     # iload_<n>
@@ -153,7 +153,7 @@ class PacketInstructionsTopping(Topping):
         0xb3: (1),                                  # putstatic
         0xa9: (0),                                  # ret
         0xb1: (0),                                  # return
-        0x35: (2, "{1}[{0}]", 2),                   # saload
+        0x35: (2, "{0}[{1}]", 2),                   # saload
         0x11: (0, "{0}"),                           # sipush
         0xc4: (0),                                  # wide
 
