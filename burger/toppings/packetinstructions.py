@@ -201,10 +201,17 @@ class PacketInstructionsTopping(Topping):
         # Decode the instructions
         operations = []
         stack = []
+        skip_until = -1
         shortif_pos = -1
         shortif_cond = ''
 
         for instruction in method.instructions:
+            if skip_until != -1:
+                if instruction.pos == skip_until:
+                    skip_until = -1
+                else:
+                    continue
+
             opcode = instruction.opcode
             operands = [InstructionField(operand, instruction, cf.constants)
                         for operand in instruction.operands]
@@ -317,14 +324,17 @@ class PacketInstructionsTopping(Topping):
                 case = _PIT.find_next(operations, instruction.pos, "case")
                 if case != None and target > case.position:
                     operations.append(Operation(instruction.pos, "break"))
+                elif endif != None:
+                    if target > instruction.pos:
+                        endif.operation = "else"
+                        operations.append(Operation(target, "endif"))
+                        if len(stack) != 0:
+                            shortif_pos = target
+                    else:
+                        endif.operation = "endloop"
+                        _PIT.find_next(operations, target, "if").operation = "loop"
                 elif target > instruction.pos:
-                    endif.operation = "else"
-                    operations.append(Operation(target, "endif"))
-                    if len(stack) != 0:
-                        shortif_pos = target
-                else:
-                    endif.operation = "endloop"
-                    _PIT.find_next(operations, target, "if").operation = "loop"
+                    skip_until = target
 
             # Math
             elif opcode >= 0x74 and opcode <= 0x77:
@@ -333,7 +343,7 @@ class PacketInstructionsTopping(Topping):
             elif opcode >= 0x60 and opcode <= 0x7f:     # Tneg
                 lookup_opcode = opcode
                 while not lookup_opcode in _PIT.MATH:
-                    lookop_opcode -= 1
+                    lookup_opcode -= 1
                 category = stack[-1].category
                 stack.append(Operand(
                     "(%s %s %s)" % (
@@ -460,13 +470,13 @@ class PacketInstructionsTopping(Topping):
 
     @staticmethod
     def ordered_operations(operations):
-        """Orders the operatoin by their actual position"""
+        """Orders the operation by their actual position"""
         return sorted(operations, key=lambda op: op.position)
 
     @staticmethod
     def sub_operations(jar, cf, instruction,
                        operand, arg_names=[""]):
-        """Gets the instrcutions of a different class"""
+        """Gets the instructions of a different class"""
         invoked_class = operand.c
         name = operand.name
         descriptor = operand.descriptor
