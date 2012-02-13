@@ -60,7 +60,7 @@ class PacketsTopping(Topping):
             elif ins.name.endswith("ipush"):
                 stack.append(ins.operands[0][1])
             # Loads an entry from the constant pool onto the stack
-            elif ins.name == "ldc":
+            elif ins.opcode in (18, 19):
                 const_i = ins.operands[0][1]
                 const = cf.constants[const_i]
                 name = const["name"]["value"]

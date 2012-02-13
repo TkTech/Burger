@@ -73,7 +73,8 @@ class EntityTopping(Topping):
             elif ins.opcode <= 8 and ins.opcode >= 2:
                 tmp["id"] = ins.opcode - 3
             elif ins.opcode == 184:  # invokestatic
-                entity[tmp["id"]] = tmp
+                if "id" in tmp:
+                    entity[tmp["id"]] = tmp
                 tmp = {}
 
         for e in entity.itervalues():
