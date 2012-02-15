@@ -346,10 +346,10 @@ class PacketInstructionsTopping(Topping):
                 while not lookup_opcode in _PIT.MATH:
                     lookup_opcode -= 1
                 category = stack[-1].category
+                value2 = stack.pop()
                 stack.append(Operand(
                     "(%s %s %s)" % (
-                        _PIT.MATH[lookup_opcode],
-                        stack.pop(), stack.pop()
+                        stack.pop(), _PIT.MATH[lookup_opcode], value2
                     ), category
                 ))
             elif opcode == 0x84:                        # iinc
@@ -644,10 +644,10 @@ class InstructionField:
             ConstantType.STRING: "string_index"
             }
         follow.update(custom_follow)
-        if tag == ConstantType.UTF8:
-            return const["value"]
-        elif tag in follow:
+        if tag in follow:
             return self.find_constant(follow, const[follow[tag]])
+        elif "value" in const:
+            return const["value"]
 
     def find_target(self, index=0):
         """Finds the target of a goto or if instruction"""
