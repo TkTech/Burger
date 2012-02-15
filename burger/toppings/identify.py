@@ -68,7 +68,8 @@ def identify(cf):
     # Item superclass
     const = cf.constants.find_one(
        ConstantType.STRING,
-       lambda c: "crafting results" in c["string"]["value"]
+       lambda c: ("crafting results" in c["string"]["value"] or 
+                  "CONFLICT @ " in c["string"]["value"])
     )
 
     if const:

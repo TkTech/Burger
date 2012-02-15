@@ -95,7 +95,7 @@ class PacketInstructionsTopping(Topping):
     CACHE = {}
 
     OPCODES = {
-        0x30: (2, "{1}[{0}]"),                      # Taload
+        0x30: (2, "{0}[{1}]"),                      # Taload
         0x4f: (3),                                  # Tastore
         0x94: (2, "compare({0}, {1})"),             # Tcmp<op>
         0xac: (1),                                  # Treturn
@@ -130,7 +130,7 @@ class PacketInstructionsTopping(Topping):
         0x86: (1, "((float){0})"),                  # i2f
         0x85: (1, "((long){0})", 2),                # i2l
         0x93: (1, "((short){0})"),                  # i2s
-        0x2e: (2, "{1}[{0}]"),                      # iaload
+        0x2e: (2, "{0}[{1}]"),                      # iaload
         0x02: (0, "{0}", lambda op: op - 3),        # iconst_<i>
         0x15: (0, "{1}"),                           # iload
         0x1a: (0, "{1}", lambda op: op - 0x1a),     # iload_<n>
@@ -153,7 +153,7 @@ class PacketInstructionsTopping(Topping):
         0xb3: (1),                                  # putstatic
         0xa9: (0),                                  # ret
         0xb1: (0),                                  # return
-        0x35: (2, "{1}[{0}]", 2),                   # saload
+        0x35: (2, "{0}[{1}]", 2),                   # saload
         0x11: (0, "{0}"),                           # sipush
         0xc4: (0),                                  # wide
 
@@ -201,10 +201,17 @@ class PacketInstructionsTopping(Topping):
         # Decode the instructions
         operations = []
         stack = []
+        skip_until = -1
         shortif_pos = -1
         shortif_cond = ''
 
         for instruction in method.instructions:
+            if skip_until != -1:
+                if instruction.pos == skip_until:
+                    skip_until = -1
+                else:
+                    continue
+
             opcode = instruction.opcode
             operands = [InstructionField(operand, instruction, cf.constants)
                         for operand in instruction.operands]
@@ -317,14 +324,18 @@ class PacketInstructionsTopping(Topping):
                 case = _PIT.find_next(operations, instruction.pos, "case")
                 if case != None and target > case.position:
                     operations.append(Operation(instruction.pos, "break"))
+                elif endif != None:
+                    if target > instruction.pos:
+                        endif.operation = "else"
+                        operations.append(Operation(target, "endif"))
+                        if len(stack) != 0:
+                            shortif_pos = target
+                    else:
+                        endif.operation = "endloop"
+                        _PIT.find_next(operations,
+                            target, "if").operation = "loop"
                 elif target > instruction.pos:
-                    endif.operation = "else"
-                    operations.append(Operation(target, "endif"))
-                    if len(stack) != 0:
-                        shortif_pos = target
-                else:
-                    endif.operation = "endloop"
-                    _PIT.find_next(operations, target, "if").operation = "loop"
+                    skip_until = target
 
             # Math
             elif opcode >= 0x74 and opcode <= 0x77:
@@ -333,7 +344,7 @@ class PacketInstructionsTopping(Topping):
             elif opcode >= 0x60 and opcode <= 0x7f:     # Tneg
                 lookup_opcode = opcode
                 while not lookup_opcode in _PIT.MATH:
-                    lookop_opcode -= 1
+                    lookup_opcode -= 1
                 category = stack[-1].category
                 stack.append(Operand(
                     "(%s %s %s)" % (
@@ -460,13 +471,13 @@ class PacketInstructionsTopping(Topping):
 
     @staticmethod
     def ordered_operations(operations):
-        """Orders the operatoin by their actual position"""
+        """Orders the operation by their actual position"""
         return sorted(operations, key=lambda op: op.position)
 
     @staticmethod
     def sub_operations(jar, cf, instruction,
                        operand, arg_names=[""]):
-        """Gets the instrcutions of a different class"""
+        """Gets the instructions of a different class"""
         invoked_class = operand.c
         name = operand.name
         descriptor = operand.descriptor

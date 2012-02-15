@@ -57,12 +57,12 @@ class EntityTopping(Topping):
             for ins in method.instructions:
                 if found_ldc:
                     yield ins
-                elif ins.opcode in (18,19):  # ldc
+                elif ins.opcode in (18, 19):  # ldc
                     found_ldc = True
                     yield ins
 
         for ins in skip_it():
-            if ins.opcode in (18,19):  # ldc
+            if ins.opcode in (18, 19):  # ldc
                 const = cf.constants[ins.operands[0][1]]
                 if const["tag"] == ConstantType.CLASS:
                     tmp["class"] = const["name"]["value"]
@@ -73,7 +73,8 @@ class EntityTopping(Topping):
             elif ins.opcode <= 8 and ins.opcode >= 2:
                 tmp["id"] = ins.opcode - 3
             elif ins.opcode == 184:  # invokestatic
-                entity[tmp["id"]] = tmp
+                if "id" in tmp:
+                    entity[tmp["id"]] = tmp
                 tmp = {}
 
         for e in entity.itervalues():
@@ -101,8 +102,9 @@ class EntityTopping(Topping):
                 stage = 1
             elif ins.opcode == 18:
                 const = cf.constants[ins.operands[0][1]]
-                if const["tag"] == ConstantType.FLOAT and stage in (1,2):  # ldc:
-                    tmp.append(round(const["value"],2))
+                if const["tag"] == ConstantType.FLOAT and stage in (1, 2):
+                # ldc
+                    tmp.append(round(const["value"], 2))
                     stage += 1
                 else:
                     stage = 0
