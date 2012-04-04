@@ -36,6 +36,7 @@ from collections import deque
 from solum import JarFile
 
 from burger.website import Website
+from burger.roundedfloats import transform_floats
 
 
 def import_toppings():
@@ -239,9 +240,9 @@ if __name__ == "__main__":
         summary.append(aggregate)
 
     if not compact:
-        json.dump(summary, output, sort_keys=True, indent=4)
+        json.dump(transform_floats(summary), output, sort_keys=True, indent=4)
     else:
-        json.dump(summary, output)
+        json.dump(transform_floats(summary), output)
 
     # Cleanup temporary downloads
     if download_fresh_jar:
