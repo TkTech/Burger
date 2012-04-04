@@ -105,7 +105,7 @@ class BiomeTopping(Topping):
     def map_methods(biomes):
         for biome in biomes.itervalues():
             for call in biome["calls"]:
-                if biome["calls"][call][1] > 1:
+                if biome["calls"][call][1] > 1 and len(biome["calls"]) > 1:
                     keys = biome["calls"].keys()
                     keys.remove(call)
                     return (call, keys[0])
