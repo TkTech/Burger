@@ -78,7 +78,7 @@ def identify(cf):
     # Entity list
     const = cf.constants.find_one(
         ConstantType.STRING,
-        lambda c: "Connection #" in c["string"]["value"]
+        lambda c: "Skipping Entity with id " in c["string"]["value"]
     )
 
     if const:
@@ -136,5 +136,5 @@ class IdentifyTopping(Topping):
             result = identify(cf)
             if result:
                 classes[result[0]] = result[1]
-                if len(classes) == 6:
+                if len(classes) == 7:
                     break
