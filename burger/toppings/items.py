@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 """
-Copyright (c) 2011 Simon Marti <simon@ceilingcat.ch>
 Copyright (c) 2011 Tyler Kenedy <tk@tkte.ch>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

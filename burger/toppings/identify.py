@@ -68,7 +68,7 @@ def identify(cf):
     # Item superclass
     const = cf.constants.find_one(
        ConstantType.STRING,
-       lambda c: ("crafting results" in c["string"]["value"] or 
+       lambda c: ("crafting results" in c["string"]["value"] or
                   "CONFLICT @ " in c["string"]["value"])
     )
 
@@ -78,7 +78,7 @@ def identify(cf):
     # Entity list
     const = cf.constants.find_one(
         ConstantType.STRING,
-        lambda c: "Skipping Entity with id " in c["string"]["value"]
+        lambda c: "Connection #" in c["string"]["value"]
     )
 
     if const:
@@ -102,6 +102,16 @@ def identify(cf):
     if const:
         return ("nethandler.server", cf.this)
 
+    # Biome
+    const = cf.constants.find_one(
+        ConstantType.STRING,
+        lambda c: ("Please avoid temperatures in the range 0.1 - 0.2 " +
+                   "because of snow") in c["string"]["value"]
+    )
+
+    if const:
+        return ("biome.superclass", cf.this)
+
 
 class IdentifyTopping(Topping):
     """Finds important superclasses needed by other toppings."""
@@ -114,7 +124,8 @@ class IdentifyTopping(Topping):
         "identify.recipe.cloth",
         "identify.item.superclass",
         "identify.entity.list",
-        "identify.nethandler"
+        "identify.nethandler",
+        "identify.biome.superclass"
     ]
 
     DEPENDS = []
