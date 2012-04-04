@@ -105,8 +105,7 @@ def identify(cf):
     # Biome
     const = cf.constants.find_one(
         ConstantType.STRING,
-        lambda c: ("Please avoid temperatures in the range 0.1 - 0.2 " +
-                   "because of snow") in c["string"]["value"]
+        lambda c: ("Plains") in c["string"]["value"]
     )
 
     if const:

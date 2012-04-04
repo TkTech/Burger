@@ -39,16 +39,18 @@ class BiomeTopping(Topping):
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
+        biomes = aggregate.setdefault("biomes", {})
+        if "biome.superclass" not in aggregate["classes"]:
+            return
         superclass = aggregate["classes"]["biome.superclass"]
         cf = jar.open_class(superclass)
         method = cf.methods.find_one(name="<clinit>")
         tmp = None
         stack = None
-        biomes = aggregate.setdefault("biomes", {})
         for ins in method.instructions:
             if ins.opcode == 187:  # new
                 if tmp is not None:
-                    biomes[tmp["id"]] = tmp
+                    biomes[tmp["name"]] = tmp
                 stack = []
                 tmp = {
                     "calls": {},
@@ -60,13 +62,13 @@ class BiomeTopping(Topping):
             elif tmp is None:
                 continue
             elif ins.opcode == 183:  # invokespecial
+                const = cf.constants[ins.operands[0][1]]
+                name = const["name_and_type"]["name"]["value"]
                 if len(stack) == 1:
                     tmp["id"] = stack.pop()
                 elif len(stack) >= 2:
-                    const = cf.constants[ins.operands[0][1]]
-                    name = const["name_and_type"]["name"]["value"]
                     tmp["calls"][name] = [stack.pop(), stack.pop()]
-                else:
+                elif name != "<init>":
                     tmp["rainfall"] = 0
             elif ins.opcode == 182:  # invokevirtual
                 if len(stack) == 1 and "color" not in tmp:
@@ -107,3 +109,4 @@ class BiomeTopping(Topping):
                     keys = biome["calls"].keys()
                     keys.remove(call)
                     return (call, keys[0])
+        return (None, None)
