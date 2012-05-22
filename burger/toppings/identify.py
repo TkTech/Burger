@@ -136,5 +136,5 @@ class IdentifyTopping(Topping):
             result = identify(cf)
             if result:
                 classes[result[0]] = result[1]
-                if len(classes) == 7:
+                if len(classes) == 8:
                     break

@@ -69,10 +69,12 @@ class RecipesTopping(Topping):
             tmp_recipes = []
             started_item = False
             next_push_is_val = False
+            with_metadata = False
             block_substitute = None
             block_subs = {}
             rows = []
             make_count = 0
+            metadata = 0
             recipe_target = None
             pushes_are_counts = False
             positions = True
@@ -94,8 +96,10 @@ class RecipesTopping(Topping):
                         started_item = True
                         pushes_are_counts = False
                         next_push_is_val = False
+                        with_metadata = False
                         rows = []
                         make_count = 0
+                        metadata = 0
                         recipe_target = None
                         method_name = const["name_and_type"]["name"]["value"]
                         positions = method_name == setter_names[0]
@@ -149,7 +153,8 @@ class RecipesTopping(Topping):
                     cl_name = const["class"]["name"]["value"]
                     cl_field = const["name_and_type"]["name"]["value"]
 
-                    recipe_target = (cl_name, cl_field)
+                    recipe_target = (cl_name, cl_field, metadata)
+                    print recipe_target
                 # Block string substitute value
                 elif ins.name == "bipush" and next_push_is_val:
                     next_push_is_val = False
@@ -157,8 +162,14 @@ class RecipesTopping(Topping):
                 # Number of items that the recipe makes
                 elif ins.name == "bipush" and pushes_are_counts:
                     make_count = ins.operands[0][1]
+                    if with_metadata:
+                        metadata = make_count
+                        with_metadata = False
                 elif ins.name.startswith("iconst_") and pushes_are_counts:
                     make_count = int(ins.name[-1])
+                    if with_metadata:
+                        metadata = make_count
+                        with_metadata = False
                 # Recipe row
                 elif ins.name == "ldc" and started_item:
                     const_i = ins.operands[0][1]
@@ -185,6 +196,8 @@ class RecipesTopping(Topping):
                     name = const["name_and_type"]["name"]["value"]
                     if name == "<init>":
                         pushes_are_counts = True
+                        if "II" in const["name_and_type"]["descriptor"]["value"]:
+                            with_metadata = True
             return tmp_recipes
 
         tmp_recipes = find_recipes(jar, cf, method, target_class, setter_names)
@@ -204,7 +217,7 @@ class RecipesTopping(Topping):
         def getName(cls_fld):
             if cls_fld is None:
                 return None
-            field = ":".join(cls_fld)
+            field = ":".join(cls_fld[:2])
             if field in block_map:
                 return block_map[field]
             elif field in item_map:
@@ -247,6 +260,7 @@ class RecipesTopping(Topping):
             # Try to get the created item/block name.
             target = getName(recipe["recipe_target"])
             final["makes"] = target
+            final["metadata"] = recipe["recipe_target"][2]
             if isinstance(target, dict):
                 key = target["id"]
             elif target is None:
