@@ -154,7 +154,6 @@ class RecipesTopping(Topping):
                     cl_field = const["name_and_type"]["name"]["value"]
 
                     recipe_target = (cl_name, cl_field, metadata)
-                    print recipe_target
                 # Block string substitute value
                 elif ins.name == "bipush" and next_push_is_val:
                     next_push_is_val = False
