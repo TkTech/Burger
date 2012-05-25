@@ -108,7 +108,9 @@ class BlocksTopping(Topping):
                 const_i = ins.operands[0][1]
                 const = cf.constants[const_i]
                 method_name = const["name_and_type"]["name"]["value"]
+                method_desc = const["name_and_type"]["descriptor"]["value"]
                 current_block["calls"][method_name] = stack
+                current_block["calls"][method_name + method_desc] = stack
                 stack = []
             elif ins.name == "putstatic":
                 # Store the newly constructed object into a static
@@ -142,7 +144,9 @@ class BlocksTopping(Topping):
         name_setter = cf.methods.find_one(
             returns=superclass,
             args=("java.lang.String",)
-        ).name
+        )
+        const = cf.constants[name_setter.descriptor_index]
+        name_setter = name_setter.name + const["value"]
 
         hardness_setters = cf.methods.find(
             returns=superclass,
