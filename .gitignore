@@ -2,3 +2,4 @@
 *.jar
 *.class
 *.pyc
+ENV/
