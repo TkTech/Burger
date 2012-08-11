@@ -90,6 +90,9 @@ class BiomeTopping(Topping):
             elif ins.opcode == 16:  # bipush
                 stack.append(ins.operands[0][1])
 
+        if tmp is not None:
+            biomes[tmp["name"]] = tmp
+
         weather, height = BiomeTopping.map_methods(biomes)
 
         for biome in biomes.itervalues():
