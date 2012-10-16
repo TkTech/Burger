@@ -48,34 +48,9 @@ class VersionTopping(Topping):
                 print "Unable to find packets needed",
                 print "to determine protocol version"
             return
-
-        # client
-        if "nethandler.client" in aggregate["classes"]:
-            cf = jar.open_class(aggregate["classes"]["nethandler.client"])
-            method = cf.methods.find_one(args=(handshake,))
-            if method is None:
-                return
-
-            lookForVersion = False
-            version = None
-            for instr in method.instructions:
-                if instr.opcode == 187:
-                    constant = cf.constants.storage[instr.operands[0][1]]
-                    if constant["name"]["value"] == login:
-                        lookForVersion = True
-                    else:
-                        lookForVersion = False
-                elif lookForVersion and instr.opcode == 16:
-                    version = instr.operands[0][1]
-                    break
-
-            if version:
-                versions["protocol"] = version
-
-        # server
-        elif "nethandler.server" in aggregate["classes"]:
+        if "nethandler.server" in aggregate["classes"]:
             cf = jar.open_class(aggregate["classes"]["nethandler.server"])
-            methods = cf.methods.find(args=(login,))
+            methods = cf.methods.find()
             version = None
             for method in methods:
                 for instr in method.instructions:
@@ -86,6 +61,5 @@ class VersionTopping(Topping):
                         if constant["string"]["value"] == "Outdated server!":
                             versions["protocol"] = version
                             return
-
         elif verbose:
             print "Unable to determine protocol version"
