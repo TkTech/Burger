@@ -64,10 +64,11 @@ class FindSounds(ContentHandler):
     def parse_key(self, key):
         if "." not in key:
             return
-        key, _, ext = key.partition(".")
+        key, _, extension = key.partition(".")
         package, _, name = key.replace("/", ".").partition(".")
         self.sounds.append({'package': package,
-                            'name': name})
+                            'name': name,
+                            'format': extension})
 
 
 class SoundTopping(Topping):
@@ -82,7 +83,7 @@ class SoundTopping(Topping):
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
-        sounds = aggregate.setdefault('sounds', [])
+        sounds = aggregate.setdefault('sounds', {})
         try:
             resources = load_resource_list()
         except:
@@ -97,4 +98,4 @@ class SoundTopping(Topping):
             )]
         for resource in resources:
             if resource['name'] in strings:
-                sounds.append(resource)
+                sounds[resource['name']] = resource
