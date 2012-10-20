@@ -22,6 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 import urllib
+import re
 from xml.sax import ContentHandler, make_parser
 
 from solum import ClassFile, ConstantType
@@ -43,8 +44,9 @@ def load_resource_list():
 
 class FindSounds(ContentHandler):
     def __init__(self):
-        self.sounds = []
+        self.sounds = {}
         self.inside_key = False
+        self.pattern = re.compile("^(\D+)(\d+)$")
         self.key = ""
 
     def startElement(self, name, attrs):
@@ -64,11 +66,22 @@ class FindSounds(ContentHandler):
     def parse_key(self, key):
         if "." not in key:
             return
+        path = key
         key, _, extension = str(key).partition(".")
         package, _, name = key.replace("/", ".").partition(".")
-        self.sounds.append({'package': package,
-                            'name': name,
-                            'format': extension})
+        match = re.match(self.pattern, name)
+        if match is not None:
+            name = match.group(1)
+            variant = int(match.group(2))
+        else:
+            variant = None
+        sound = self.sounds.setdefault(name, {'name': name,
+                                              'versions': {}})
+        version = sound['versions'].setdefault(package, [])
+        version.append({'variant': variant,
+                        'format': extension,
+                        'path': path})
+        version.sort(key=lambda v: v['variant'])
 
 
 class SoundTopping(Topping):
@@ -86,16 +99,12 @@ class SoundTopping(Topping):
         sounds = aggregate.setdefault('sounds', {})
         try:
             resources = load_resource_list()
-        except:
+        except Exception, e:
             if verbose:
-                print "Unable to load resource list from mojang."
+                print "Unable to load resource list from mojang: %s" % e
             return
-        strings = []
         for cf in jar.classes:
-            strings += [c['string']['value'] for c in cf.constants.find(
-                ConstantType.STRING,
-                lambda c: "." in c['string']['value']
-            )]
-        for resource in resources:
-            if resource['name'] in strings:
-                sounds[resource['name']] = resource
+            for c in cf.constants.find(ConstantType.STRING):
+                key = c['string']['value']
+                if key in resources:
+                    sounds[key] = resources[key]
