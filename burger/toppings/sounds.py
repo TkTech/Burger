@@ -64,7 +64,7 @@ class FindSounds(ContentHandler):
     def parse_key(self, key):
         if "." not in key:
             return
-        key, _, extension = key.partition(".")
+        key, _, extension = str(key).partition(".")
         package, _, name = key.replace("/", ".").partition(".")
         self.sounds.append({'package': package,
                             'name': name,
