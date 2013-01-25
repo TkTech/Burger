@@ -21,7 +21,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-from solum import ClassFile, ConstantType
+from solum import ConstantType
 
 from .topping import Topping
 
@@ -34,12 +34,14 @@ class ItemsTopping(Topping):
 
     DEPENDS = [
         "identify.item.superclass",
-        "language"
+        "language",
+        "version.protocol"
     ]
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
         superclass = aggregate["classes"]["item.superclass"]
+        individual_textures = aggregate["version"]["protocol"] >= 52
         cf = jar.open_class(superclass)
 
         # Find the static constructor
@@ -85,7 +87,7 @@ class ItemsTopping(Topping):
                 stack.append(instruction.operands[0][1])
 
             elif opcode == 0xb6:                    # invokevirtual
-                if len(stack) == 2:
+                if len(stack) == 2 and not individual_textures:
                     item["icon"] = {"x": stack[0], "y": stack[1]}
                 elif len(stack) == 1:
                     if isinstance(stack[0], str):

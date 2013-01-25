@@ -21,7 +21,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-from solum import ClassFile, ConstantType
+from solum import ConstantType
 from solum.descriptor import method_descriptor
 
 from .topping import Topping
@@ -58,7 +58,6 @@ class RecipesTopping(Topping):
         # Find the set function, so we can figure out what class defines
         # a recipe.
         setters = cf.methods.find(
-            returns="void",
             f=lambda x: "java.lang.Object[]" in x.args
         )
         target_class = setters[0].args[0]
@@ -92,7 +91,7 @@ class RecipesTopping(Topping):
                     args, returns = method_descriptor(desc)
 
                     # We've found the recipe storage method
-                    if "java.lang.Object[]" in args and returns == "void":
+                    if "java.lang.Object[]" in args:
                         started_item = True
                         pushes_are_counts = False
                         next_push_is_val = False
@@ -195,7 +194,8 @@ class RecipesTopping(Topping):
                     name = const["name_and_type"]["name"]["value"]
                     if name == "<init>":
                         pushes_are_counts = True
-                        if "II" in const["name_and_type"]["descriptor"]["value"]:
+                        if ("II" in
+                                const["name_and_type"]["descriptor"]["value"]):
                             with_metadata = True
             return tmp_recipes
 
@@ -266,7 +266,7 @@ class RecipesTopping(Topping):
                 key = "NA"
             else:
                 final["field"] = target
-                key = ":".join(final["field"])
+                key = ":".join(str(i) for i in target)
 
             if shape:
                 rmap = []

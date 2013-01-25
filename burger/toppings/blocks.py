@@ -21,7 +21,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-from solum import ClassFile, ConstantType
+from solum import ConstantType
 
 from .topping import Topping
 
@@ -35,13 +35,15 @@ class BlocksTopping(Topping):
 
     DEPENDS = [
         "identify.block.superclass",
-        "language"
+        "language",
+        "version.protocol"
     ]
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
         superclass = aggregate["classes"]["block.superclass"]
         cf = jar.open_class(superclass)
+        individual_textures = aggregate["version"]["protocol"] >= 52
 
         if "tile" in aggregate["language"]:
             language = aggregate["language"]["tile"]
@@ -154,25 +156,27 @@ class BlocksTopping(Topping):
             f=lambda x: x.is_protected
         )
 
-        constructor = cf.methods.find_one(
-            name="<init>",
-            f=lambda x: (len(x.args) == 3 and x.args[:2] == ("int", "int"))
-        )
-
-        found_iload = False
-        texture_field = None
-        for instruction in constructor.instructions:
-            if instruction.opcode == 28:                        # iload_2
-                found_iload = True
-            elif found_iload and instruction.opcode == 181:     # putfield
-                texture_field = cf.constants[instruction.operands[0][1]]
-                texture_field = texture_field["name_and_type"]["name"]["value"]
-                break
-
         for method in hardness_setters:
             for ins in method.instructions:
                 if ins.name == "ifge":
-                    hardness_setter = method.name
+                    const = cf.constants[method.descriptor_index]
+                    hardness_setter = method.name + const["value"]
+                    break
+
+        if not individual_textures:
+            constructor = cf.methods.find_one(
+                name="<init>",
+                f=lambda x: (len(x.args) == 3 and x.args[:2] == ("int", "int"))
+            )
+
+            found_iload = False
+            texture_field = None
+            for instruction in constructor.instructions:
+                if instruction.opcode == 28:                        # iload_2
+                    found_iload = True
+                elif found_iload and instruction.opcode == 181:     # putfield
+                    texture_field = (cf.constants[instruction.operands[0][1]]
+                                     ["name_and_type"]["name"]["value"])
                     break
 
         for blk in tmp:
@@ -195,6 +199,12 @@ class BlocksTopping(Topping):
                 final["id"] = init[0]
             final["field"] = blk["assigned_to_field"]
             final["class"] = blk["class"]
+
+            if "id" in final:
+                block[final["id"]] = final
+
+            if individual_textures:
+                continue
 
             # The texture can be set in different places
             #   1. Directly as the second argument of the constructor
@@ -245,9 +255,6 @@ class BlocksTopping(Topping):
             if texture and texture >= 0:
                 final["texture"] = {"x": texture % 16,
                                     "y": texture / 16}
-
-            if "id" in final:
-                block[final["id"]] = final
 
         blocks["info"] = {
             "count": len(block),
