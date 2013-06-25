@@ -95,7 +95,7 @@ class BlocksTopping(Topping):
                 stack.append(float(ins.name[-1]))
             elif ins.name.endswith("ipush"):
                 stack.append(ins.operands[0][1])
-            elif ins.name == "ldc":
+            elif ins.name in ("ldc", "ldc_w"):
                 const_i = ins.operands[0][1]
                 const = cf.constants[const_i]
 
@@ -134,7 +134,7 @@ class BlocksTopping(Topping):
         # Now that we have all of the blocks, we need a few more things
         # to make sense of what it all means. So,
         #   1. Find the function that returns 'this' and accepts a string.
-        #      This is the name setting function.
+        #      This is the name or texture setting function.
         #   2. Find the function that returns 'this' and accepts a float.
         #      This is the function that sets the hardness.
         #   3. Find the field which is set by the second
@@ -143,12 +143,20 @@ class BlocksTopping(Topping):
         #   4. The first parameter of a blocks <init> function will/should
         #      be the block's data ID.
 
-        name_setter = cf.methods.find_one(
-            returns=superclass,
-            args=("java.lang.String",)
-        )
-        const = cf.constants[name_setter.descriptor_index]
-        name_setter = name_setter.name + const["value"]
+        string_setters = [
+            f.name + cf.constants[f.descriptor_index]["value"]
+            for f in cf.methods.find(
+                returns=superclass,
+                args=("java.lang.String",)
+            )
+        ]
+
+        assert 1 <= len(string_setters) <= 2
+        if len(string_setters) == 2:
+            name_setter, texture_setter = string_setters
+        else:
+            name_setter = string_setters[0]
+            texture_setter = None
 
         hardness_setters = cf.methods.find(
             returns=superclass,
@@ -184,9 +192,18 @@ class BlocksTopping(Topping):
 
             if name_setter in blk["calls"]:
                 final["name"] = blk["calls"][name_setter][0]
+
+                # Texture and name setter might be swapped,
+                # so we swap them back if necessary
+                if final["name"] == "cobblestone" and texture_setter:
+                    final["name"] = "stonebrick"
+                    texture_setter, name_setter = name_setter, texture_setter
                 lang_key = "%s.name" % final["name"]
                 if language and lang_key in language:
                     final["display_name"] = language[lang_key]
+
+            if texture_setter and texture_setter in blk["calls"]:
+                final["texture"] = blk["calls"][texture_setter][0]
 
             init = blk["calls"]["<init>"]
 
@@ -218,7 +235,8 @@ class BlocksTopping(Topping):
                 block_cf = jar.open_class(final["class"])
                 constructor = block_cf.methods.find_one(name="<init>")
                 if (len(init) >= 2 and len(constructor.args) >= 2 and
-                    constructor.args[1] == "int" and isinstance(init[1], int)):
+                        constructor.args[1] == "int" and
+                        isinstance(init[1], int)):
                     texture = init[1]
                 else:
                     stack = []
