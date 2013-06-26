@@ -198,6 +198,9 @@ class BlocksTopping(Topping):
                 if final["name"] == "cobblestone" and texture_setter:
                     final["name"] = "stonebrick"
                     texture_setter, name_setter = name_setter, texture_setter
+                # For some reason wool is the only block without an ID
+                elif final["name"] == "cloth":
+                    final["id"] = 35
                 lang_key = "%s.name" % final["name"]
                 if language and lang_key in language:
                     final["display_name"] = language[lang_key]
