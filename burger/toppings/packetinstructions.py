@@ -179,19 +179,23 @@ class PacketInstructionsTopping(Topping):
                                                  packet["class"], e)
 
     @staticmethod
-    def operations(jar, classname, args=('java.io.DataOutputStream',),
+    def operations(jar, classname, args=None,
                    methodname=None, arg_names=("this", "stream")):
         """Gets the instructions of the specified method"""
 
         # Find the writing method
         cf = jar.open_class(classname)
 
-        if methodname == None:
+        if methodname is None and args is None:
+            method = cf.methods.find_one(f=lambda m: m.args in (
+                ('java.io.DataOutputStream',), ('java.io.DataOutput',)
+            ))
+        elif methodname is None:
             method = cf.methods.find_one(args=args)
         else:
             method = cf.methods.find_one(name=methodname, args=args)
 
-        if method == None:
+        if method is None:
             if cf.superclass:
                 return _PIT.operations(jar, cf.superclass, args,
                                        methodname, arg_names)
@@ -243,7 +247,10 @@ class PacketInstructionsTopping(Topping):
                         type="byte[]" if desc.find("[B") >= 0 else "byte",
                         field=stack.pop()))
                     stack.pop()
-                elif desc == "(Ljava/lang/String;Ljava/io/DataOutputStream;)V":
+                elif desc in (
+                    "(Ljava/lang/String;Ljava/io/DataOutputStream;)V",
+                    "(Ljava/lang/String;Ljava/io/DataOutput;)V"
+                ):
                     stack.pop()
                     operations.append(Operation(instruction.pos, "write",
                                                 type="string16",
