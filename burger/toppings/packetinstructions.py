@@ -176,7 +176,7 @@ class PacketInstructionsTopping(Topping):
                 if verbose:
                     print "Error: Failed to parse instructions",
                     print "of packet %s (%s): %s" % (packet["id"],
-                                                 packet["class"], e)
+                                                     packet["class"], e)
 
     @staticmethod
     def operations(jar, classname, args=None,
@@ -273,7 +273,8 @@ class PacketInstructionsTopping(Topping):
                             2 if descriptor[1] in ("long", "double") else 1)
                         )
 
-                    if "java.io.DataOutputStream" in descriptor[0]:
+                    if ("java.io.DataOutputStream" in descriptor[0] or
+                            "java.io.DataOutput" in descriptor[0]):
                         operations += _PIT.sub_operations(
                             jar, cf, instruction, operands[0],
                             [obj] + arguments if obj != "static" else arguments
@@ -329,9 +330,9 @@ class PacketInstructionsTopping(Topping):
                 target = operands[0].target
                 endif = _PIT.find_next(operations, instruction.pos, "endif")
                 case = _PIT.find_next(operations, instruction.pos, "case")
-                if case != None and target > case.position:
+                if case is not None and target > case.position:
                     operations.append(Operation(instruction.pos, "break"))
-                elif endif != None:
+                elif endif is not None:
                     if target > instruction.pos:
                         endif.operation = "else"
                         operations.append(Operation(target, "endif"))
@@ -339,8 +340,9 @@ class PacketInstructionsTopping(Topping):
                             shortif_pos = target
                     else:
                         endif.operation = "endloop"
-                        _PIT.find_next(operations,
-                            target, "if").operation = "loop"
+                        _PIT.find_next(
+                            operations, target, "if"
+                        ).operation = "loop"
                 elif target > instruction.pos:
                     skip_until = target
 
@@ -434,7 +436,7 @@ class PacketInstructionsTopping(Topping):
                     index += 1
 
                     if (len(handler) > index and
-                        isinstance(handler[index], LambdaType)):
+                            isinstance(handler[index], LambdaType)):
                         value = handler[index](opcode)
                         operands.append(value)
                         operands.append(arg_names[value]
@@ -448,7 +450,7 @@ class PacketInstructionsTopping(Topping):
                                         else "var%s" % value)
 
                     if (len(handler) > index and
-                        isinstance(handler[index], int)):
+                            isinstance(handler[index], int)):
                         category = handler[index]
                     else:
                         category = 1
@@ -473,7 +475,7 @@ class PacketInstructionsTopping(Topping):
         """Finds an operation"""
         for operation in _PIT.ordered_operations(operations):
             if (operation.position > position and
-                operation.operation == operation_search):
+                    operation.operation == operation_search):
                 return operation
 
     @staticmethod
@@ -522,7 +524,7 @@ class PacketInstructionsTopping(Topping):
 
         for operation in _PIT.ordered_operations(operations):
             if operation.operation == "write":
-                if size != None:
+                if size is not None:
                     if len(stack) == 1 and operation.type in _PIT.SIZES:
                         size += _PIT.SIZES[operation.type]
                     else:
@@ -549,7 +551,7 @@ class PacketInstructionsTopping(Topping):
             else:
                 head.append(obj)
 
-        if size != None:
+        if size is not None:
             aggregate["size"] = size
 
         return aggregate
@@ -638,7 +640,7 @@ class InstructionField:
 
     def find_constant(self, custom_follow={}, index=None):
         """Walks the constant tree to a name or descriptor"""
-        if index == None:
+        if index is None:
             index = self.value
         const = self.constants[index]
         tag = const["tag"]
@@ -649,10 +651,11 @@ class InstructionField:
             ConstantType.METHOD_REF: "name_and_type_index",
             ConstantType.INTERFACE_METHOD_REF: "name_and_type_index",
             ConstantType.STRING: "string_index"
-            }
+        }
+        format = "\"%s\"" if tag == ConstantType.STRING else "%s"
         follow.update(custom_follow)
         if tag in follow:
-            return self.find_constant(follow, const[follow[tag]])
+            return format % self.find_constant(follow, const[follow[tag]])
         elif "value" in const:
             return const["value"]
 
@@ -730,7 +733,7 @@ class StringFormatter:
 
     def match(self, match):
         value = self.values[int(match.group(1))]
-        if match.group(3) != None:
+        if match.group(3) is not None:
             value = getattr(value, match.group(3))
         if match.group(5) == "x":
             value = hex(value)[2:]
