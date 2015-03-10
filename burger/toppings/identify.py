@@ -105,7 +105,7 @@ def identify(cf):
     # Biome
     const = cf.constants.find_one(
         ConstantType.STRING,
-        lambda c: ("Plains") in c["string"]["value"]
+        lambda c: ("Ice Plains") in c["string"]["value"]
     )
 
     if const:
@@ -138,3 +138,4 @@ class IdentifyTopping(Topping):
                 classes[result[0]] = result[1]
                 if len(classes) == 8:
                     break
+        print "identify classes:",classes
