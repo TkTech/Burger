@@ -49,8 +49,9 @@ class ObjectTopping(Topping):
         cf = jar.open_class(superclass)
 
         # Find the vehicle handler
-        packet = aggregate["packets"]["packet"][23]["class"]
-        method = cf.methods.find_one(args=(packet,))
+        #packet = aggregate["packets"]["packet"][23]["class"] # http://wiki.vg/Entities#Objects 0x0E = spawn object (1.5 23/0x17 = spawn object/vehicle
+        #method = cf.methods.find_one(args=(packet,))
+        method = cf.methods.find_one(name="<clinit>")
         entities = aggregate["entities"]
         objects = entities.setdefault("object", {})
 
