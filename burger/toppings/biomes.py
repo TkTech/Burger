@@ -49,7 +49,7 @@ class BiomeTopping(Topping):
         stack = None
         for ins in method.instructions:
             if ins.opcode == 187:  # new
-                if tmp is not None:
+                if tmp is not None and tmp.has_key("name"):
                     biomes[tmp["name"]] = tmp
                 stack = []
                 tmp = {
@@ -75,7 +75,7 @@ class BiomeTopping(Topping):
                     tmp["color"] = stack.pop()
 
             # numeric values & constants
-            elif ins.opcode == 18:
+            elif ins.opcode == 18 or ins.opcode == 19: # ldc, ldc_w
                 const = cf.constants[ins.operands[0][1]]
                 if const["tag"] == ConstantType.STRING:
                     tmp["name"] = const["string"]["value"]
@@ -90,7 +90,7 @@ class BiomeTopping(Topping):
             elif ins.opcode == 16:  # bipush
                 stack.append(ins.operands[0][1])
 
-        if tmp is not None:
+        if tmp is not None and tmp.has_key("name"):
             biomes[tmp["name"]] = tmp
 
         weather, height = BiomeTopping.map_methods(biomes)
