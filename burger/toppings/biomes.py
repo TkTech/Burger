@@ -65,7 +65,7 @@ class BiomeTopping(Topping):
             elif ins.opcode == 183:  # invokespecial
                 const = cf.constants[ins.operands[0][1]]
                 name = const["name_and_type"]["name"]["value"]
-                if len(stack) == 2 and type(stack[1]) == types.FloatType:
+                if len(stack) == 2 and (type(stack[1]) == types.FloatType or type(stack[0]) == types.FloatType):
                     tmp["calls"][name] = [stack.pop(), stack.pop()]
                 elif len(stack) >= 1 and type(stack[0]) == types.IntType: # 1, 2, 3-argument beginning with int = id
                     tmp["id"] = stack[0]
@@ -75,6 +75,9 @@ class BiomeTopping(Topping):
             elif ins.opcode == 182:  # invokevirtual
                 if len(stack) == 1 and "color" not in tmp:
                     tmp["color"] = stack.pop()
+                if len(stack) == 2:
+                    tmp["rainfall"] = stack.pop()
+                    tmp["temperature"] = stack.pop()
 
             # numeric values & constants
             elif ins.opcode == 18 or ins.opcode == 19: # ldc, ldc_w
