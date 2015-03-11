@@ -50,7 +50,7 @@ class BiomeTopping(Topping):
         stack = None
         for ins in method.instructions:
             if ins.opcode == 187:  # new
-                if tmp is not None and tmp.has_key("name"):
+                if tmp is not None and tmp.has_key("name") and tmp["name"] != " and ":
                     biomes[tmp["name"]] = tmp
                 stack = []
                 tmp = {
@@ -92,7 +92,7 @@ class BiomeTopping(Topping):
             elif ins.opcode == 16:  # bipush
                 stack.append(ins.operands[0][1])
 
-        if tmp is not None and tmp.has_key("name"):
+        if tmp is not None and tmp.has_key("name") and tmp["name"] != " and ":
             biomes[tmp["name"]] = tmp
 
         weather, height = BiomeTopping.map_methods(biomes)
