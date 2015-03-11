@@ -43,7 +43,7 @@ class BlocksTopping(Topping):
     def act(aggregate, jar, verbose=False):
         superclass = aggregate["classes"]["block.superclass"]
         cf = jar.open_class(superclass)
-        individual_textures = aggregate["version"]["protocol"] >= 52
+        individual_textures = True #aggregate["version"]["protocol"] >= 52 # assume >1.5 http://wiki.vg/Protocol_History#1.5.x since don't read packets TODO
 
         if "tile" in aggregate["language"]:
             language = aggregate["language"]["tile"]
