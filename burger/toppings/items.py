@@ -41,7 +41,7 @@ class ItemsTopping(Topping):
     @staticmethod
     def act(aggregate, jar, verbose=False):
         superclass = aggregate["classes"]["item.superclass"]
-        individual_textures = aggregate["version"]["protocol"] >= 52
+        individual_textures = True #aggregate["version"]["protocol"] >= 52 # assume >1.5 TODO
         cf = jar.open_class(superclass)
 
         # Find the static constructor
