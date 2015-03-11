@@ -47,14 +47,15 @@ def identify(cf):
         return ("block.superclass", cf.this)
 
     # Next up, see if we've got the packet superclass in the same way.
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: "Duplicate packet" in c["string"]["value"]
-    )
-
-    if const:
-        # We've found the packet superclass.
-        return ("packet.superclass", cf.this)
+    # TODO: update for Netty packets
+    #const = cf.constants.find_one(
+    #    ConstantType.STRING,
+    #    lambda c: "Duplicate packet" in c["string"]["value"]
+    #)
+    #
+    #if const:
+    #    # We've found the packet superclass.
+    #    return ("packet.superclass", cf.this)
 
     # The main recipe superclass.
     const = cf.constants.find_one(

@@ -41,6 +41,8 @@ class PacketsTopping(Topping):
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
+        return # disabled TODO: once update identify packet.superclass for Netty
+
         # Find and open the packet superclass
         superclass = aggregate["classes"]["packet.superclass"]
         cf = jar.open_class(superclass)

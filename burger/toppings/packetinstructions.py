@@ -166,6 +166,7 @@ class PacketInstructionsTopping(Topping):
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
+        return # disabled TODO: once update identify packet.superclass for Netty
         """Finds all packets and decompiles them"""
         for packet in aggregate["packets"]["packet"].values():
             try:
