@@ -24,6 +24,7 @@ THE SOFTWARE.
 from solum import ClassFile, ConstantType
 
 from .topping import Topping
+import types
 
 
 class BiomeTopping(Topping):
@@ -64,10 +65,11 @@ class BiomeTopping(Topping):
             elif ins.opcode == 183:  # invokespecial
                 const = cf.constants[ins.operands[0][1]]
                 name = const["name_and_type"]["name"]["value"]
-                if len(stack) == 1:
-                    tmp["id"] = stack.pop()
-                elif len(stack) >= 2:
+                if len(stack) == 2 and type(stack[1]) == types.FloatType:
                     tmp["calls"][name] = [stack.pop(), stack.pop()]
+                elif len(stack) >= 1 and type(stack[0]) == types.IntType: # 1, 2, 3-argument beginning with int = id
+                    tmp["id"] = stack[0]
+                    stack = []
                 elif name != "<init>":
                     tmp["rainfall"] = 0
             elif ins.opcode == 182:  # invokevirtual
