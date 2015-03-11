@@ -39,7 +39,7 @@ def identify(cf):
     # We'll look for one of the debugging messages.
     const = cf.constants.find_one(
         ConstantType.STRING,
-        lambda c: "Accessed Blocks" in c["string"]["value"]
+        lambda c: "Block{" in c["string"]["value"]
     )
 
     if const:
