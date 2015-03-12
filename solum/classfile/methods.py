@@ -138,7 +138,7 @@ class MethodTable(list):
     def storage(self):
         return self.__store
 
-    def find(self, name=None, args=None, returns=None, f=None):
+    def find(self, name=None, args=None, returns=None, f=None, flags=None):
         ret = []
         for method in self.storage:
             if name and name != method.name:
@@ -153,21 +153,27 @@ class MethodTable(list):
             if f and not f(method):
                 continue
 
+            if flags is not None and flags != method.flags:
+                continue
+
             ret.append(method)
         return ret
 
-    def find_one(self, name=None, args=None, returns=None, f=None):
+    def find_one(self, name=None, args=None, returns=None, f=None, flags=None):
         for method in self.storage:
             if name and name != method.name:
                 continue
 
-            if args and args != method.args:
+            if args is not None and args != method.args:
                 continue
 
             if returns and returns != method.returns:
                 continue
 
             if f and not f(method):
+                continue
+
+            if flags is not None and flags != method.flags:
                 continue
 
             return method
