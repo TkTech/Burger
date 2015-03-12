@@ -144,7 +144,7 @@ class MethodTable(list):
             if name and name != method.name:
                 continue
 
-            if args and args != method.args:
+            if args is not None and args != method.args:
                 continue
 
             if returns and returns != method.returns:
