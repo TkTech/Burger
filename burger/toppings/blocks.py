@@ -50,8 +50,8 @@ class BlocksTopping(Topping):
         else:
             language = None
 
-        # Find the static constructor
-        method = cf.methods.find_one("<clinit>")
+        # Find the static block registration method
+        method = cf.methods.find_one(args=(), returns="void", flags=9) # public static void ...() {}
         blocks = aggregate.setdefault("blocks", {})
         block = blocks.setdefault("block", {})
         tmp = []
