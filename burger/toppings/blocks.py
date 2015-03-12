@@ -78,7 +78,9 @@ class BlocksTopping(Topping):
                     continue
 
         ditch = False
-        for ins in skip_it():
+        stack = []
+        for ins in method.instructions:
+            #print "INS",ins
             if ins.name == "new":
                 # The beginning of a new block definition
                 stack = []
@@ -105,7 +107,8 @@ class BlocksTopping(Topping):
                     stack.append(const["string"]["value"])
                 else:
                     stack.append(const["value"])
-            elif ins.name.startswith("invoke"):
+                #print "ldc",stack
+            elif ins.name in ("invokevirtual", "invokespecial"):
                 # A method invocation
                 const_i = ins.operands[0][1]
                 const = cf.constants[const_i]
@@ -114,9 +117,9 @@ class BlocksTopping(Topping):
                 current_block["calls"][method_name] = stack
                 current_block["calls"][method_name + method_desc] = stack
                 stack = []
-            elif ins.name == "putstatic":
-                # Store the newly constructed object into a static
-                # field. This means we have everything we're going to
+            elif ins.name == "invokestatic":
+                # Call the static registration method.
+                # This means we have everything we're going to
                 # get on this block.
                 if ditch:
                     ditch = False
@@ -125,6 +128,7 @@ class BlocksTopping(Topping):
                 const = cf.constants[const_i]
                 field_name = const["name_and_type"]["name"]["value"]
                 current_block["assigned_to_field"] = field_name
+                #print "current_block",current_block
                 tmp.append(current_block)
             elif ins.name == "aconst_null":
                 # These are random incomplete blocks, we have no
