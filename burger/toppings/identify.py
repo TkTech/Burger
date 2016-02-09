@@ -45,6 +45,15 @@ def identify(cf):
     if const:
         # We've found the block superclass, all done.
         return ("block.superclass", cf.this)
+    
+    # Also find the block registry (MCP: net.minecraft.init.Blocks).
+    const = cf.constants.find_one(
+        ConstantType.STRING,
+        lambda c: c["string"]["value"] == "Accessed Blocks before Bootstrap!"
+    )
+    if const:
+        # We've found the block registry.
+        return ("block.list", cf.this)
 
     # Next up, see if we've got the packet superclass in the same way.
     # TODO: update for Netty packets
@@ -119,6 +128,7 @@ class IdentifyTopping(Topping):
 
     PROVIDES = [
         "identify.block.superclass",
+        "identify.block.list",
         "identify.packet.superclass",
         "identify.recipe.superclass",
         "identify.recipe.inventory",

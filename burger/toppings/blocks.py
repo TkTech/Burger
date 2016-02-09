@@ -35,6 +35,7 @@ class BlocksTopping(Topping):
 
     DEPENDS = [
         "identify.block.superclass",
+        "identify.block.list",
         "language",
         "version.protocol"
     ]
@@ -43,6 +44,7 @@ class BlocksTopping(Topping):
     def act(aggregate, jar, verbose=False):
         superclass = aggregate["classes"]["block.superclass"]
         cf = jar.open_class(superclass)
+        
         individual_textures = True #aggregate["version"]["protocol"] >= 52 # assume >1.5 http://wiki.vg/Protocol_History#1.5.x since don't read packets TODO
 
         if "tile" in aggregate["language"]:
@@ -59,7 +61,6 @@ class BlocksTopping(Topping):
         block = blocks.setdefault("block", {})
         tmp = []
 
-        ditch = False
         stack = []
         for ins in method.instructions:
             #print "INS",ins
@@ -175,6 +176,25 @@ class BlocksTopping(Topping):
             if "text_id" in final:
                 block[final["text_id"]] = final
 
+        # Go through the block list and add the field info.
+        list = aggregate["classes"]["block.list"]
+        lcf = jar.open_class(list)
+        
+        # Find the static block, and load the fields for each.
+        method = lcf.methods.find_one(name="<clinit>")
+        blk_name = ""
+        for ins in method.instructions:
+            if ins.name in ("ldc", "ldc_w"):
+                const_i = ins.operands[0][1]
+                const = lcf.constants[const_i]
+                if const["tag"] == ConstantType.STRING:
+                    blk_name = const["string"]["value"]
+            elif ins.name == "putstatic":
+                const_i = ins.operands[0][1]
+                const = lcf.constants[const_i]
+                field = const["name_and_type"]["name"]["value"]
+                block[blk_name]["field"] = field
+            
         blocks["info"] = {
             "count": len(block),
             "real_count": len(tmp)
