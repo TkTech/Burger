@@ -36,10 +36,10 @@ def identify(cf):
     we'll have the initial mapping from this pass available to us.
     """
     # First up, finding the "block superclass" (as we'll call it).
-    # We'll look for one of the debugging messages.
+    # We'll look for a language string that's only found there.
     const = cf.constants.find_one(
         ConstantType.STRING,
-        lambda c: "Block{" in c["string"]["value"]
+        lambda c: c["string"]["value"] == "oreGold"
     )
 
     if const:
