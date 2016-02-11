@@ -84,6 +84,15 @@ class ItemsTopping(Topping):
         register_item_block_method_custom = cf.methods.find_one(args=(blockclass, superclass), returns="void")
         register_item_method = cf.methods.find_one(args=('int', 'java.lang.String', superclass), returns="void")
 
+        item_block_class = None
+        # Find the class used that represents an item that is a block
+        for ins in register_item_block_method.instructions:
+            if ins.name == "new":
+                const_i = ins.operands[0][1]
+                const = cf.constants[const_i]
+                item_block_class = const["name"]["value"]
+                break
+
         stack = []
         current_item = {
             "class": None,
@@ -166,6 +175,7 @@ class ItemsTopping(Topping):
                 descriptor_index = const["name_and_type"]["descriptor"]["pos"]
                 if name_index == register_item_block_method.name_index and descriptor_index == register_item_block_method.descriptor_index:
                     current_item["register_method"] = "block"
+                    current_item["class"] = item_block_class
                     if len(stack) == 1:
                         # Assuming this is a field set via getstatic
                         add_block_info_to_item(stack[0], current_item)
