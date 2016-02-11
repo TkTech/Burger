@@ -45,26 +45,27 @@ def identify(cf):
     if const:
         # We've found the block superclass, all done.
         return ("block.superclass", cf.this)
-    
+
     # Also find the block registry (MCP: net.minecraft.init.Blocks).
     const = cf.constants.find_one(
         ConstantType.STRING,
         lambda c: c["string"]["value"] == "Accessed Blocks before Bootstrap!"
     )
+
     if const:
         # We've found the block registry.
         return ("block.list", cf.this)
 
     # Next up, see if we've got the packet superclass in the same way.
     # TODO: update for Netty packets
-    #const = cf.constants.find_one(
-    #    ConstantType.STRING,
-    #    lambda c: "Duplicate packet" in c["string"]["value"]
-    #)
-    #
-    #if const:
-    #    # We've found the packet superclass.
-    #    return ("packet.superclass", cf.this)
+    const = cf.constants.find_one(
+        ConstantType.STRING,
+        lambda c: "Duplicate packet" in c["string"]["value"]
+    )
+    
+    if const:
+        # We've found the packet superclass.
+        return ("packet.superclass", cf.this)
 
     # The main recipe superclass.
     const = cf.constants.find_one(
@@ -85,6 +86,15 @@ def identify(cf):
 
     if const:
         return ("item.superclass", cf.this)
+
+    # Item list
+    const = cf.constants.find_one(
+        ConstantType.STRING,
+        lambda c: c["string"]["value"] == "Accessed Items before Bootstrap!"
+    )
+
+    if const:
+        return ("item.list", cf.this)
 
     # Entity list
     const = cf.constants.find_one(
@@ -134,6 +144,7 @@ class IdentifyTopping(Topping):
         "identify.recipe.inventory",
         "identify.recipe.cloth",
         "identify.item.superclass",
+        "identify.item.list",
         "identify.entity.list",
         "identify.nethandler",
         "identify.biome.superclass"
@@ -148,6 +159,6 @@ class IdentifyTopping(Topping):
             result = identify(cf)
             if result:
                 classes[result[0]] = result[1]
-                if len(classes) == 8:
+                if len(classes) == len(IdentifyTopping.PROVIDES):
                     break
         print "identify classes:",classes

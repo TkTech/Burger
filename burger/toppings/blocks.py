@@ -59,6 +59,7 @@ class BlocksTopping(Topping):
         
         blocks = aggregate.setdefault("blocks", {})
         block = blocks.setdefault("block", {})
+        block_fields = blocks.setdefault("block_fields", {})
         tmp = []
 
         stack = []
@@ -194,6 +195,7 @@ class BlocksTopping(Topping):
                 const = lcf.constants[const_i]
                 field = const["name_and_type"]["name"]["value"]
                 block[blk_name]["field"] = field
+                block_fields[field] = blk_name
             
         blocks["info"] = {
             "count": len(block),
