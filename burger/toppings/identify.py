@@ -21,12 +21,20 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-from solum import ClassFile, ConstantType
+#from solum import ClassFile, ConstantType
+from jawa import constants
+from jawa.cf import ClassFile
+
+try:  
+    from cStringIO import StringIO
+except ImportError:  
+    from StringIO import StringIO
+
 
 from .topping import Topping
 
 
-def identify(cf):
+def identify(class_file):
     """
     The first pass across the JAR will identify all possible classes it
     can, maping them by the 'type' it implements.
@@ -35,110 +43,28 @@ def identify(cf):
     check for known signatures and predictable constants. In the next pass,
     we'll have the initial mapping from this pass available to us.
     """
-    # First up, finding the "block superclass" (as we'll call it).
-    # We'll look for a language string that's only found there.
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: c["string"]["value"] == "oreGold"
+    # We can identify almost every class we need just by
+    # looking for consistent strings.
+    matches = (
+        ('oreGold', 'block.superclass'),
+        ('Accessed Blocks before Bootstrap!', 'block.list'),
+        (' is already assigned to protocol ', 'packet.connectionstate'),
+        ('The received encoded string buffer length is less than zero! Weird string!', 'packet.packetBuffer'),
+        ('X#X', 'recipe.superclass'),
+        ('CONFLICT @', 'item.superclass'),
+        ('Accessed Items before Bootstrap!', 'item.list'),
+        ('Skipping Entity with id', 'entity.list'),
+        ('disconnect.loginFailedInfo', 'nethandler.client'),
+        ('Outdated client!', 'nethandler.server'),
+        ('Ice Plains', 'biome.superclass')
     )
+    for c in class_file.constants.find(constants.ConstantString):
+        value = c.string.value
+        for match, match_name in matches:
+            if match not in value:
+                continue
 
-    if const:
-        # We've found the block superclass, all done.
-        return ("block.superclass", cf.this)
-
-    # Also find the block registry (MCP: net.minecraft.init.Blocks).
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: c["string"]["value"] == "Accessed Blocks before Bootstrap!"
-    )
-
-    if const:
-        # We've found the block registry.
-        return ("block.list", cf.this)
-
-    # Next up, see if we've got the packet superclass in the same way.
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: c["string"]["value"] == " is already assigned to protocol "
-    )
-    
-    if const:
-        # We've found the packet superclass.
-        return ("packet.connectionstate", cf.this)
-
-    # And the protocol buffer (1.8)
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: c["string"]["value"] == "The received encoded string buffer length is less than zero! Weird string!"
-    )
-
-    if const:
-        return ("packet.packetbuffer", cf.this)
-
-    # The main recipe superclass.
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: "X#X" in c["string"]["value"]
-    )
-
-    if const:
-        return ("recipe.superclass", cf.this)
-
-    # Item superclass
-    const = cf.constants.find_one(
-       ConstantType.STRING,
-       lambda c: ("item." == c["string"]["value"] or
-                  "crafting results" in c["string"]["value"] or
-                  "CONFLICT @ " in c["string"]["value"])
-    )
-
-    if const:
-        return ("item.superclass", cf.this)
-
-    # Item list
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: c["string"]["value"] == "Accessed Items before Bootstrap!"
-    )
-
-    if const:
-        return ("item.list", cf.this)
-
-    # Entity list
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: "Skipping Entity with id " in c["string"]["value"]
-    )
-
-    if const:
-        return ("entity.list", cf.this)
-
-    # Protocol version (Client)
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: "disconnect.loginFailedInfo" in c["string"]["value"]
-    )
-
-    if const:
-        return ("nethandler.client", cf.this)
-
-    # Protocol version (Server)
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: "Outdated client!" in c["string"]["value"]
-    )
-
-    if const:
-        return ("nethandler.server", cf.this)
-
-    # Biome
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: ("Ice Plains") in c["string"]["value"]
-    )
-
-    if const:
-        return ("biome.superclass", cf.this)
+            return match_name, class_file.this.name.value
 
 
 class IdentifyTopping(Topping):
@@ -164,7 +90,9 @@ class IdentifyTopping(Topping):
     @staticmethod
     def act(aggregate, jar, verbose=False):
         classes = aggregate.setdefault("classes", {})
-        for cf in jar.classes:
+        #TODO: Stop this silly manual conversion between solum and jawa once jawa conversion is done
+        for path in jar.class_list:
+            cf = ClassFile(StringIO(jar.read(path)))
             result = identify(cf)
             if result:
                 classes[result[0]] = result[1]
