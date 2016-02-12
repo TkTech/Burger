@@ -4,3 +4,7 @@
 *.swp
 test.py
 build/
+
+*.java
+*.bat
+*.json
