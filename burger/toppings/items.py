@@ -68,6 +68,7 @@ class ItemsTopping(Topping):
         method = cf.methods.find_one(args=(), returns="void", flags=9)
         items = aggregate.setdefault("items", {})
         item_list = items.setdefault("item", {})
+        item_fields = items.setdefault("item_fields", {})
 
         if "item" in aggregate["language"]:
             language = aggregate["language"]["item"]
@@ -224,6 +225,26 @@ class ItemsTopping(Topping):
                 item_list[final["text_id"]] = final
             else:
                 print 'ditched item', item
+
+        # Go through the item list and add the field info.
+        list = aggregate["classes"]["item.list"]
+        lcf = jar.open_class(list)
+        
+        # Find the static block, and load the fields for each.
+        method = lcf.methods.find_one(name="<clinit>")
+        item_name = ""
+        for ins in method.instructions:
+            if ins.name in ("ldc", "ldc_w"):
+                const_i = ins.operands[0][1]
+                const = lcf.constants[const_i]
+                if const["tag"] == ConstantType.STRING:
+                    item_name = const["string"]["value"]
+            elif ins.name == "putstatic":
+                const_i = ins.operands[0][1]
+                const = lcf.constants[const_i]
+                field = const["name_and_type"]["name"]["value"]
+                item_list[item_name]["field"] = field
+                item_fields[field] = item_name
 
         items["info"] = {
             "count": len(item_list),
