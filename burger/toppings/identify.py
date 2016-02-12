@@ -57,15 +57,23 @@ def identify(cf):
         return ("block.list", cf.this)
 
     # Next up, see if we've got the packet superclass in the same way.
-    # TODO: update for Netty packets
     const = cf.constants.find_one(
         ConstantType.STRING,
-        lambda c: "Duplicate packet" in c["string"]["value"]
+        lambda c: c["string"]["value"] == " is already assigned to protocol "
     )
     
     if const:
         # We've found the packet superclass.
-        return ("packet.superclass", cf.this)
+        return ("packet.connectionstate", cf.this)
+
+    # And the protocol buffer (1.8)
+    const = cf.constants.find_one(
+        ConstantType.STRING,
+        lambda c: c["string"]["value"] == "The received encoded string buffer length is less than zero! Weird string!"
+    )
+
+    if const:
+        return ("packet.packetbuffer", cf.this)
 
     # The main recipe superclass.
     const = cf.constants.find_one(
@@ -139,7 +147,8 @@ class IdentifyTopping(Topping):
     PROVIDES = [
         "identify.block.superclass",
         "identify.block.list",
-        "identify.packet.superclass",
+        "identify.packet.connectionstate",
+        "identify.packet.packetbuffer",
         "identify.recipe.superclass",
         "identify.recipe.inventory",
         "identify.recipe.cloth",
