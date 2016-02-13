@@ -21,10 +21,18 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-from solum import ClassFile, ConstantType
 
 from .topping import Topping
 import types
+
+
+from jawa.constants import *
+from jawa.cf import ClassFile
+
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
 
 
 class BiomeTopping(Topping):
@@ -44,27 +52,28 @@ class BiomeTopping(Topping):
         if "biome.superclass" not in aggregate["classes"]:
             return
         superclass = aggregate["classes"]["biome.superclass"]
-        cf = jar.open_class(superclass)
+        cf = ClassFile(StringIO(jar.read(superclass + ".class")))
         method = cf.methods.find_one(name="<clinit>")
         tmp = None
         stack = None
-        for ins in method.instructions:
-            if ins.opcode == 187:  # new
+        for ins in method.code.disassemble():
+            if ins.mnemonic == "new":
                 if tmp is not None and tmp.has_key("name") and tmp["name"] != " and ":
                     biomes[tmp["name"]] = tmp
                 stack = []
+                const = cf.constants.get(ins.operands[0].value)
                 tmp = {
                     "calls": {},
                     "rainfall": 0.5,
                     "height": [0.1, 0.3],
                     "temperature": 0.5,
-                    "class": cf.constants[ins.operands[0][1]]["name"]["value"]
+                    "class": cf.constants.get(ins.operands[0].value).name.value
                 }
             elif tmp is None:
                 continue
-            elif ins.opcode == 183:  # invokespecial
-                const = cf.constants[ins.operands[0][1]]
-                name = const["name_and_type"]["name"]["value"]
+            elif ins.mnemonic == "invokespecial":
+                const = cf.constants.get(ins.operands[0].value)
+                name = const.name_and_type.name.value
                 if len(stack) == 2 and (type(stack[1]) == types.FloatType or type(stack[0]) == types.FloatType):
                     tmp["calls"][name] = [stack.pop(), stack.pop()]
                 elif len(stack) >= 1 and type(stack[0]) == types.IntType: # 1, 2, 3-argument beginning with int = id
@@ -72,7 +81,7 @@ class BiomeTopping(Topping):
                     stack = []
                 elif name != "<init>":
                     tmp["rainfall"] = 0
-            elif ins.opcode == 182:  # invokevirtual
+            elif ins.opcode == "invokevirtual":
                 if len(stack) == 1 and "color" not in tmp:
                     tmp["color"] = stack.pop()
                 if len(stack) == 2:
@@ -80,20 +89,19 @@ class BiomeTopping(Topping):
                     tmp["temperature"] = stack.pop()
 
             # numeric values & constants
-            elif ins.opcode == 18 or ins.opcode == 19: # ldc, ldc_w
-                const = cf.constants[ins.operands[0][1]]
-                if const["tag"] == ConstantType.STRING:
-                    tmp["name"] = const["string"]["value"]
-                if const["tag"] in (ConstantType.FLOAT,
-                                    ConstantType.INTEGER):
-                    stack.append(const["value"])
+            elif ins.mnemonic in ("ldc", "ldc_w"):
+                const = cf.constants.get(ins.operands[0].value)
+                if isinstance(const, ConstantString):
+                    tmp["name"] = const.string.value
+                if isinstance(const, (ConstantInteger, ConstantFloat)):
+                    stack.append(const.value)
 
             elif ins.opcode <= 8 and ins.opcode >= 2:  # iconst
                 stack.append(ins.opcode - 3)
             elif ins.opcode >= 0xb and ins.opcode <= 0xd:  # fconst
                 stack.append(ins.opcode - 0xb)
-            elif ins.opcode == 16:  # bipush
-                stack.append(ins.operands[0][1])
+            elif ins.mnemonic == "bipush":
+                stack.append(ins.operands[0].value)
 
         if tmp is not None and tmp.has_key("name") and tmp["name"] != " and ":
             biomes[tmp["name"]] = tmp
