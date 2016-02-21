@@ -21,10 +21,16 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-from solum import ClassFile, ConstantType
 
 from .topping import Topping
 
+from jawa.constants import *
+from jawa.cf import ClassFile
+
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
 
 class EntityTopping(Topping):
     """Gets most entity types."""
@@ -40,7 +46,7 @@ class EntityTopping(Topping):
     @staticmethod
     def act(aggregate, jar, verbose=False):
         superclass = aggregate["classes"]["entity.list"]
-        cf = jar.open_class(superclass)
+        cf = ClassFile(StringIO(jar.read(superclass + ".class")))
 
         # Find the static constructor
         method = cf.methods.find_one("<clinit>")
@@ -54,31 +60,41 @@ class EntityTopping(Topping):
             and resume when we hit the first item.
             """
             found_ldc = False
-            for ins in method.instructions:
+            for ins in method.code.disassemble():
                 if found_ldc:
                     yield ins
-                elif ins.opcode in (18, 19):  # ldc
+                elif ins.mnemonic in ("ldc", "ldc_w"):
                     found_ldc = True
                     yield ins
 
+        stack = []
         for ins in skip_it():
-            if ins.opcode in (18, 19):  # ldc
-                const = cf.constants[ins.operands[0][1]]
-                if const["tag"] == ConstantType.CLASS:
-                    tmp["class"] = const["name"]["value"]
-                elif const["tag"] == ConstantType.STRING:
-                    tmp["name"] = const["string"]["value"]
-            elif ins.opcode == 16:  # bipush
-                tmp["id"] = ins.operands[0][1]
+            if ins.mnemonic in ("ldc", "ldc_w"):
+                const = cf.constants.get(ins.operands[0].value)
+                if isinstance(const, ConstantClass):
+                    tmp["class"] = const.name.value
+                elif isinstance(const, ConstantString):
+                    tmp["name"] = const.string.value
+                else:
+                    stack.append(const.value)
+            elif ins.mnemonic == "bipush":  # bipush
+                stack.append(ins.operands[0].value)
             elif ins.opcode <= 8 and ins.opcode >= 2:
-                tmp["id"] = ins.opcode - 3
-            elif ins.opcode == 184:  # invokestatic
+                stack.append(ins.opcode - 3)
+            elif ins.mnemonic == "invokestatic":  # invokestatic
+                if (len(stack) >= 1):
+                    tmp["id"] = stack[0]
+                if (len(stack) >= 3):
+                    tmp["egg_primary"] = stack[1]
+                    tmp["egg_secondary"] = stack[2]
                 if "id" in tmp:
                     entity[tmp["id"]] = tmp
                 tmp = {}
+                stack = []
 
         for e in entity.itervalues():
-            size = EntityTopping.size(jar.open_class(e["class"]))
+            cf = ClassFile(StringIO(jar.read(e["class"] + ".class")))
+            size = EntityTopping.size(cf)
             if size:
                 e["width"], e["height"], texture = size
                 if texture:
@@ -97,21 +113,20 @@ class EntityTopping(Topping):
         stage = 0
         tmp = []
         texture = None
-        for ins in method.instructions:
-            if ins.opcode == 42 and stage == 0:  # aload_0
+        for ins in method.code.disassemble():
+            if ins.mnemonic == "aload_0" and stage == 0:
                 stage = 1
-            elif ins.opcode == 18:
-                const = cf.constants[ins.operands[0][1]]
-                if const["tag"] == ConstantType.FLOAT and stage in (1, 2):
-                # ldc
-                    tmp.append(round(const["value"], 2))
+            elif ins.mnemonic in ("ldc", "ldc_w"):
+                const = cf.constants.get(ins.operands[0].value)
+                if isinstance(const, ConstantFloat) and stage in (1, 2):
+                    tmp.append(round(const.value, 2))
                     stage += 1
                 else:
                     stage = 0
                     tmp = []
-                    if const["tag"] == ConstantType.STRING:
-                        texture = const["string"]["value"]
-            elif ins.opcode == 182 and stage == 3:  # invokevirtual
+                    if isinstance(const, ConstantString):
+                        texture = const.string.value
+            elif ins.mnemonic == "invokevirtual" and stage == 3:
                 return tmp + [texture]
                 break
             else:
