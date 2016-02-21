@@ -53,7 +53,7 @@ class BiomeTopping(Topping):
             return
         superclass = aggregate["classes"]["biome.superclass"]
         cf = ClassFile(StringIO(jar.read(superclass + ".class")))
-        method = cf.methods.find_one(name="<clinit>")
+        method = cf.methods.find_one(returns="V", args="", f=lambda m: m.access_flags.acc_static)
         tmp = None
         stack = None
         for ins in method.code.disassemble():
