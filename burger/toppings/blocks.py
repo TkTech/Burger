@@ -21,10 +21,15 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-from solum import ConstantType
-
 from .topping import Topping
 
+from jawa.constants import *
+from jawa.cf import ClassFile
+
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
 
 class BlocksTopping(Topping):
     """Gets most available block types."""
@@ -43,7 +48,7 @@ class BlocksTopping(Topping):
     @staticmethod
     def act(aggregate, jar, verbose=False):
         superclass = aggregate["classes"]["block.superclass"]
-        cf = jar.open_class(superclass)
+        cf = ClassFile(StringIO(jar.read(superclass + ".class")))
         
         individual_textures = True #aggregate["version"]["protocol"] >= 52 # assume >1.5 http://wiki.vg/Protocol_History#1.5.x since don't read packets TODO
 
@@ -53,23 +58,26 @@ class BlocksTopping(Topping):
             language = None
 
         # Find the static block registration method
-        method = cf.methods.find_one(args=(), returns="void", flags=9) # public static void ...() {}
+        method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
         # Find the registerBlock method.
-        registerMethod = cf.methods.find_one(args=('int', 'java.lang.String', superclass), returns="void")
-        
+        registerMethod = cf.methods.find_one(args='ILjava/lang/String;Latr;', returns="V")
+
         blocks = aggregate.setdefault("blocks", {})
         block = blocks.setdefault("block", {})
         block_fields = blocks.setdefault("block_fields", {})
         tmp = []
+        current_block = {
+                    "class": None,
+                    "calls": {}
+                }
 
         stack = []
-        for ins in method.instructions:
+        for ins in method.code.disassemble():
             #print "INS",ins
-            if ins.name == "new":
+            if ins.mnemonic == "new":
                 # The beginning of a new block definition
-                const_i = ins.operands[0][1]
-                const = cf.constants[const_i]
-                class_name = const["name"]["value"]
+                const = cf.constants.get(ins.operands[0].value)
+                class_name = const.name.value
                 current_block = {
                     "class": class_name,
                     "calls": {}
@@ -89,33 +97,31 @@ class BlocksTopping(Topping):
                     current_block["numeric_id"] = stack[0]
                     current_block["text_id"] = "air"
                 stack = []
-            elif ins.name.startswith("iconst"):
-                stack.append(int(ins.name[-1]))
-            elif ins.name.startswith("fconst"):
-                stack.append(float(ins.name[-1]))
-            elif ins.name.endswith("ipush"):
-                stack.append(ins.operands[0][1])
-            elif ins.name in ("ldc", "ldc_w"):
-                const_i = ins.operands[0][1]
-                const = cf.constants[const_i]
+            elif ins.mnemonic.startswith("iconst"):
+                stack.append(int(ins.mnemonic[-1]))
+            elif ins.mnemonic.startswith("fconst"):
+                stack.append(float(ins.mnemonic[-1]))
+            elif ins.mnemonic.endswith("ipush"):
+                stack.append(ins.operands[0].value)
+            elif ins.mnemonic in ("ldc", "ldc_w"):
+                const = cf.constants.get(ins.operands[0].value)
 
-                if const["tag"] == ConstantType.CLASS:
-                    stack.append("%s.class" % const["name"]["value"])
-                elif const["tag"] == ConstantType.STRING:
-                    stack.append(const["string"]["value"])
+                if isinstance(const, ConstantClass):
+                    stack.append("%s.class" % const.name.value)
+                elif isinstance(const, ConstantString):
+                    stack.append(const.string.value)
                 else:
-                    stack.append(const["value"])
+                    stack.append(const.value)
                 #print "ldc",stack
-            elif ins.name in ("invokevirtual", "invokespecial"):
+            elif ins.mnemonic in ("invokevirtual", "invokespecial"):
                 # A method invocation
-                const_i = ins.operands[0][1]
-                const = cf.constants[const_i]
-                method_name = const["name_and_type"]["name"]["value"]
-                method_desc = const["name_and_type"]["descriptor"]["value"]
+                const = cf.constants.get(ins.operands[0].value)
+                method_name = const.name_and_type.name.value
+                method_desc = const.name_and_type.descriptor.value
                 current_block["calls"][method_name] = stack
                 current_block["calls"][method_name + method_desc] = stack
                 stack = []
-            elif ins.name == "invokestatic":
+            elif ins.mnemonic == "invokestatic":
                 if len(stack) == 2:
                     # Some blocks are constructed as a method variable rather
                     # than directly in the registration method; thus the
@@ -132,25 +138,24 @@ class BlocksTopping(Topping):
         #   2. Find the function that returns 'this' and accepts a float.
         #      This is the function that sets the hardness.
         
-        string_setters = cf.methods.find(returns=superclass,
-                args=("java.lang.String",),
-                f=lambda x: not x.is_static)
-        assert len(string_setters) == 1
+        string_setter = cf.methods.find_one(returns="L" + superclass + ";",
+                args="Ljava/lang/String;",
+                f=lambda x: not x.access_flags.acc_static)
 
-        name_setter = string_setters[0].name + cf.constants[string_setters[0].descriptor_index]["value"]
+        name_setter = string_setter.name.value + cf.constants.get(string_setter.descriptor.index).value
 
         #NOTE: There are a bunch more of these now...
         hardness_setters = cf.methods.find(
-            returns=superclass,
-            args=("float",),
-            f=lambda x: x.is_protected
+            returns="L" + superclass + ";",
+            args="F",
+            f=lambda x: x.access_flags.acc_protected
         )
 
         for method in hardness_setters:
-            for ins in method.instructions:
-                if ins.name == "ifge":
-                    const = cf.constants[method.descriptor_index]
-                    hardness_setter = method.name + const["value"]
+            for ins in method.code.disassemble():
+                if ins.mnemonic == "ifge":
+                    const = cf.constants.get(method.descriptor.index)
+                    hardness_setter = method.name.value + const.value
                     break
 
         for blk in tmp:
@@ -179,21 +184,19 @@ class BlocksTopping(Topping):
 
         # Go through the block list and add the field info.
         list = aggregate["classes"]["block.list"]
-        lcf = jar.open_class(list)
+        lcf = ClassFile(StringIO(jar.read(list + ".class")))
         
         # Find the static block, and load the fields for each.
         method = lcf.methods.find_one(name="<clinit>")
         blk_name = ""
-        for ins in method.instructions:
-            if ins.name in ("ldc", "ldc_w"):
-                const_i = ins.operands[0][1]
-                const = lcf.constants[const_i]
-                if const["tag"] == ConstantType.STRING:
-                    blk_name = const["string"]["value"]
-            elif ins.name == "putstatic":
-                const_i = ins.operands[0][1]
-                const = lcf.constants[const_i]
-                field = const["name_and_type"]["name"]["value"]
+        for ins in method.code.disassemble():
+            if ins.mnemonic in ("ldc", "ldc_w"):
+                const = lcf.constants.get(ins.operands[0].value)
+                if isinstance(const, ConstantString):
+                    blk_name = const.string.value
+            elif ins.mnemonic == "putstatic":
+                const = lcf.constants.get(ins.operands[0].value)
+                field = const.name_and_type.name.value
                 block[blk_name]["field"] = field
                 block_fields[field] = blk_name
             
