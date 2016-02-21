@@ -51,7 +51,7 @@ def identify(class_file):
         (' is already assigned to protocol ', 'packet.connectionstate'),
         ('The received encoded string buffer length is less than zero! Weird string!', 'packet.packetBuffer'),
         ('X#X', 'recipe.superclass'),
-        ('CONFLICT @', 'item.superclass'),
+        ('leggingsIron', 'item.superclass'),
         ('Accessed Items before Bootstrap!', 'item.list'),
         ('Skipping Entity with id', 'entity.list'),
         ('disconnect.loginFailedInfo', 'nethandler.client'),
