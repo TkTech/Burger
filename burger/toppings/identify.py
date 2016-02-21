@@ -54,7 +54,7 @@ def identify(class_file):
         ('leggingsIron', 'item.superclass'),
         ('Accessed Items before Bootstrap!', 'item.list'),
         ('Skipping Entity with id', 'entity.list'),
-        ('disconnect.loginFailedInfo', 'nethandler.client'),
+        ('disconnect.lost', 'nethandler.client'),
         ('Outdated client!', 'nethandler.server'),
         ('Ice Plains', 'biome.superclass')
     )
