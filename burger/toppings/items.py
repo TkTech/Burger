@@ -87,9 +87,9 @@ class ItemsTopping(Topping):
         # There will be 2, but the first one is the name setter
         name_setter = string_setter.name.value + cf.constants.get(string_setter.descriptor.index).value
 
-        register_item_block_method = cf.methods.find_one(args='Latr;', returns="V")
-        register_item_block_method_custom = cf.methods.find_one(args='Latr;Lalq;', returns="V")
-        register_item_method = cf.methods.find_one(args='ILjava/lang/String;Lalq;', returns="V")
+        register_item_block_method = cf.methods.find_one(args='L' + blockclass + ';', returns="V")
+        register_item_block_method_custom = cf.methods.find_one(args='L' + blockclass + ';L' + superclass + ';', returns="V")
+        register_item_method = cf.methods.find_one(args='ILjava/lang/String;L' + superclass + ';', returns="V")
 
         item_block_class = None
         # Find the class used that represents an item that is a block
@@ -138,8 +138,6 @@ class ItemsTopping(Topping):
                 elif len(stack) == 1:
                     # Assuming this is a field set via getstatic
                     add_block_info_to_item(stack[0], current_item)
-                else:
-                    print stack
                 stack = []
             elif ins.mnemonic.startswith("iconst"):
                 stack.append(int(ins.mnemonic[-1]))
