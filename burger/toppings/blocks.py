@@ -195,6 +195,8 @@ class BlocksTopping(Topping):
                 if isinstance(const, ConstantString):
                     blk_name = const.string.value
             elif ins.mnemonic == "putstatic":
+                if blk_name is None or blk_name == "Accessed Blocks before Bootstrap!":
+                    continue
                 const = lcf.constants.get(ins.operands[0].value)
                 field = const.name_and_type.name.value
                 block[blk_name]["field"] = field
