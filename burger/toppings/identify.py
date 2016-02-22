@@ -21,18 +21,15 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-#from solum import ClassFile, ConstantType
-from jawa import constants
-from jawa.cf import ClassFile
-
-try:  
-    from cStringIO import StringIO
-except ImportError:  
-    from StringIO import StringIO
-
 
 from .topping import Topping
 
+from jawa.cf import ClassFile
+
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
 
 def identify(class_file):
     """
