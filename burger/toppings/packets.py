@@ -21,10 +21,16 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-from solum import ClassFile, ConstantType
 
 from .topping import Topping
 
+from jawa.constants import *
+from jawa.cf import ClassFile
+
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
 
 class PacketsTopping(Topping):
     """Provides minimal information on all network packets."""
@@ -43,7 +49,7 @@ class PacketsTopping(Topping):
     @staticmethod
     def act(aggregate, jar, verbose=False):
         connectionstate = aggregate["classes"]["packet.connectionstate"]
-        cf = jar.open_class(connectionstate)
+        cf = ClassFile(StringIO(jar.read(connectionstate + ".class")))
 
         # Find the static constructor
         method = cf.methods.find_one(name="<clinit>")
@@ -59,20 +65,17 @@ class PacketsTopping(Topping):
         # do it better, though.
         NUM_STATES = 4
 
-        for ins in method.instructions:
-            if ins.name == "new":
-                const_i = ins.operands[0][1]
-                const = cf.constants[const_i]
-                state_class = const["name"]["value"]
-            elif ins.name == "ldc":
-                const_i = ins.operands[0][1]
-                const = cf.constants[const_i]
-                if const["tag"] == ConstantType.STRING:
-                    state_name = const["string"]["value"]
-            elif ins.name == "putstatic":
-                const_i = ins.operands[0][1]
-                const = cf.constants[const_i]
-                state_field = const["name_and_type"]["name"]["value"]
+        for ins in method.code.disassemble():
+            if ins.mnemonic == "new":
+                const = cf.constants.get(ins.operands[0].value)
+                state_class = const.name.value
+            elif ins.mnemonic == "ldc":
+                const = cf.constants.get(ins.operands[0].value)
+                if isinstance(const, ConstantString):
+                    state_name = const.string.value
+            elif ins.mnemonic == "putstatic":
+                const = cf.constants.get(ins.operands[0].value)
+                state_field = const.name_and_type.name.value
                 
                 states[state_name] = {
                     "class": state_class,
@@ -82,31 +85,29 @@ class PacketsTopping(Topping):
             if len(states) >= NUM_STATES:
                 break
 
-        register_method = cf.methods.find_one(returns=connectionstate,
-                f=lambda x: x.is_protected and not x.is_static)
+        register_method = cf.methods.find_one(returns="L" + connectionstate + ";",
+                f=lambda x: x.access_flags.acc_protected and not x.access_flags.acc_static)
         assert len(register_method.args) == 2
-        assert register_method.args[1] == "java.lang.Class"
-        direction_class = register_method.args[0]
+        assert register_method.args[1].name == "java/lang/Class"
+        direction_class = register_method.args[0].name
 
         #TODO: Again, hardcoded - finding directions
         directions_by_field = {}
         NUM_DIRECTIONS = 2
 
-        direction_class_file = jar.open_class(direction_class)
-        for ins in direction_class_file.methods.find_one("<clinit>").instructions:
-            if ins.name == "new":
-                const_i = ins.operands[0][1]
-                const = direction_class_file.constants[const_i]
-                dir_class = const["name"]["value"]
-            elif ins.name == "ldc":
-                const_i = ins.operands[0][1]
-                const = direction_class_file.constants[const_i]
-                if const["tag"] == ConstantType.STRING:
-                    dir_name = const["string"]["value"]
-            elif ins.name == "putstatic":
-                const_i = ins.operands[0][1]
-                const = direction_class_file.constants[const_i]
-                dir_field = const["name_and_type"]["name"]["value"]
+        direction_class_file = ClassFile(StringIO(jar.read(direction_class + ".class")))
+        direction_init_method = direction_class_file.methods.find_one("<clinit>")
+        for ins in direction_init_method.code.disassemble():
+            if ins.mnemonic == "new":
+                const = direction_class_file.constants.get(ins.operands[0].value)
+                dir_class = const.name.value
+            elif ins.mnemonic == "ldc":
+                const = direction_class_file.constants.get(ins.operands[0].value)
+                if isinstance(const, ConstantString):
+                    dir_name = const.string.value
+            elif ins.mnemonic == "putstatic":
+                const = direction_class_file.constants.get(ins.operands[0].value)
+                dir_field = const.name_and_type.name.value
                 
                 directions[dir_name] = {
                     "class": dir_class,
@@ -119,21 +120,19 @@ class PacketsTopping(Topping):
 
         for state_name in states:
             state = states[state_name] #TODO: Can I just iterate over the values directly?
-            cf = jar.open_class(state["class"])
+            cf = ClassFile(StringIO(jar.read(state["class"] + ".class")))
             method = cf.methods.find_one("<init>")
             cur_id = 0
-            for ins in method.instructions:
-                if ins.name == "getstatic":
-                    const_i = ins.operands[0][1]
-                    const = cf.constants[const_i]
-                    field = const["name_and_type"]["name"]["value"]
+            for ins in method.code.disassemble():
+                if ins.mnemonic == "getstatic":
+                    const = cf.constants.get(ins.operands[0].value)
+                    field = const.name_and_type.name.value
                     stack.append(directions_by_field[field])
-                elif ins.name in ("ldc", "ldc_w"):
-                    const_i = ins.operands[0][1]
-                    const = cf.constants[const_i]
-                    if const["tag"] == ConstantType.CLASS:
-                        stack.append("%s.class" % const["name"]["value"])
-                elif ins.name == "invokevirtual":
+                elif ins.mnemonic in ("ldc", "ldc_w"):
+                    const = cf.constants.get(ins.operands[0].value)
+                    if isinstance(const, ConstantClass):
+                        stack.append("%s.class" % const.name.value)
+                elif ins.mnemonic == "invokevirtual":
                     # TODO: Currently assuming that the method is the register one which seems to be correct but may be wrong
                     direction = stack[0]["name"]
                     packet["%s_%s" % (state_name, cur_id)] = {
