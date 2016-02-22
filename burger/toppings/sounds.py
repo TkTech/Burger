@@ -25,10 +25,15 @@ import urllib
 import re
 from xml.sax import ContentHandler, make_parser
 
-from solum import ClassFile, ConstantType
-
 from .topping import Topping
 
+from jawa.constants import *
+from jawa.cf import ClassFile
+
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
 
 def load_resource_list():
     parser = make_parser()
@@ -103,8 +108,10 @@ class SoundTopping(Topping):
             if verbose:
                 print "Unable to load resource list from mojang: %s" % e
             return
-        for cf in jar.classes:
-            for c in cf.constants.find(ConstantType.STRING):
-                key = c['string']['value']
+        #TODO: Stop this silly manual conversion between solum and jawa once jawa conversion is done
+        for path in jar.class_list:
+            cf = ClassFile(StringIO(jar.read(path)))
+            for c in cf.constants.find(type_=ConstantString):
+                key = c.string.value
                 if key in resources:
                     sounds[key] = resources[key]
