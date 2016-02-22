@@ -21,11 +21,17 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-from solum import ConstantType
-from solum.descriptor import method_descriptor
 
 from .topping import Topping
 
+from jawa.util.descriptor import method_descriptor
+from jawa.constants import *
+from jawa.cf import ClassFile
+
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
 
 class RecipesTopping(Topping):
     """Provides a list of most possible crafting recipes."""
@@ -45,24 +51,22 @@ class RecipesTopping(Topping):
         superclass = aggregate["classes"]["recipe.superclass"]
         recipes = aggregate.setdefault("recipes", {})
 
-        cf = jar.open_class(superclass)
+        cf = ClassFile(StringIO(jar.read(superclass + ".class")))
 
-        # Find the loader function, which takes nothing, returns nothing,
-        # and is private.
+        # Find the constructor
         method = cf.methods.find_one(
-            returns="void",
-            args=(),
-            f=lambda x: x.is_private
+            name="<init>"
         )
 
         # Find the set function, so we can figure out what class defines
         # a recipe.
-        setters = cf.methods.find(
-            f=lambda x: "java.lang.Object[]" in x.args
-        )
+        # This method's second parameter is an array of objects.
+        setters = list(cf.methods.find(
+            f = lambda m: len(m.args) == 2 and m.args[1].dimensions == 1 and m.args[1].name == "java/lang/Object"
+        ))
+
         target_class = setters[0].args[0]
         setter_names = [x.name for x in setters]
-
         def find_recipes(jar, cf, method, target_class, setter_names):
             # Temporary state variables
             tmp_recipes = []
@@ -76,22 +80,19 @@ class RecipesTopping(Topping):
             metadata = 0
             recipe_target = None
             pushes_are_counts = False
-            positions = True
-
+            shaped_recipe = True
             # Iterate over the methods instructions from the
             # bottom-up so we can catch the invoke/new range.
-            for ins in method.instructions.reverse():
+            for ins in reversed(list(method.code.disassemble())):
                 # Find the call that stores the generated recipe.
-                if ins.name == "invokevirtual" and not started_item:
-                    const_i = ins.operands[0][1]
-                    const = cf.constants[const_i]
+                if ins.mnemonic == "invokevirtual" and not started_item:
+                    const = cf.constants.get(ins.operands[0].value)
 
                     # Parse the string method descriptor
-                    desc = const["name_and_type"]["descriptor"]["value"]
-                    args, returns = method_descriptor(desc)
+                    desc = method_descriptor(const.name_and_type.descriptor.value)
 
                     # We've found the recipe storage method
-                    if "java.lang.Object[]" in args:
+                    if "[Ljava/lang/Object;" in desc.args_descriptor:
                         started_item = True
                         pushes_are_counts = False
                         next_push_is_val = False
@@ -100,25 +101,27 @@ class RecipesTopping(Topping):
                         make_count = 0
                         metadata = 0
                         recipe_target = None
-                        method_name = const["name_and_type"]["name"]["value"]
-                        positions = method_name == setter_names[0]
-                        if positions:
+                        method_name = const.name_and_type.name.value
+                        shaped_recipe = (method_name == setter_names[0].value)
+                        if shaped_recipe:
                             block_subs = {}
                         else:
                             block_subs = []
-                    elif superclass in args:
-                        _class = const["class"]["name"]["value"]
-                        sub_cf = jar.open_class(_class)
+                    elif superclass in desc.args_descriptor:
+                        _class = const.class_.name.value
+                        sub_cf = ClassFile(StringIO(jar.read(_class + ".class")))
                         tmp_recipes += find_recipes(
                             jar, sub_cf,
-                            sub_cf.methods.find_one(args=args),
+                            # This might not be right: There may be another method...
+                            # I may also want to use the name and return type?
+                            sub_cf.methods.find_one(args=desc.args_descriptor),
                             target_class, setter_names
                         )
                 # We've found the start of the recipe declaration (or the end
                 # as it is in our case).
-                elif ins.name == "new" and started_item:
+                elif ins.mnemonic == "new" and started_item:
                     started_item = False
-                    if positions:
+                    if shaped_recipe:
                         tmp_recipes.append({
                             "type": "shape",
                             "substitutes": block_subs,
@@ -134,68 +137,62 @@ class RecipesTopping(Topping):
                             "recipe_target": recipe_target
                         })
                 # The item/block to be substituted
-                elif (ins.name == "getstatic" and started_item
+                elif (ins.mnemonic == "getstatic" and started_item
                         and not pushes_are_counts):
-                    const_i = ins.operands[0][1]
-                    const = cf.constants[const_i]
+                    const = cf.constants.get(ins.operands[0].value)
 
-                    cl_name = const["class"]["name"]["value"]
-                    cl_field = const["name_and_type"]["name"]["value"]
+                    cl_name = const.class_.name.value
+                    cl_field = const.name_and_type.name.value
 
                     block_substitute = (cl_name, cl_field)
-                    if not positions:
+                    if not shaped_recipe:
                         block_subs.append(block_substitute)
-                elif ins.name == "getstatic" and pushes_are_counts:
-                    const_i = ins.operands[0][1]
-                    const = cf.constants[const_i]
+                elif ins.mnemonic == "getstatic" and pushes_are_counts:
+                    const = cf.constants.get(ins.operands[0].value)
 
-                    cl_name = const["class"]["name"]["value"]
-                    cl_field = const["name_and_type"]["name"]["value"]
+                    cl_name = const.class_.name.value
+                    cl_field = const.name_and_type.name.value
 
                     recipe_target = (cl_name, cl_field, metadata)
                 # Block string substitute value
-                elif ins.name == "bipush" and next_push_is_val:
+                elif ins.mnemonic == "bipush" and next_push_is_val:
                     next_push_is_val = False
-                    block_subs[chr(ins.operands[0][1])] = block_substitute
+                    block_subs[chr(ins.operands[0].value)] = block_substitute
                 # Number of items that the recipe makes
-                elif ins.name == "bipush" and pushes_are_counts:
-                    make_count = ins.operands[0][1]
+                elif ins.mnemonic == "bipush" and pushes_are_counts:
+                    make_count = ins.operands[0].value
                     if with_metadata:
                         metadata = make_count
                         with_metadata = False
-                elif ins.name.startswith("iconst_") and pushes_are_counts:
-                    make_count = int(ins.name[-1])
+                elif ins.mnemonic.startswith("iconst_") and pushes_are_counts:
+                    make_count = int(ins.mnemonic[-1])
                     if with_metadata:
                         metadata = make_count
                         with_metadata = False
                 # Recipe row
-                elif ins.name == "ldc" and started_item:
-                    const_i = ins.operands[0][1]
-                    const = cf.constants[const_i]
+                elif ins.mnemonic == "ldc" and started_item:
+                    const = cf.constants.get(ins.operands[0].value)
 
-                    if const['tag'] == ConstantType.STRING:
-                        rows.append(const['string']['value'])
+                    if isinstance(const, ConstantString):
+                        rows.append(const.string.value)
                 # The Character.valueOf() call
-                elif ins.name == "invokestatic":
-                    const_i = ins.operands[0][1]
-                    const = cf.constants[const_i]
+                elif ins.mnemonic == "invokestatic":
+                    const = cf.constants.get(ins.operands[0].value)
 
                     # Parse the string method descriptor
-                    desc = const["name_and_type"]["descriptor"]["value"]
-                    args, returns = method_descriptor(desc)
+                    desc = method_descriptor(const.name_and_type.descriptor.value)
 
-                    if "char" in args and returns == "java.lang.Character":
+                    if len(desc.args) == 1 and desc.args[0].name == "char" and desc.returns.name == "java/lang/Character":
                         # The next integer push will be the character value.
                         next_push_is_val = True
-                elif ins.name == "invokespecial" and started_item:
-                    const_i = ins.operands[0][1]
-                    const = cf.constants[const_i]
+                elif ins.mnemonic == "invokespecial" and started_item:
+                    const = cf.constants.get(ins.operands[0].value)
 
-                    name = const["name_and_type"]["name"]["value"]
+                    name = const.name_and_type.name.value
                     if name == "<init>":
                         pushes_are_counts = True
                         if ("II" in
-                                const["name_and_type"]["descriptor"]["value"]):
+                                const.name_and_type.descriptor.value):
                             with_metadata = True
             return tmp_recipes
 
@@ -203,15 +200,16 @@ class RecipesTopping(Topping):
 
         # Re-arrange the block class so the key is the class
         # name and field name.
-        block_class = aggregate["classes"]["block.superclass"]
+        block_class = aggregate["classes"]["block.list"]
         block_map = {}
         for id_, block in aggregate["blocks"]["block"].iteritems():
             block_map["%s:%s" % (block_class, block["field"])] = block
 
-        item_class = aggregate["classes"]["item.superclass"]
+        item_class = aggregate["classes"]["item.list"]
         item_map = {}
         for id_, item in aggregate["items"]["item"].iteritems():
-            item_map["%s:%s" % (item_class, item["field"])] = item
+            if "field" in item:
+                item_map["%s:%s" % (item_class, item["field"])] = item
 
         def getName(cls_fld):
             if cls_fld is None:
@@ -261,7 +259,7 @@ class RecipesTopping(Topping):
             final["makes"] = target
             final["metadata"] = recipe["recipe_target"][2]
             if isinstance(target, dict):
-                key = target["id"]
+                key = target["text_id"]
             elif target is None:
                 key = "NA"
             else:
@@ -277,7 +275,7 @@ class RecipesTopping(Topping):
                             tmp.append(0)
                         elif col in recipe["substitutes"]:
                             if isinstance(recipe["substitutes"][col], dict):
-                                tmp.append(recipe["substitutes"][col]["id"])
+                                tmp.append(recipe["substitutes"][col]["text_id"])
                             else:
                                 tmp.append(":".join(
                                     recipe["substitutes"][col])
