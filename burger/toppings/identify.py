@@ -24,6 +24,7 @@ THE SOFTWARE.
 
 from .topping import Topping
 
+from jawa.constants import ConstantString
 from jawa.cf import ClassFile
 
 try:
@@ -55,7 +56,7 @@ def identify(class_file):
         ('Outdated client!', 'nethandler.server'),
         ('Ice Plains', 'biome.superclass')
     )
-    for c in class_file.constants.find(constants.ConstantString):
+    for c in class_file.constants.find(ConstantString):
         value = c.string.value
         for match, match_name in matches:
             if match not in value:
