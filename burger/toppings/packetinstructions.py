@@ -24,14 +24,20 @@ THE SOFTWARE.
 
 import re
 import sys
+import traceback
+
 from types import LambdaType
 
-from solum import ClassFile, JarFile
-from solum.descriptor import method_descriptor, field_descriptor
-from solum.classfile.constants import ConstantType
+from jawa.util.descriptor import method_descriptor
+from jawa.constants import *
+from jawa.cf import ClassFile
+
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
 
 from .topping import Topping
-
 
 class PacketInstructionsTopping(Topping):
     """Provides the instructions used to construct network packets."""
@@ -42,7 +48,8 @@ class PacketInstructionsTopping(Topping):
     ]
 
     DEPENDS = [
-        "packets.classes"
+        "packets.classes",
+        "identify.packet.packetbuffer"
     ]
 
     TYPES = {
@@ -166,40 +173,35 @@ class PacketInstructionsTopping(Topping):
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
-        return # disabled TODO: once update identify packet.superclass for Netty
         """Finds all packets and decompiles them"""
         for packet in aggregate["packets"]["packet"].values():
             try:
                 packet.update(_PIT.format(
-                    _PIT.operations(jar, packet["class"])
+                    _PIT.operations(jar, packet["class"], aggregate["classes"]["packet.packetbuffer"])
                 ))
             except Exception as e:
                 if verbose:
                     print "Error: Failed to parse instructions",
                     print "of packet %s (%s): %s" % (packet["id"],
                                                      packet["class"], e)
+                    traceback.print_exc()
 
     @staticmethod
-    def operations(jar, classname, args=None,
-                   methodname=None, arg_names=("this", "stream")):
+    def operations(jar, classname, packetbuffer):
         """Gets the instructions of the specified method"""
 
-        # Find the writing method
-        cf = jar.open_class(classname)
+        arg_names=("this", "packetbuffer")
 
-        if methodname is None and args is None:
-            method = cf.methods.find_one(f=lambda m: m.args in (
-                ('java.io.DataOutputStream',), ('java.io.DataOutput',)
-            ))
-        elif methodname is None:
-            method = cf.methods.find_one(args=args)
-        else:
-            method = cf.methods.find_one(name=methodname, args=args)
+        # Find the writing method
+        cf = ClassFile(StringIO(jar.read(classname)))
+
+        methods = list(cf.methods.find(f=lambda x: len(x.args) == 1 and x.args[0].name == packetbuffer))
+
+        method = methods[1]
 
         if method is None:
-            if cf.superclass:
-                return _PIT.operations(jar, cf.superclass, args,
-                                       methodname, arg_names)
+            if cf.super_:
+                return _PIT.operations(jar, cf.super_.name + ".class", packetbuffer)
             else:
                 raise Exception("Call to unknown method")
 
@@ -210,7 +212,7 @@ class PacketInstructionsTopping(Topping):
         shortif_pos = -1
         shortif_cond = ''
 
-        for instruction in method.instructions:
+        for instruction in method.code.disassemble():
             if skip_until != -1:
                 if instruction.pos == skip_until:
                     skip_until = -1
@@ -258,28 +260,31 @@ class PacketInstructionsTopping(Topping):
                                                 field=stack.pop()))
                 else:
                     descriptor = method_descriptor(desc)
-                    num_arguments = len(descriptor[0])
+                    num_arguments = len(descriptor.args)
                     if num_arguments > 0:
-                        arguments = stack[-len(descriptor[0]):]
+                        arguments = stack[-len(descriptor.args):]
                     else:
                         arguments = []
                     for i in range(num_arguments):
                         stack.pop()
                     obj = "static" if opcode == 0xb8 else stack.pop()
-                    if descriptor[1] != "void":
+                    if descriptor.returns.name != "void":
                         stack.append(Operand(
                             "%s.%s(%s)" % (
                                 obj, name, _PIT.join(arguments)
                             ),
-                            2 if descriptor[1] in ("long", "double") else 1)
+                            2 if descriptor.returns.name in ("long", "double") else 1)
                         )
 
-                    if ("java.io.DataOutputStream" in descriptor[0] or
-                            "java.io.DataOutput" in descriptor[0]):
-                        operations += _PIT.sub_operations(
-                            jar, cf, instruction, operands[0],
-                            [obj] + arguments if obj != "static" else arguments
-                        )
+                    for arg in descriptor.args:
+                        if arg.name == packetbuffer:
+                        #if ("java.io.DataOutputStream" in descriptor[0] or
+                        #        "java.io.DataOutput" in descriptor[0]):
+                            operations += _PIT.sub_operations(
+                                jar, cf, instruction, operands[0],
+                                [obj] + arguments if obj != "static" else arguments
+                            )
+                            break
 
             # Conditional statements and loops
             elif opcode in [0xc7, 0xc6] or opcode >= 0x99 and opcode <= 0xa6:
@@ -622,12 +627,12 @@ class InstructionField:
 
     def find_class(self):
         """Finds the class defining the method called in instruction"""
-        return self.find_constant({ConstantType.FIELD_REF: "class_index",
-                                   ConstantType.METHOD_REF: "class_index"})
+        return self.find_constant({ConstantFieldRef.TAG: lambda c: c.class_.index,
+                                   ConstantMethodRef.TAG: lambda c: c.class_.index})
 
     def find_name(self):
         """Finds the name of a method called in the suplied instruction"""
-        return self.find_constant({ConstantType.NAME_AND_TYPE: "name_index"})
+        return self.find_constant({ConstantNameAndType.TAG: lambda c: c.name.index})
 
     def find_classname(self):
         """Finds the name of a class used for casting"""
@@ -636,29 +641,32 @@ class InstructionField:
     def find_descriptor(self):
         """Finds types used in an instruction"""
         return self.find_constant({
-            ConstantType.NAME_AND_TYPE: "descriptor_index"
+            ConstantNameAndType.TAG: lambda c: c.descriptor.index
         })
 
     def find_constant(self, custom_follow={}, index=None):
         """Walks the constant tree to a name or descriptor"""
+        # TODO: Is this really a logical way of doing it?
+        # It seems messy...
         if index is None:
             index = self.value
         const = self.constants[index]
-        tag = const["tag"]
+        tag = const.TAG
         follow = {
-            ConstantType.LONG: "value",
-            ConstantType.CLASS: "name_index",
-            ConstantType.FIELD_REF: "name_and_type_index",
-            ConstantType.METHOD_REF: "name_and_type_index",
-            ConstantType.INTERFACE_METHOD_REF: "name_and_type_index",
-            ConstantType.STRING: "string_index"
+            #ConstantLong.TAG: lambda c: c.value,
+            ConstantClass.TAG: lambda c: c.name.index,
+            ConstantFieldRef.TAG: lambda c: c.name_and_type.index,
+            ConstantMethodRef.TAG: lambda c: c.name_and_type.index,
+            ConstantInterfaceMethodRef.TAG: lambda c: c.name_and_type.index,
+            ConstantString.TAG: lambda c: c.string.index
         }
-        format = "\"%s\"" if tag == ConstantType.STRING else "%s"
+        format = "\"%s\"" if isinstance(const, ConstantString) else "%s"
         follow.update(custom_follow)
         if tag in follow:
-            return format % self.find_constant(follow, const[follow[tag]])
-        elif "value" in const:
-            return const["value"]
+            return format % self.find_constant(follow, follow[tag](const))
+        elif isinstance(const, (ConstantInteger, ConstantFloat, ConstantLong, ConstantDouble, ConstantUTF8)):
+            return format % const.value
+        raise Exception("Can't find the value of constant " + str(const))
 
     def find_target(self, index=0):
         """Finds the target of a goto or if instruction"""

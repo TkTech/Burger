@@ -47,7 +47,7 @@ def identify(class_file):
         ('oreGold', 'block.superclass'),
         ('Accessed Blocks before Bootstrap!', 'block.list'),
         (' is already assigned to protocol ', 'packet.connectionstate'),
-        ('The received encoded string buffer length is less than zero! Weird string!', 'packet.packetBuffer'),
+        ('The received encoded string buffer length is less than zero! Weird string!', 'packet.packetbuffer'),
         ('X#X', 'recipe.superclass'),
         ('leggingsIron', 'item.superclass'),
         ('Accessed Items before Bootstrap!', 'item.list'),
