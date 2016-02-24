@@ -174,7 +174,7 @@ class PacketInstructionsTopping(Topping):
     @staticmethod
     def act(aggregate, jar, verbose=False):
         """Finds all packets and decompiles them"""
-        for packet in aggregate["packets"]["packet"].values():
+        for key, packet in aggregate["packets"]["packet"].iteritems():
             try:
                 packet.update(_PIT.format(
                     _PIT.operations(jar, packet["class"], aggregate["classes"]["packet.packetbuffer"])
@@ -182,8 +182,7 @@ class PacketInstructionsTopping(Topping):
             except Exception as e:
                 if verbose:
                     print "Error: Failed to parse instructions",
-                    print "of packet %s (%s): %s" % (packet["id"],
-                                                     packet["class"], e)
+                    print "of packet %s (%s): %s" % (key, packet["class"], e)
                     traceback.print_exc()
 
     @staticmethod
@@ -274,7 +273,6 @@ class PacketInstructionsTopping(Topping):
                                                 type="enum",
                                                 field=stack.pop()))
                 else:
-                    print instruction, name, desc, descriptor, cf
                     if num_arguments > 0:
                         arguments = stack[-len(descriptor.args):]
                     else:
@@ -315,7 +313,7 @@ class PacketInstructionsTopping(Topping):
                         fields = [stack.pop(), stack.pop()]
                     else:                               # if_acmp
                         comperation = opcode - 0xa5
-                        fields = [operands.pop(), operands.pop()]
+                        fields = [stack.pop(), stack.pop()]
                     if comperation == 0 and fields[0] == 0:
                         condition = fields[1]
                     else:
