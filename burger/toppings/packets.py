@@ -122,7 +122,7 @@ class PacketsTopping(Topping):
             state = states[state_name] #TODO: Can I just iterate over the values directly?
             cf = ClassFile(StringIO(jar.read(state["class"] + ".class")))
             method = cf.methods.find_one("<init>")
-            cur_id = 0
+            cur_id = { "CLIENTBOUND": 0, "SERVERBOUND": 0 }
             for ins in method.code.disassemble():
                 if ins.mnemonic == "getstatic":
                     const = cf.constants.get(ins.operands[0].value)
@@ -135,14 +135,15 @@ class PacketsTopping(Topping):
                 elif ins.mnemonic == "invokevirtual":
                     # TODO: Currently assuming that the method is the register one which seems to be correct but may be wrong
                     direction = stack[0]["name"]
-                    packet["%s_%s" % (state_name, cur_id)] = {
-                        "id": cur_id,
+                    packet["%s_%s_%s" % (state_name, direction, cur_id[direction])] = {
+                        "id": cur_id[direction],
                         "class": stack[1],
+                        "direction": direction,
                         "from_client": direction == "SERVERBOUND",
                         "from_server": direction == "CLIENTBOUND"
                     }
                     stack = []
-                    cur_id = cur_id + 1
+                    cur_id[direction] = cur_id[direction] + 1
 
         info = packets.setdefault("info", {})
         info["count"] = len(packet)
