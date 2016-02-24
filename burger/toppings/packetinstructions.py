@@ -187,7 +187,8 @@ class PacketInstructionsTopping(Topping):
                     traceback.print_exc()
 
     @staticmethod
-    def operations(jar, classname, packetbuffer):
+    def operations(jar, classname, packetbuffer, args=None,
+                   methodname=None, arg_names=("this", "stream")):
         """Gets the instructions of the specified method"""
 
         arg_names=("this", "packetbuffer")
@@ -195,15 +196,21 @@ class PacketInstructionsTopping(Topping):
         # Find the writing method
         cf = ClassFile(StringIO(jar.read(classname)))
 
-        methods = list(cf.methods.find(f=lambda x: len(x.args) == 1 and x.args[0].name == packetbuffer))
+        if methodname is None and args is None:
+            methods = list(cf.methods.find(f=lambda x: len(x.args) == 1 and x.args[0].name == packetbuffer))
 
-        method = methods[1]
-
-        if method is None:
-            if cf.super_:
-                return _PIT.operations(jar, cf.super_.name + ".class", packetbuffer)
+            if len(methods) == 2:
+                method = methods[1]
             else:
-                raise Exception("Call to unknown method")
+                if cf.super_:
+                    return _PIT.operations(jar, cf.super_.name + ".class", packetbuffer)
+                else:
+                    raise Exception("Failed to find method in class or superclass")
+        elif methodname is None:
+            method = cf.methods.find_one(args=args)
+        else:
+            method = cf.methods.find_one(name=methodname, args=args)
+
 
         # Decode the instructions
         operations = []
@@ -236,11 +243,14 @@ class PacketInstructionsTopping(Topping):
             if opcode >= 0xb6 and opcode <= 0xb9:
                 name = operands[0].name
                 desc = operands[0].descriptor
+
+                descriptor = method_descriptor(desc)
+                num_arguments = len(descriptor.args)
+
                 if name in _PIT.TYPES:
                     operations.append(Operation(instruction.pos, "write",
                                                 type=_PIT.TYPES[name],
                                                 field=stack.pop()))
-                    stack.pop()
                 elif name == "write":
                     if desc.find("[BII") >= 0:
                         stack.pop()
@@ -250,17 +260,21 @@ class PacketInstructionsTopping(Topping):
                         type="byte[]" if desc.find("[B") >= 0 else "byte",
                         field=stack.pop()))
                     stack.pop()
-                elif desc in (
-                    "(Ljava/lang/String;Ljava/io/DataOutputStream;)V",
-                    "(Ljava/lang/String;Ljava/io/DataOutput;)V"
-                ):
-                    stack.pop()
+                elif num_arguments == 1 and descriptor.args[0].name == "java/lang/String":
                     operations.append(Operation(instruction.pos, "write",
                                                 type="string16",
                                                 field=stack.pop()))
+                elif num_arguments == 1 and descriptor.args[0].name == "java/util/UUID":
+                    operations.append(Operation(instruction.pos, "write",
+                                                type="uuid",
+                                                field=stack.pop()))
+                elif num_arguments == 1 and descriptor.args[0].name == "java/lang/Enum":
+                    # If we were using the read method instead of the write method, then we could get the class for this enum...
+                    operations.append(Operation(instruction.pos, "write",
+                                                type="enum",
+                                                field=stack.pop()))
                 else:
-                    descriptor = method_descriptor(desc)
-                    num_arguments = len(descriptor.args)
+                    print instruction, name, desc, descriptor, cf
                     if num_arguments > 0:
                         arguments = stack[-len(descriptor.args):]
                     else:
@@ -281,7 +295,7 @@ class PacketInstructionsTopping(Topping):
                         #if ("java.io.DataOutputStream" in descriptor[0] or
                         #        "java.io.DataOutput" in descriptor[0]):
                             operations += _PIT.sub_operations(
-                                jar, cf, instruction, operands[0],
+                                jar, cf, packetbuffer, instruction, operands[0],
                                 [obj] + arguments if obj != "static" else arguments
                             )
                             break
@@ -314,8 +328,11 @@ class PacketInstructionsTopping(Topping):
                 shortif_cond = condition
 
             elif opcode == 0xaa:                        # tableswitch
+                # TODO: I don't know quite how this works, and it seems to be broken.
+                # I need to look up this operation.
                 operations.append(Operation(instruction.pos, "switch",
                                             field=stack.pop()))
+
                 low = operands[0].value[1]
                 for opr in range(1, len(operands)):
                     target = operands[opr].target
@@ -490,13 +507,13 @@ class PacketInstructionsTopping(Topping):
         return sorted(operations, key=lambda op: op.position)
 
     @staticmethod
-    def sub_operations(jar, cf, instruction,
+    def sub_operations(jar, cf, packetbuffer, instruction,
                        operand, arg_names=[""]):
         """Gets the instructions of a different class"""
-        invoked_class = operand.c
+        invoked_class = operand.c + ".class"
         name = operand.name
         descriptor = operand.descriptor
-        args = method_descriptor(descriptor)[0]
+        args = method_descriptor(descriptor).args_descriptor
         cache_key = "%s/%s/%s/%s" % (invoked_class, name,
                                      descriptor, _PIT.join(arg_names, ","))
 
@@ -504,7 +521,7 @@ class PacketInstructionsTopping(Topping):
             cache = _PIT.CACHE[cache_key]
             operations = [op.clone() for op in cache]
         else:
-            operations = _PIT.operations(jar, invoked_class,
+            operations = _PIT.operations(jar, invoked_class, packetbuffer,
                                          args, name, arg_names)
 
         position = 0
