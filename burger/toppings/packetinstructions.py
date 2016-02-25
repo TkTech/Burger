@@ -250,15 +250,24 @@ class PacketInstructionsTopping(Topping):
                     operations.append(Operation(instruction.pos, "write",
                                                 type=_PIT.TYPES[name],
                                                 field=stack.pop()))
-                elif name == "write":
-                    if desc.find("[BII") >= 0:
+                elif name == "writeBytes":
+                    # Directly write to the buffer (no length info)
+                    if len(desc.args) == 3:
+                        # Method that takes indexes within the arrays - we don't really care about the indexes.
                         stack.pop()
                         stack.pop()
-                    operations.append(Operation(
-                        instruction.pos, "write",
-                        type="byte[]" if desc.find("[B") >= 0 else "byte",
-                        field=stack.pop()))
-                    stack.pop()
+                    operations.append(Operation(instruction.pos, "write",
+                                                type="byte[]",
+                                                field=stack.pop()))
+                elif num_arguments == 1 and descriptor.args[0].name == "byte" and descriptor.args[0].dimensions == 1 and descriptor.returns.name == "void":
+                    # Write byte array - this method prefixes the length.
+                    field = stack.pop()
+                    operations.append(Operation(instruction.pos, "write",
+                                                type="varint",
+                                                field="%s.length" % field))
+                    operations.append(Operation(instruction.pos, "write",
+                                                type="byte[]",
+                                                field=field))
                 elif num_arguments == 1 and descriptor.args[0].name == "java/lang/String":
                     operations.append(Operation(instruction.pos, "write",
                                                 type="string16",
