@@ -267,6 +267,18 @@ class PacketInstructionsTopping(Topping):
                     operations.append(Operation(instruction.pos, "write",
                                                 type="uuid",
                                                 field=stack.pop()))
+                elif num_arguments == 1 and descriptor.args[0].name == "int" and descriptor.returns.name == "void":
+                    # We need to check the return type to distinguish it from
+                    # other methods, including the normal netty writeint method
+                    # that writes 4 full bytes.  The netty method returns a
+                    # ByteBuf, but varint returns void.
+                    operations.append(Operation(instruction.pos, "write",
+                                                type="varint",
+                                                field=stack.pop()))
+                elif num_arguments == 1 and descriptor.args[0].name == "long" and descriptor.returns.name == "void":
+                    operations.append(Operation(instruction.pos, "write",
+                                                type="varlong",
+                                                field=stack.pop()))
                 elif num_arguments == 1 and descriptor.args[0].name == "java/lang/Enum":
                     # If we were using the read method instead of the write method, then we could get the class for this enum...
                     operations.append(Operation(instruction.pos, "write",
@@ -331,7 +343,7 @@ class PacketInstructionsTopping(Topping):
                 operations.append(Operation(instruction.pos, "switch",
                                             field=stack.pop()))
 
-                low = operands[0].value[1]
+                low = operands[0].value
                 for opr in range(1, len(operands)):
                     target = operands[opr].target
                     operations.append(Operation(target, "case",
@@ -610,8 +622,8 @@ class Operation:
 class InstructionField:
     """Represents a operand in a instruction"""
     def __init__(self, operand, instruction, constants):
-        self.value = operand[1]
-        self.optype = operand[0]
+        self.value = operand.value
+        self.optype = operand.op_type
         self.constants = constants
         self.instruction = instruction
         self.handlers = {
