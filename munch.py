@@ -33,7 +33,7 @@ except ImportError:
 
 from collections import deque
 
-from solum import JarFile
+from zipfile import ZipFile
 
 from burger.website import Website
 from burger.roundedfloats import transform_floats
@@ -224,12 +224,17 @@ if __name__ == "__main__":
     summary = []
 
     for path in jarlist:
-        jar = JarFile(path)
+        jar = ZipFile(path, "r")
+        num_classes = 0
+        for name in jar.namelist():
+            if name.endswith(".class"):
+                num_classes = num_classes + 1
+
         aggregate = {
             "source": {
                 "file": path,
-                "classes": jar.class_count,
-                "other": jar.count,
+                "classes": num_classes,
+                "other": len(jar.namelist()),
                 "size": os.path.getsize(path)
             }
         }

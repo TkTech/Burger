@@ -89,7 +89,10 @@ class IdentifyTopping(Topping):
     def act(aggregate, jar, verbose=False):
         classes = aggregate.setdefault("classes", {})
         #TODO: Stop this silly manual conversion between solum and jawa once jawa conversion is done
-        for path in jar.class_list:
+        for path in jar.namelist():
+            if not path.endswith(".class"):
+                continue
+
             cf = ClassFile(StringIO(jar.read(path)))
             result = identify(cf)
             if result:
