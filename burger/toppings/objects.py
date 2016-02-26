@@ -56,7 +56,7 @@ class ObjectTopping(Topping):
         cf = ClassFile(StringIO(jar.read(superclass + ".class")))
 
         # Find the vehicle handler
-        SPAWN_OBJECT_PACKET_ID = "PLAY_14";
+        SPAWN_OBJECT_PACKET_ID = "PLAY_CLIENTBOUND_14";
         packet = aggregate["packets"]["packet"][SPAWN_OBJECT_PACKET_ID]["class"]
         method = cf.methods.find_one(args="L" + packet.replace(".class", "") + ";")
         entities = aggregate["entities"]
