@@ -53,7 +53,7 @@ def identify(class_file):
         ('Accessed Items before Bootstrap!', 'item.list'),
         ('Skipping Entity with id', 'entity.list'),
         ('disconnect.lost', 'nethandler.client'),
-        ('Outdated client!', 'nethandler.server'),
+        ('Outdated server!', 'nethandler.server'),
         ('Ice Plains', 'biome.superclass')
     )
     for c in class_file.constants.find(ConstantString):
