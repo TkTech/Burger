@@ -56,7 +56,8 @@ def identify(class_file):
         ('Outdated server!', 'nethandler.server'),
         ('Ice Plains', 'biome.superclass'),
         ('Corrupt NBT tag', 'nbtcompound'),
-        ('#%04d/%d%s', 'itemstack')
+        ('#%04d/%d%s', 'itemstack'),
+        ('Unknown data type', 'metadata')
     )
     for c in class_file.constants.find(ConstantString):
         value = c.string.value

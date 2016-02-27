@@ -326,8 +326,19 @@ class PacketInstructionsTopping(Topping):
 
                     for arg in descriptor.args:
                         if arg.name == classes["packet.packetbuffer"]:
-                        #if ("java.io.DataOutputStream" in descriptor[0] or
-                        #        "java.io.DataOutput" in descriptor[0]):
+                            if operands[0].c == classes["metadata"]:
+                                # Special case - metadata is a complex type but
+                                # well documented; we don't want to include its
+                                # exact writing but just want to instead say
+                                # 'metadata'.
+                                operations.append(Operation(instruction.pos,
+                                                "write", type="metadata",
+                                                field=stack.pop()))
+                                break
+                            # If calling a sub method that takes a packetbuffer
+                            # as a parameter, it's possible that it's a sub
+                            # method that writes to the buffer, so we need to
+                            # check it.
                             operations += _PIT.sub_operations(
                                 jar, cf, classes, instruction, operands[0],
                                 [obj] + arguments if obj != "static" else arguments
