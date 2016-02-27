@@ -331,9 +331,15 @@ class PacketInstructionsTopping(Topping):
                                 # well documented; we don't want to include its
                                 # exact writing but just want to instead say
                                 # 'metadata'.
+
+                                # There are two cases - one is calling an
+                                # instance method of metadata that writes
+                                # out the instance, and the other is a
+                                # static method that takes a list and then
+                                # writes that list.
                                 operations.append(Operation(instruction.pos,
                                                 "write", type="metadata",
-                                                field=stack.pop()))
+                                                field=obj if obj != "static" else arguments[0]))
                                 break
                             # If calling a sub method that takes a packetbuffer
                             # as a parameter, it's possible that it's a sub
