@@ -49,7 +49,10 @@ class PacketInstructionsTopping(Topping):
 
     DEPENDS = [
         "packets.classes",
-        "identify.packet.packetbuffer"
+        "identify.packet.packetbuffer",
+        "identify.nbtcompound",
+        "identify.itemstack",
+        "identify.chatcomponent"
     ]
 
     TYPES = {
@@ -177,7 +180,7 @@ class PacketInstructionsTopping(Topping):
         for key, packet in aggregate["packets"]["packet"].iteritems():
             try:
                 packet.update(_PIT.format(
-                    _PIT.operations(jar, packet["class"], aggregate["classes"]["packet.packetbuffer"])
+                    _PIT.operations(jar, packet["class"], aggregate["classes"])
                 ))
             except Exception as e:
                 if verbose:
@@ -186,7 +189,7 @@ class PacketInstructionsTopping(Topping):
                     traceback.print_exc()
 
     @staticmethod
-    def operations(jar, classname, packetbuffer, args=None,
+    def operations(jar, classname, classes, args=None,
                    methodname=None, arg_names=("this", "stream")):
         """Gets the instructions of the specified method"""
 
@@ -196,13 +199,13 @@ class PacketInstructionsTopping(Topping):
         cf = ClassFile(StringIO(jar.read(classname)))
 
         if methodname is None and args is None:
-            methods = list(cf.methods.find(f=lambda x: len(x.args) == 1 and x.args[0].name == packetbuffer))
+            methods = list(cf.methods.find(f=lambda x: len(x.args) == 1 and x.args[0].name == classes["packet.packetbuffer"]))
 
             if len(methods) == 2:
                 method = methods[1]
             else:
                 if cf.super_:
-                    return _PIT.operations(jar, cf.super_.name + ".class", packetbuffer)
+                    return _PIT.operations(jar, cf.super_.name + ".class", classes)
                 else:
                     raise Exception("Failed to find method in class or superclass")
         elif methodname is None:
@@ -293,6 +296,18 @@ class PacketInstructionsTopping(Topping):
                     operations.append(Operation(instruction.pos, "write",
                                                 type="enum",
                                                 field=stack.pop()))
+                elif num_arguments == 1 and descriptor.args[0].name == classes["nbtcompound"]:
+                    operations.append(Operation(instruction.pos, "write",
+                                                type="nbtcompound",
+                                                field=stack.pop()))
+                elif num_arguments == 1 and descriptor.args[0].name == classes["itemstack"]:
+                    operations.append(Operation(instruction.pos, "write",
+                                                type="itemstack",
+                                                field=stack.pop()))
+                elif num_arguments == 1 and descriptor.args[0].name == classes["chatcomponent"]:
+                    operations.append(Operation(instruction.pos, "write",
+                                                type="chatcomponent",
+                                                field=stack.pop()))
                 else:
                     if num_arguments > 0:
                         arguments = stack[-len(descriptor.args):]
@@ -310,11 +325,11 @@ class PacketInstructionsTopping(Topping):
                         )
 
                     for arg in descriptor.args:
-                        if arg.name == packetbuffer:
+                        if arg.name == classes["packet.packetbuffer"]:
                         #if ("java.io.DataOutputStream" in descriptor[0] or
                         #        "java.io.DataOutput" in descriptor[0]):
                             operations += _PIT.sub_operations(
-                                jar, cf, packetbuffer, instruction, operands[0],
+                                jar, cf, classes, instruction, operands[0],
                                 [obj] + arguments if obj != "static" else arguments
                             )
                             break
@@ -526,7 +541,7 @@ class PacketInstructionsTopping(Topping):
         return sorted(operations, key=lambda op: op.position)
 
     @staticmethod
-    def sub_operations(jar, cf, packetbuffer, instruction,
+    def sub_operations(jar, cf, classes, instruction,
                        operand, arg_names=[""]):
         """Gets the instructions of a different class"""
         invoked_class = operand.c + ".class"
@@ -540,7 +555,7 @@ class PacketInstructionsTopping(Topping):
             cache = _PIT.CACHE[cache_key]
             operations = [op.clone() for op in cache]
         else:
-            operations = _PIT.operations(jar, invoked_class, packetbuffer,
+            operations = _PIT.operations(jar, invoked_class, classes,
                                          args, name, arg_names)
 
         position = 0

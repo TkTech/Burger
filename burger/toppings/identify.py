@@ -54,7 +54,9 @@ def identify(class_file):
         ('Skipping Entity with id', 'entity.list'),
         ('disconnect.lost', 'nethandler.client'),
         ('Outdated server!', 'nethandler.server'),
-        ('Ice Plains', 'biome.superclass')
+        ('Ice Plains', 'biome.superclass'),
+        ('Corrupt NBT tag', 'nbtcompound'),
+        ('#%04d/%d%s', 'itemstack')
     )
     for c in class_file.constants.find(ConstantString):
         value = c.string.value
@@ -63,6 +65,13 @@ def identify(class_file):
                 continue
 
             return match_name, class_file.this.name.value
+        if 'BaseComponent' in value:
+            # We want the interface for chat components, but it has no
+            # string constants, so we need to use the abstract class and then
+            # get its first implemented interface.
+            assert len(class_file.interfaces) == 1
+            const = class_file.constants.get(class_file.interfaces[0])
+            return 'chatcomponent', const.name.value
 
 
 class IdentifyTopping(Topping):
@@ -80,7 +89,10 @@ class IdentifyTopping(Topping):
         "identify.item.list",
         "identify.entity.list",
         "identify.nethandler",
-        "identify.biome.superclass"
+        "identify.biome.superclass",
+        "identify.nbtcompound",
+        "identify.itemstack",
+        "identify.chatcomponent"
     ]
 
     DEPENDS = []
