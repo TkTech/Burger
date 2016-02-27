@@ -324,32 +324,41 @@ class PacketInstructionsTopping(Topping):
                             2 if descriptor.returns.name in ("long", "double") else 1)
                         )
 
-                    for arg in descriptor.args:
-                        if arg.name == classes["packet.packetbuffer"]:
-                            if operands[0].c == classes["metadata"]:
-                                # Special case - metadata is a complex type but
-                                # well documented; we don't want to include its
-                                # exact writing but just want to instead say
-                                # 'metadata'.
+                    if isinstance(obj, Operand) and obj.value == "packetbuffer":
+                        # Right now there isn't a good way to identify the
+                        # class for positions, so we assume that any calls to
+                        # a packetbuffer method that we haven't yet handled is
+                        # actually writing a position.
+                        operations.append(Operation(instruction.pos,
+                                                    "write", type="position",
+                                                    field=arguments[0]))
+                    else:
+                        for arg in descriptor.args:
+                            if arg.name == classes["packet.packetbuffer"]:
+                                if operands[0].c == classes["metadata"]:
+                                    # Special case - metadata is a complex type but
+                                    # well documented; we don't want to include its
+                                    # exact writing but just want to instead say
+                                    # 'metadata'.
 
-                                # There are two cases - one is calling an
-                                # instance method of metadata that writes
-                                # out the instance, and the other is a
-                                # static method that takes a list and then
-                                # writes that list.
-                                operations.append(Operation(instruction.pos,
-                                                "write", type="metadata",
-                                                field=obj if obj != "static" else arguments[0]))
+                                    # There are two cases - one is calling an
+                                    # instance method of metadata that writes
+                                    # out the instance, and the other is a
+                                    # static method that takes a list and then
+                                    # writes that list.
+                                    operations.append(Operation(instruction.pos,
+                                                    "write", type="metadata",
+                                                    field=obj if obj != "static" else arguments[0]))
+                                    break
+                                # If calling a sub method that takes a packetbuffer
+                                # as a parameter, it's possible that it's a sub
+                                # method that writes to the buffer, so we need to
+                                # check it.
+                                operations += _PIT.sub_operations(
+                                    jar, cf, classes, instruction, operands[0],
+                                    [obj] + arguments if obj != "static" else arguments
+                                )
                                 break
-                            # If calling a sub method that takes a packetbuffer
-                            # as a parameter, it's possible that it's a sub
-                            # method that writes to the buffer, so we need to
-                            # check it.
-                            operations += _PIT.sub_operations(
-                                jar, cf, classes, instruction, operands[0],
-                                [obj] + arguments if obj != "static" else arguments
-                            )
-                            break
 
             # Conditional statements and loops
             elif opcode in [0xc7, 0xc6] or opcode >= 0x99 and opcode <= 0xa6:
