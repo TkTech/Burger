@@ -101,7 +101,6 @@ class IdentifyTopping(Topping):
     @staticmethod
     def act(aggregate, jar, verbose=False):
         classes = aggregate.setdefault("classes", {})
-        #TODO: Stop this silly manual conversion between solum and jawa once jawa conversion is done
         for path in jar.namelist():
             if not path.endswith(".class"):
                 continue

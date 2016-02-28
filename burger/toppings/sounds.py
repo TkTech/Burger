@@ -108,8 +108,10 @@ class SoundTopping(Topping):
             if verbose:
                 print "Unable to load resource list from mojang: %s" % e
             return
-        #TODO: Stop this silly manual conversion between solum and jawa once jawa conversion is done
-        for path in jar.class_list:
+        for path in jar.namelist():
+            if not path.endswith(".class"):
+                continue
+
             cf = ClassFile(StringIO(jar.read(path)))
             for c in cf.constants.find(type_=ConstantString):
                 key = c.string.value
