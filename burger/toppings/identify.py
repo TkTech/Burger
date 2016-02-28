@@ -57,7 +57,7 @@ def identify(class_file):
         ('Ice Plains', 'biome.superclass'),
         ('Corrupt NBT tag', 'nbtcompound'),
         ('#%04d/%d%s', 'itemstack'),
-        ('Unknown data type', 'metadata')
+        ('Data value id is too big', 'metadata')
     )
     for c in class_file.constants.find(ConstantString):
         value = c.string.value

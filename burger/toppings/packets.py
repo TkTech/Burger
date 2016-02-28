@@ -85,65 +85,122 @@ class PacketsTopping(Topping):
             if len(states) >= NUM_STATES:
                 break
 
-        register_method = cf.methods.find_one(returns="L" + connectionstate + ";",
-                f=lambda x: x.access_flags.acc_protected and not x.access_flags.acc_static)
-        assert len(register_method.args) == 2
-        assert register_method.args[1].name == "java/lang/Class"
-        direction_class = register_method.args[0].name
+        register_methods = list(cf.methods.find(returns="L" + connectionstate + ";",
+                f=lambda x: x.access_flags.acc_protected and not x.access_flags.acc_static))
+        if len(register_methods) == 1:
+            register_method = register_methods[0]
 
-        #TODO: Again, hardcoded - finding directions
-        directions_by_field = {}
-        NUM_DIRECTIONS = 2
+            assert len(register_method.args) == 2
+            assert register_method.args[1].name == "java/lang/Class"
+            direction_class = register_method.args[0].name
 
-        direction_class_file = ClassFile(StringIO(jar.read(direction_class + ".class")))
-        direction_init_method = direction_class_file.methods.find_one("<clinit>")
-        for ins in direction_init_method.code.disassemble():
-            if ins.mnemonic == "new":
-                const = direction_class_file.constants.get(ins.operands[0].value)
-                dir_class = const.name.value
-            elif ins.mnemonic == "ldc":
-                const = direction_class_file.constants.get(ins.operands[0].value)
-                if isinstance(const, ConstantString):
-                    dir_name = const.string.value
-            elif ins.mnemonic == "putstatic":
-                const = direction_class_file.constants.get(ins.operands[0].value)
-                dir_field = const.name_and_type.name.value
-                
-                directions[dir_name] = {
-                    "class": dir_class,
-                    "field": dir_field,
-                    "name": dir_name
-                }
-                directions_by_field[dir_field] = directions[dir_name]
-            if len(directions) >= NUM_DIRECTIONS:
-                break
+            #TODO: Again, hardcoded - finding directions
+            directions_by_field = {}
+            NUM_DIRECTIONS = 2
+
+            direction_class_file = ClassFile(StringIO(jar.read(direction_class + ".class")))
+            direction_init_method = direction_class_file.methods.find_one("<clinit>")
+            for ins in direction_init_method.code.disassemble():
+                if ins.mnemonic == "new":
+                    const = direction_class_file.constants.get(ins.operands[0].value)
+                    dir_class = const.name.value
+                elif ins.mnemonic == "ldc":
+                    const = direction_class_file.constants.get(ins.operands[0].value)
+                    if isinstance(const, ConstantString):
+                        dir_name = const.string.value
+                elif ins.mnemonic == "putstatic":
+                    const = direction_class_file.constants.get(ins.operands[0].value)
+                    dir_field = const.name_and_type.name.value
+
+                    directions[dir_name] = {
+                        "class": dir_class,
+                        "field": dir_field,
+                        "name": dir_name
+                    }
+                    directions_by_field[dir_field] = directions[dir_name]
+                if len(directions) >= NUM_DIRECTIONS:
+                    break
+
+            cur_id = { "CLIENTBOUND": 0, "SERVERBOUND": 0 }
+            def from_client(method_name):
+                return stack[0]["name"] == "SERVERBOUND"
+            def from_server(method_name):
+                return stack[0]["name"] == "CLIENTBOUND"
+            def get_direction(method_name):
+                return stack[0]["name"]
+            def get_id():
+                id = cur_id[stack[0]["name"]]
+                cur_id[stack[0]["name"]] += 1
+                return id
+            def init_state():
+                cur_id["CLIENTBOUND"] = 0
+                cur_id["SERVERBOUND"] = 0
+        else:
+            directions_by_method = {}
+
+            for method in register_methods:
+                for ins in method.code.disassemble():
+                    if ins.mnemonic == "ldc":
+                        const = cf.constants.get(ins.operands[0].value)
+                        if isinstance(const, ConstantString):
+                            if "Clientbound" in const.string.value:
+                                directions["CLIENTBOUND"] = {
+                                    "register_method": method.name.value,
+                                    "name": "CLIENTBOUND"
+                                }
+                                directions_by_method[method.name.value] = directions["CLIENTBOUND"]
+                                break
+                            elif "Serverbound" in const.string.value:
+                                directions["SERVERBOUND"] = {
+                                    "register_method": method.name.value,
+                                    "name": "SERVERBOUND"
+                                }
+                                directions_by_method[method.name.value] = directions["SERVERBOUND"]
+                                break
+
+            def from_client(method_name):
+                return directions_by_method[method_name]["name"] == "SERVERBOUND"
+            def from_server(method_name):
+                return directions_by_method[method_name]["name"] == "CLIENTBOUND"
+            def get_direction(method_name):
+                return directions_by_method[method_name]["name"]
+            def get_id():
+                return stack[0]
+            def init_state():
+                pass
 
         for state_name in states:
             state = states[state_name] #TODO: Can I just iterate over the values directly?
             cf = ClassFile(StringIO(jar.read(state["class"] + ".class")))
             method = cf.methods.find_one("<init>")
-            cur_id = { "CLIENTBOUND": 0, "SERVERBOUND": 0 }
+            init_state()
             for ins in method.code.disassemble():
                 if ins.mnemonic == "getstatic":
                     const = cf.constants.get(ins.operands[0].value)
                     field = const.name_and_type.name.value
                     stack.append(directions_by_field[field])
+                elif ins.mnemonic.startswith("iconst"):
+                    stack.append(ins.mnemonic[-1])
+                elif ins.mnemonic == "bipush":
+                    stack.append(ins.operands[0].value)
                 elif ins.mnemonic in ("ldc", "ldc_w"):
                     const = cf.constants.get(ins.operands[0].value)
                     if isinstance(const, ConstantClass):
                         stack.append("%s.class" % const.name.value)
                 elif ins.mnemonic == "invokevirtual":
                     # TODO: Currently assuming that the method is the register one which seems to be correct but may be wrong
-                    direction = stack[0]["name"]
-                    packet["%s_%s_%s" % (state_name, direction, cur_id[direction])] = {
-                        "id": cur_id[direction],
+                    const = cf.constants.get(ins.operands[0].value)
+                    method_name = const.name_and_type.name.value
+                    direction = get_direction(method_name)
+                    id = get_id()
+                    packet["%s_%s_%s" % (state_name, direction, id)] = {
+                        "id": id,
                         "class": stack[1],
                         "direction": direction,
-                        "from_client": direction == "SERVERBOUND",
-                        "from_server": direction == "CLIENTBOUND"
+                        "from_client": from_client(method_name),
+                        "from_server": from_server(method_name)
                     }
                     stack = []
-                    cur_id[direction] = cur_id[direction] + 1
 
         info = packets.setdefault("info", {})
         info["count"] = len(packet)
