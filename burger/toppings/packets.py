@@ -165,7 +165,7 @@ class PacketsTopping(Topping):
             def get_direction(method_name):
                 return directions_by_method[method_name]["name"]
             def get_id():
-                return stack[0]
+                return int(stack[0])
             def init_state():
                 pass
 
@@ -193,7 +193,7 @@ class PacketsTopping(Topping):
                     method_name = const.name_and_type.name.value
                     direction = get_direction(method_name)
                     id = get_id()
-                    packet["%s_%s_%s" % (state_name, direction, id)] = {
+                    packet["%s_%s_%02X" % (state_name, direction, id)] = {
                         "id": id,
                         "class": stack[1],
                         "direction": direction,
