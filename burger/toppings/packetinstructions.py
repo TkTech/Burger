@@ -262,7 +262,7 @@ class PacketInstructionsTopping(Topping):
                     operations.append(Operation(instruction.pos, "write",
                                                 type="byte[]",
                                                 field=stack.pop()))
-                elif num_arguments == 1 and descriptor.args[0].name == "byte" and descriptor.args[0].dimensions == 1 and descriptor.returns.name == "void":
+                elif num_arguments == 1 and descriptor.args[0].name == "byte" and descriptor.args[0].dimensions == 1 and len(name) == 1:
                     # Write byte array - this method prefixes the length.
                     field = stack.pop()
                     operations.append(Operation(instruction.pos, "write",
@@ -279,7 +279,7 @@ class PacketInstructionsTopping(Topping):
                     operations.append(Operation(instruction.pos, "write",
                                                 type="uuid",
                                                 field=stack.pop()))
-                elif num_arguments == 1 and descriptor.args[0].name == "int" and descriptor.returns.name == "void":
+                elif num_arguments == 1 and descriptor.args[0].name == "int" and len(name) == 1:
                     # We need to check the return type to distinguish it from
                     # other methods, including the normal netty writeint method
                     # that writes 4 full bytes.  The netty method returns a
@@ -287,7 +287,7 @@ class PacketInstructionsTopping(Topping):
                     operations.append(Operation(instruction.pos, "write",
                                                 type="varint",
                                                 field=stack.pop()))
-                elif num_arguments == 1 and descriptor.args[0].name == "long" and descriptor.returns.name == "void":
+                elif num_arguments == 1 and descriptor.args[0].name == "long" and len(name) == 1:
                     operations.append(Operation(instruction.pos, "write",
                                                 type="varlong",
                                                 field=stack.pop()))
