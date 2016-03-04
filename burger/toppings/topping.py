@@ -38,6 +38,8 @@ class Topping(object):
             line = line.strip()
             if not line:
                 continue
+            if line[0] == "#":
+                continue
 
             tag, value = line.split("=", 1)
             category, name = tag.split(".", 1)
