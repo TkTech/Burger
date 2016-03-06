@@ -271,6 +271,22 @@ class PacketInstructionsTopping(Topping):
                     operations.append(Operation(instruction.pos, "write",
                                                 type="byte[]",
                                                 field=field))
+                elif num_arguments == 1 and descriptor.args[0].name == "int" and descriptor.args[0].dimensions == 1 and len(name) == 1:
+                    field = stack.pop()
+                    operations.append(Operation(instruction.pos, "write",
+                                                type="varint",
+                                                field="%s.length" % field))
+                    operations.append(Operation(instruction.pos, "write",
+                                                type="varint[]",
+                                                field=field))
+                elif num_arguments == 1 and descriptor.args[0].name == "long" and descriptor.args[0].dimensions == 1 and len(name) == 1:
+                    field = stack.pop()
+                    operations.append(Operation(instruction.pos, "write",
+                                                type="varint",
+                                                field="%s.length" % field))
+                    operations.append(Operation(instruction.pos, "write",
+                                                type="long[]",
+                                                field=field))
                 elif num_arguments == 1 and descriptor.args[0].name == "java/lang/String":
                     operations.append(Operation(instruction.pos, "write",
                                                 type="string16",
