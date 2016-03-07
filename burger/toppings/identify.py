@@ -57,7 +57,8 @@ def identify(class_file):
         ('Ice Plains', 'biome.superclass'),
         ('Corrupt NBT tag', 'nbtcompound'),
         ('#%04d/%d%s', 'itemstack'),
-        ('Data value id is too big', 'metadata')
+        ('Data value id is too big', 'metadata'),
+        ('Accessed Sounds before Bootstrap!', 'sounds.list'),
     )
     for c in class_file.constants.find(ConstantString):
         value = c.string.value
@@ -73,6 +74,15 @@ def identify(class_file):
             assert len(class_file.interfaces) == 1
             const = class_file.constants.get(class_file.interfaces[0])
             return 'chatcomponent', const.name.value
+        if 'ambient.cave' in value:
+            # We _may_ have found the SoundEvent class, but there are several
+            # other classes with this string constant.  So we need to check
+            # for registration methods.
+            register_method = class_file.methods.find_one(args='', returns='V', f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
+            private_register_method = class_file.methods.find_one(args='', returns='V', f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
+
+            if register_method and private_register_method:
+                return 'sounds.event', class_file.this.name.value
 
 
 class IdentifyTopping(Topping):
@@ -93,7 +103,9 @@ class IdentifyTopping(Topping):
         "identify.biome.superclass",
         "identify.nbtcompound",
         "identify.itemstack",
-        "identify.chatcomponent"
+        "identify.chatcomponent",
+        "identify.sounds.list",
+        "identify.sounds.event"
     ]
 
     DEPENDS = []

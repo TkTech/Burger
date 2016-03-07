@@ -35,60 +35,6 @@ try:
 except ImportError:
     from StringIO import StringIO
 
-def load_resource_list():
-    parser = make_parser()
-    handler = FindSounds()
-    parser.setContentHandler(handler)
-    f = urllib.urlopen("http://s3.amazonaws.com/MinecraftResources/")
-    try:
-        parser.parse(f)
-    finally:
-        f.close()
-    return handler.sounds
-
-
-class FindSounds(ContentHandler):
-    def __init__(self):
-        self.sounds = {}
-        self.inside_key = False
-        self.pattern = re.compile("^(\D+)(\d+)$")
-        self.key = ""
-
-    def startElement(self, name, attrs):
-        if name == "Key":
-            self.inside_key = True
-
-    def endElement(self, name):
-        if name == "Key":
-            self.parse_key(self.key)
-            self.key = ""
-            self.inside_key = False
-
-    def characters(self, characters):
-        if self.inside_key:
-            self.key += characters
-
-    def parse_key(self, key):
-        if "." not in key:
-            return
-        path = key
-        key, _, extension = str(key).partition(".")
-        package, _, name = key.replace("/", ".").partition(".")
-        match = re.match(self.pattern, name)
-        if match is not None:
-            name = match.group(1)
-            variant = int(match.group(2))
-        else:
-            variant = None
-        sound = self.sounds.setdefault(name, {'name': name,
-                                              'versions': {}})
-        version = sound['versions'].setdefault(package, [])
-        version.append({'variant': variant,
-                        'format': extension,
-                        'path': path})
-        version.sort(key=lambda v: v['variant'])
-
-
 class SoundTopping(Topping):
     """Finds all named sound effects which are both used in the server and
        available for download."""
@@ -97,23 +43,50 @@ class SoundTopping(Topping):
         "sounds"
     ]
 
-    DEPENDS = []
+    DEPENDS = [
+        "identify.sounds.list",
+        "identify.sounds.event"
+    ]
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
         sounds = aggregate.setdefault('sounds', {})
-        try:
-            resources = load_resource_list()
-        except Exception, e:
-            if verbose:
-                print "Unable to load resource list from mojang: %s" % e
-            return
-        for path in jar.namelist():
-            if not path.endswith(".class"):
-                continue
 
-            cf = ClassFile(StringIO(jar.read(path)))
-            for c in cf.constants.find(type_=ConstantString):
-                key = c.string.value
-                if key in resources:
-                    sounds[key] = resources[key]
+        if not 'sounds.list' in aggregate["classes"]:
+            # 1.8 - TODO implement this for 1.8
+            return
+
+        soundevent = aggregate["classes"]["sounds.event"]
+        cf = ClassFile(StringIO(jar.read(soundevent + ".class")))
+
+        # Find the static sound registration method
+        method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
+
+        sound_name = None
+        sound_id = 0
+        for ins in method.code.disassemble():
+            if ins.mnemonic in ('ldc', 'ldc_w'):
+                const = cf.constants.get(ins.operands[0].value)
+                sound_name = const.string.value
+            elif ins.mnemonic == 'invokestatic':
+                sounds[sound_name] = {
+                    'name': sound_name,
+                    'id': sound_id
+                }
+                sound_id += 1
+
+        # Get fields now
+        soundlist = aggregate["classes"]["sounds.list"]
+        lcf = ClassFile(StringIO(jar.read(soundlist + ".class")))
+
+        method = lcf.methods.find_one(name="<clinit>")
+        for ins in method.code.disassemble():
+            if ins.mnemonic in ('ldc', 'ldc_w'):
+                const = lcf.constants.get(ins.operands[0].value)
+                sound_name = const.string.value
+            elif ins.mnemonic == "putstatic":
+                if sound_name is None or sound_name == "Accessed Sounds before Bootstrap!":
+                    continue
+                const = lcf.constants.get(ins.operands[0].value)
+                field = const.name_and_type.name.value
+                sounds[sound_name]["field"] = field
