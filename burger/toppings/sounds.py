@@ -41,24 +41,25 @@ except ImportError:
 ASSET_INDEX = "https://s3.amazonaws.com/Minecraft.Download/indexes/1.9.json"
 RESOURCES_SITE = "http://resources.download.minecraft.net/%s/%s"
 
-def get_sounds(asset_index=ASSET_INDEX,resources_site=RESOURCES_SITE):
-    """Gets the sounds.json file from the asset index"""
-    index_file = urllib.urlopen(asset_index)
+def get_asset_index(url=ASSET_INDEX):
+    """Downloads the Minecraft asset index"""
+    index_file = urllib.urlopen(url)
     try:
-        index = json.load(index_file)
+        return json.load(index_file)
     finally:
         index_file.close()
 
-    sounds_hash = index["objects"]["minecraft/sounds.json"]["hash"]
+def get_sounds(asset_index, resources_site=RESOURCES_SITE):
+    """Downloads the sounds.json file from the assets index"""
+    sounds_hash = asset_index["objects"]["minecraft/sounds.json"]["hash"]
     sounds_url = resources_site % (sounds_hash[0:2], sounds_hash)
 
     sounds_file = urllib.urlopen(sounds_url)
 
     try:
-        sounds = json.load(sounds_file)
+        return json.load(sounds_file)
     finally:
         sounds_file.close()
-    return sounds
 
 class SoundTopping(Topping):
     """Finds all named sound effects which are both used in the server and
@@ -77,7 +78,8 @@ class SoundTopping(Topping):
     @staticmethod
     def act(aggregate, jar, verbose=False):
         sounds = aggregate.setdefault('sounds', {})
-        sounds_json = get_sounds()
+        assets = get_asset_index()
+        sounds_json = get_sounds(assets)
 
         if not 'sounds.list' in aggregate["classes"]:
             # 1.8 - TODO implement this for 1.8
@@ -97,15 +99,23 @@ class SoundTopping(Topping):
                 sound_name = const.string.value
             elif ins.mnemonic == 'invokestatic':
                 sound = {
-                    'name': sound_name,
-                    'id': sound_id
+                    "name": sound_name,
+                    "id": sound_id
                 }
                 sound_id += 1
 
                 if sound_name in sounds_json:
                     json_sound = sounds_json[sound_name]
                     if "sounds" in json_sound:
-                        sound["sounds"] = json_sound["sounds"]
+                        sound["sounds"] = []
+                        for path in json_sound["sounds"]:
+                            data = {
+                                "name": path
+                            }
+                            asset_key = "minecraft/sounds/%s.ogg" % path
+                            if asset_key in assets["objects"]:
+                                data["hash"] = assets["objects"][asset_key]["hash"]
+                            sound["sounds"].append(data)
                     if "subtitle" in json_sound:
                         subtitle = json_sound["subtitle"]
                         sound["subtitle_key"] = subtitle
