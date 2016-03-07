@@ -108,10 +108,15 @@ class SoundTopping(Topping):
                     json_sound = sounds_json[sound_name]
                     if "sounds" in json_sound:
                         sound["sounds"] = []
-                        for path in json_sound["sounds"]:
-                            data = {
-                                "name": path
-                            }
+                        for value in json_sound["sounds"]:
+                            data = {}
+                            if isinstance(value, basestring):
+                                data["name"] = value
+                                path = value
+                            elif isinstance(value, dict):
+                                # Guardians use this to have a reduced volume
+                                data = value
+                                path = value["name"]
                             asset_key = "minecraft/sounds/%s.ogg" % path
                             if asset_key in assets["objects"]:
                                 data["hash"] = assets["objects"][asset_key]["hash"]
