@@ -21,9 +21,12 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
+
 import urllib
-import re
-from xml.sax import ContentHandler, make_parser
+try:
+    import json
+except ImportError:
+    import simplejson as json
 
 from .topping import Topping
 
@@ -35,6 +38,28 @@ try:
 except ImportError:
     from StringIO import StringIO
 
+ASSET_INDEX = "https://s3.amazonaws.com/Minecraft.Download/indexes/1.9.json"
+RESOURCES_SITE = "http://resources.download.minecraft.net/%s/%s"
+
+def get_sounds(asset_index=ASSET_INDEX,resources_site=RESOURCES_SITE):
+    """Gets the sounds.json file from the asset index"""
+    index_file = urllib.urlopen(asset_index)
+    try:
+        index = json.load(index_file)
+    finally:
+        index_file.close()
+
+    sounds_hash = index["objects"]["minecraft/sounds.json"]["hash"]
+    sounds_url = resources_site % (sounds_hash[0:2], sounds_hash)
+
+    sounds_file = urllib.urlopen(sounds_url)
+
+    try:
+        sounds = json.load(sounds_file)
+    finally:
+        sounds_file.close()
+    return sounds
+
 class SoundTopping(Topping):
     """Finds all named sound effects which are both used in the server and
        available for download."""
@@ -45,12 +70,14 @@ class SoundTopping(Topping):
 
     DEPENDS = [
         "identify.sounds.list",
-        "identify.sounds.event"
+        "identify.sounds.event",
+        "language"
     ]
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
         sounds = aggregate.setdefault('sounds', {})
+        sounds_json = get_sounds()
 
         if not 'sounds.list' in aggregate["classes"]:
             # 1.8 - TODO implement this for 1.8
@@ -69,11 +96,26 @@ class SoundTopping(Topping):
                 const = cf.constants.get(ins.operands[0].value)
                 sound_name = const.string.value
             elif ins.mnemonic == 'invokestatic':
-                sounds[sound_name] = {
+                sound = {
                     'name': sound_name,
                     'id': sound_id
                 }
                 sound_id += 1
+
+                if sound_name in sounds_json:
+                    json_sound = sounds_json[sound_name]
+                    if "sounds" in json_sound:
+                        sound["sounds"] = json_sound["sounds"]
+                    if "subtitle" in json_sound:
+                        subtitle = json_sound["subtitle"]
+                        sound["subtitle_key"] = subtitle
+                        # Get rid of the starting key since the language topping
+                        # splits it off like that
+                        subtitle_trimmed = subtitle[len("subtitles."):]
+                        if subtitle_trimmed in aggregate["language"]["subtitles"]:
+                            sound["subtitle"] = aggregate["language"]["subtitles"][subtitle_trimmed]
+
+                sounds[sound_name] = sound
 
         # Get fields now
         soundlist = aggregate["classes"]["sounds.list"]
