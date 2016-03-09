@@ -446,10 +446,10 @@ class PacketInstructionsTopping(Topping):
                     skip_until = target
 
             # Math
-            elif opcode >= 0x74 and opcode <= 0x77:
+            elif opcode >= 0x74 and opcode <= 0x77: # Tneg
                 category = stack[-1].category
                 stack.append(Operand("(- %s)" % (stack.pop), category))
-            elif opcode >= 0x60 and opcode <= 0x7f:     # Tneg
+            elif opcode >= 0x60 and opcode <= 0x83:
                 lookup_opcode = opcode
                 while not lookup_opcode in _PIT.MATH:
                     lookup_opcode -= 1
