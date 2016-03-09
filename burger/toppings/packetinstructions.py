@@ -169,6 +169,18 @@ class PacketInstructionsTopping(Topping):
 
     }
 
+    # Prefix types used in instructions
+    INSTRUCTION_TYPES = {
+        'a': 'Object',
+        'b': 'boolean',
+        'c': 'char',
+        'd': 'double',
+        'f': 'float',
+        'i': 'int',
+        'l': 'long',
+        's': 'short'
+    }
+
     CLEANUP_PATTERN = [
         (re.compile("^\((.*)\)$"), "\\1"),
         (re.compile("(^|[() ])this\."), "\\1")
@@ -190,10 +202,8 @@ class PacketInstructionsTopping(Topping):
 
     @staticmethod
     def operations(jar, classname, classes, args=None,
-                   methodname=None, arg_names=("this", "stream")):
+                   methodname=None, arg_names=("this", "packetbuffer")):
         """Gets the instructions of the specified method"""
-
-        arg_names=("this", "packetbuffer")
 
         # Find the writing method
         cf = ClassFile(StringIO(jar.read(classname)))
@@ -558,6 +568,27 @@ class PacketInstructionsTopping(Topping):
                         StringFormatter.format(format, *operands),
                         category)
                     )
+
+                if "store" in instruction.mnemonic:
+                    if instruction.mnemonic[1] == 'a':
+                        # Array store: Doesn't seem to be used when writing
+                        # packets; let's ignore it.
+                        raise Exception("Unhandled array store instruction: " + str(instruction))
+
+                    # Keep track of what is being stored, for clarity
+                    if "_" in instruction.mnemonic:
+                        # Tstore_<index>
+                        arg = instruction.mnemonic[-1]
+                    else:
+                        arg = operands.pop()
+                    
+                    type = _PIT.INSTRUCTION_TYPES[instruction.mnemonic[0]]
+
+                    var = arg_names[arg] if arg < len(arg_names) else "var%s" % arg
+                    operations.append(Operation(instruction.pos, "store",
+                                                type=type,
+                                                var=var,
+                                                value=operands.pop()))
 
         return operations
 
