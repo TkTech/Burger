@@ -580,7 +580,7 @@ class PacketInstructionsTopping(Topping):
                         # Tstore_<index>
                         arg = instruction.mnemonic[-1]
                     else:
-                        arg = operands.pop()
+                        arg = operands.pop().value
                     
                     type = _PIT.INSTRUCTION_TYPES[instruction.mnemonic[0]]
 
