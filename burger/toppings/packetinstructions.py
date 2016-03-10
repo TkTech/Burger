@@ -414,17 +414,20 @@ class PacketInstructionsTopping(Topping):
                 shortif_cond = condition
 
             elif opcode == 0xaa:                        # tableswitch
-                # TODO: I don't know quite how this works, and it seems to be broken.
-                # I need to look up this operation.
                 operations.append(Operation(instruction.pos, "switch",
                                             field=stack.pop()))
 
-                low = operands[0].value
-                for opr in range(1, len(operands)):
+                default = operands[0].target
+                low = operands[1].value
+                high = operands[2].value
+                for opr in range(3, len(operands)):
                     target = operands[opr].target
                     operations.append(Operation(target, "case",
-                                                value=low + opr - 1))
-                operations.append(Operation(operands[0].target, "endswitch"))
+                                                value=low + opr - 3))
+                # TODO: Default might not be the right place for endswitch,
+                # though it seems like default isn't used in any other way
+                # in the normal code.
+                operations.append(Operation(default, "endswitch"))
 
             elif opcode == 0xab:                        # lookupswitch
                 operations.append(Operation(instruction.pos, "switch",
