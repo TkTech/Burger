@@ -65,136 +65,101 @@ class RecipesTopping(Topping):
             f = lambda m: len(m.args) == 2 and m.args[1].dimensions == 1 and m.args[1].name == "java/lang/Object"
         ))
 
+        itemstack = aggregate["classes"]["itemstack"]
+
         target_class = setters[0].args[0]
         setter_names = [x.name for x in setters]
-        def find_recipes(jar, cf, method, target_class, setter_names):
-            # Temporary state variables
-            tmp_recipes = []
-            started_item = False
-            next_push_is_val = False
-            with_metadata = False
-            block_substitute = None
-            block_subs = {}
-            rows = []
-            make_count = 0
-            metadata = 0
-            recipe_target = None
-            pushes_are_counts = False
-            shaped_recipe = True
-            # Iterate over the methods instructions from the
-            # bottom-up so we can catch the invoke/new range.
-            for ins in reversed(list(method.code.disassemble())):
-                # Find the call that stores the generated recipe.
-                if ins.mnemonic == "invokevirtual" and not started_item:
+
+        def read_itemstack(itr):
+            """Reads an itemstack from the given iterator of instructions"""
+            item = {}
+            stack = []
+            while True:
+                ins = itr.next()
+                if ins.mnemonic.startswith("iconst_"):
+                    stack.append(int(ins.mnemonic[-1]))
+                elif ins.mnemonic == "bipush":
+                    stack.append(ins.operands[0].value)
+                elif ins.mnemonic == "getstatic":
                     const = cf.constants.get(ins.operands[0].value)
-
-                    # Parse the string method descriptor
-                    desc = method_descriptor(const.name_and_type.descriptor.value)
-
-                    # We've found the recipe storage method
-                    if "[Ljava/lang/Object;" in desc.args_descriptor:
-                        started_item = True
-                        pushes_are_counts = False
-                        next_push_is_val = False
-                        with_metadata = False
-                        rows = []
-                        make_count = 0
-                        metadata = 0
-                        recipe_target = None
-                        method_name = const.name_and_type.name.value
-                        shaped_recipe = (method_name == setter_names[0].value)
-                        if shaped_recipe:
-                            block_subs = {}
-                        else:
-                            block_subs = []
-                    elif superclass in desc.args_descriptor:
-                        _class = const.class_.name.value
-                        sub_cf = ClassFile(StringIO(jar.read(_class + ".class")))
-                        tmp_recipes += find_recipes(
-                            jar, sub_cf,
-                            # This might not be right: There may be another method...
-                            # I may also want to use the name and return type?
-                            sub_cf.methods.find_one(args=desc.args_descriptor),
-                            target_class, setter_names
-                        )
-                # We've found the start of the recipe declaration (or the end
-                # as it is in our case).
-                elif ins.mnemonic == "new" and started_item:
-                    started_item = False
-                    if shaped_recipe:
-                        tmp_recipes.append({
-                            "type": "shape",
-                            "substitutes": block_subs,
-                            "rows": rows,
-                            "makes": make_count,
-                            "recipe_target": recipe_target
-                        })
-                    else:
-                        tmp_recipes.append({
-                            "type": "shapeless",
-                            "ingredients": block_subs,
-                            "makes": make_count,
-                            "recipe_target": recipe_target
-                        })
-                # The item/block to be substituted
-                elif (ins.mnemonic == "getstatic" and started_item
-                        and not pushes_are_counts):
-                    const = cf.constants.get(ins.operands[0].value)
-
-                    cl_name = const.class_.name.value
-                    cl_field = const.name_and_type.name.value
-
-                    block_substitute = (cl_name, cl_field)
-                    if not shaped_recipe:
-                        block_subs.append(block_substitute)
-                elif ins.mnemonic == "getstatic" and pushes_are_counts:
-                    const = cf.constants.get(ins.operands[0].value)
-
-                    cl_name = const.class_.name.value
-                    cl_field = const.name_and_type.name.value
-
-                    recipe_target = (cl_name, cl_field, metadata)
-                # Block string substitute value
-                elif ins.mnemonic == "bipush" and next_push_is_val:
-                    next_push_is_val = False
-                    block_subs[chr(ins.operands[0].value)] = block_substitute
-                # Number of items that the recipe makes
-                elif ins.mnemonic == "bipush" and pushes_are_counts:
-                    make_count = ins.operands[0].value
-                    if with_metadata:
-                        metadata = make_count
-                        with_metadata = False
-                elif ins.mnemonic.startswith("iconst_") and pushes_are_counts:
-                    make_count = int(ins.mnemonic[-1])
-                    if with_metadata:
-                        metadata = make_count
-                        with_metadata = False
-                # Recipe row
-                elif ins.mnemonic == "ldc" and started_item:
-                    const = cf.constants.get(ins.operands[0].value)
-
-                    if isinstance(const, ConstantString):
-                        rows.append(const.string.value)
-                # The Character.valueOf() call
-                elif ins.mnemonic == "invokestatic":
-                    const = cf.constants.get(ins.operands[0].value)
-
-                    # Parse the string method descriptor
-                    desc = method_descriptor(const.name_and_type.descriptor.value)
-
-                    if len(desc.args) == 1 and desc.args[0].name == "char" and desc.returns.name == "java/lang/Character":
-                        # The next integer push will be the character value.
-                        next_push_is_val = True
-                elif ins.mnemonic == "invokespecial" and started_item:
-                    const = cf.constants.get(ins.operands[0].value)
-
+                    clazz = const.class_.name.value
                     name = const.name_and_type.name.value
-                    if name == "<init>":
-                        pushes_are_counts = True
-                        if ("II" in
-                                const.name_and_type.descriptor.value):
-                            with_metadata = True
-            return tmp_recipes
+                    stack.append((clazz, name))
+                elif ins.mnemonic == "invokevirtual":
+                    # TODO: This is a _total_ hack...
+                    # We assume that this is an enum, used to get the data value
+                    # for the given block.  We also assume that the return value
+                    # matches the enum constant's position... and do math from that.
+                    name = stack.pop()[1]
+                    # As I said... ugly.  There's probably a way better way of doing this.
+                    dv = int(name, 36) - int('a', 36)
+                    stack.append(dv)
+                elif ins.mnemonic == "iadd":
+                    # For whatever reason, there are a few cases where 4 is both
+                    # added and subtracted to the enum constant value.
+                    # So we need to handle that :/
+                    i2 = stack.pop()
+                    i1 = stack.pop()
+                    stack.append(i1 + i2);
+                elif ins.mnemonic == "isub":
+                    i2 = stack.pop()
+                    i1 = stack.pop()
+                    stack.append(i1 - i2);
+                elif ins.mnemonic == "invokespecial":
+                    const = cf.constants.get(ins.operands[0].value)
+                    if const.name_and_type.name.value == "<init>":
+                        break
+            if len(stack) == 3:
+                item['amount'] = stack[0]
+                item['count'] = stack[1]
+                item['metadata'] = stack[2]
+            elif len(stack) == 2:
+                item['amount'] = stack[0]
+                item['count'] = stack[1]
+            elif len(stack) == 1:
+                item['amount'] = stack[0]
+                item['count'] = 1
+            else:
+                print ins, stack
+            return item
+
+        def find_recipes(jar, cf, method, target_class, setter_names):
+            # Go through all instructions.
+            itr = iter(method.code.disassemble())
+            recipes = []
+            try:
+                while True:
+                    ins = itr.next()
+                    if ins.mnemonic != "new":
+                        # Wait until an item starts
+                        continue
+                    # Start of another recipe - the ending item.
+                    const = cf.constants.get(ins.operands[0].value)
+                    if const.name.value != itemstack:
+                        # Or it could be another type; irrelevant
+                        continue
+                    # The crafted item, first parameter
+                    crafted_item = read_itemstack(itr)
+
+                    ins = itr.next()
+                    # Size of the parameter array
+                    if ins.mnemonic.startswith("iconst_"):
+                        param_count = int(ins.mnemonic[-1])
+                    elif ins.mnemonic == "bipush":
+                        param_count = ins.operands[0].value
+                    else:
+                        raise Exception('Unexpected instruction: expected int constant, got ' + str(ins))
+
+                    num_astore = 0
+                    while num_astore < param_count:
+                        ins = itr.next()
+                        if ins.mnemonic == "astore":
+                            num_astore += 1
+                        else:
+                            print ins
+            except StopIteration:
+                pass
+            return recipes
 
         tmp_recipes = find_recipes(jar, cf, method, target_class, setter_names)
 
