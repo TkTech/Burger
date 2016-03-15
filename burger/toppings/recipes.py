@@ -68,18 +68,24 @@ class RecipesTopping(Topping):
         itemstack = aggregate["classes"]["itemstack"]
 
         target_class = setters[0].args[0]
-        setter_names = [x.name for x in setters]
+        setter_names = [x.name.value for x in setters]
 
         def convert_item(clazz, field):
             """Converts a class name and field into a block or item."""
             if clazz == aggregate["classes"]["block.list"]:
                 if field in aggregate["blocks"]["block_fields"]:
-                    return aggregate["blocks"]["block_fields"][field]
+                    return {
+                        'type': 'block',
+                        'value': aggregate["blocks"]["block_fields"][field]
+                    }
                 else:
                     raise Exception("Unknown block with field " + field)
             elif clazz == aggregate["classes"]["item.list"]:
                 if field in aggregate["items"]["item_fields"]:
-                    return aggregate["items"]["item_fields"][field]
+                    return {
+                        'type': 'item',
+                        'value': aggregate["items"]["item_fields"][field]
+                    }
                 else:
                     raise Exception("Unknown item with field " + field)
             else:
@@ -197,9 +203,65 @@ class RecipesTopping(Topping):
                             data = convert_item(clazz, field)
                         elif ins.mnemonic == "new":
                             data = read_itemstack(itr)
-                    print array
+
+                    ins = itr.next()
+                    assert ins.mnemonic == "invokevirtual"
+                    const = cf.constants.get(ins.operands[0].value)
+
+                    recipe_data = {}
+                    if const.name_and_type.name.value == setter_names[0]:
+                        # Shaped
+                        recipe_data['type'] = 'shape'
+                        recipe_data['makes'] = crafted_item
+                        rows = []
+                        subs = {}
+                        # TODO: Is there a better way to distinguish chars
+                        # and strings?  Right now, chars seem to be strings,
+                        # except that the strings that come from jawa are
+                        # unicode ones and the ones that come from chr() are
+                        # just 'str'...
+                        try:
+                            itr2 = iter(array)
+                            while True:
+                                obj = itr2.next()
+                                if isinstance(obj, unicode):
+                                    # Pattern
+                                    rows.append(obj)
+                                elif isinstance(obj, str):
+                                    # Character
+                                    item = itr2.next()
+                                    subs[obj] = item
+                        except StopIteration:
+                            pass
+                        recipe_data['raw'] = {
+                            'rows': rows,
+                            'subs': subs
+                        }
+
+                        shape = []
+                        for row in rows:
+                            shape_row = []
+                            for char in row:
+                                if not char.isspace():
+                                    shape_row.append(subs[char])
+                            shape.append(shape_row)
+
+                        recipe_data['shape'] = shape
+                    else:
+                        # Shapeless
+                        recipe_data['type'] = 'shapeless'
+                        recipe_data['makes'] = crafted_item
+                        recipe_data['ingredients'] = array
+
+                    recipes.append(recipe_data)
             except StopIteration:
                 pass
             return recipes
 
         tmp_recipes = find_recipes(jar, cf, method, target_class, setter_names)
+        
+        for recipe in tmp_recipes:
+            makes = recipe['makes']['item']['value']
+            
+            recipes_for_item = recipes.setdefault(makes, [])
+            recipes_for_item.append(recipe)
