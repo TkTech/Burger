@@ -70,13 +70,13 @@ class RecipesTopping(Topping):
         target_class = setters[0].args[0]
         setter_names = [x.name.value for x in setters]
 
-        def convert_item(clazz, field):
+        def get_material(clazz, field):
             """Converts a class name and field into a block or item."""
             if clazz == aggregate["classes"]["block.list"]:
                 if field in aggregate["blocks"]["block_fields"]:
                     return {
                         'type': 'block',
-                        'value': aggregate["blocks"]["block_fields"][field]
+                        'name': aggregate["blocks"]["block_fields"][field]
                     }
                 else:
                     raise Exception("Unknown block with field " + field)
@@ -84,7 +84,7 @@ class RecipesTopping(Topping):
                 if field in aggregate["items"]["item_fields"]:
                     return {
                         'type': 'item',
-                        'value': aggregate["items"]["item_fields"][field]
+                        'name': aggregate["items"]["item_fields"][field]
                     }
                 else:
                     raise Exception("Unknown item with field " + field)
@@ -93,7 +93,6 @@ class RecipesTopping(Topping):
 
         def read_itemstack(itr):
             """Reads an itemstack from the given iterator of instructions"""
-            item = {}
             stack = []
             while True:
                 ins = itr.next()
@@ -130,17 +129,13 @@ class RecipesTopping(Topping):
                     const = cf.constants.get(ins.operands[0].value)
                     if const.name_and_type.name.value == "<init>":
                         break
+
+            item = get_material(*stack[0])
             if len(stack) == 3:
-                item['item'] = convert_item(*stack[0])
                 item['count'] = stack[1]
                 item['metadata'] = stack[2]
             elif len(stack) == 2:
-                item['item'] = convert_item(*stack[0])
                 item['count'] = stack[1]
-            elif len(stack) == 1:
-                item['item'] = convert_item(*stack[0])
-            else:
-                print ins, stack
             return item
 
         def find_recipes(jar, cf, method, target_class, setter_names):
@@ -200,7 +195,7 @@ class RecipesTopping(Topping):
                             const = cf.constants.get(ins.operands[0].value)
                             clazz = const.class_.name.value
                             field = const.name_and_type.name.value
-                            data = convert_item(clazz, field)
+                            material = get_material(clazz, field)
                         elif ins.mnemonic == "new":
                             data = read_itemstack(itr)
 
@@ -261,7 +256,7 @@ class RecipesTopping(Topping):
         tmp_recipes = find_recipes(jar, cf, method, target_class, setter_names)
         
         for recipe in tmp_recipes:
-            makes = recipe['makes']['item']['value']
+            makes = recipe['makes']['name']
             
             recipes_for_item = recipes.setdefault(makes, [])
             recipes_for_item.append(recipe)
