@@ -70,6 +70,21 @@ class RecipesTopping(Topping):
         target_class = setters[0].args[0]
         setter_names = [x.name for x in setters]
 
+        def convert_item(clazz, field):
+            """Converts a class name and field into a block or item."""
+            if clazz == aggregate["classes"]["block.list"]:
+                if field in aggregate["blocks"]["block_fields"]:
+                    return aggregate["blocks"]["block_fields"][field]
+                else:
+                    raise Exception("Unknown block with field " + field)
+            elif clazz == aggregate["classes"]["item.list"]:
+                if field in aggregate["items"]["item_fields"]:
+                    return aggregate["items"]["item_fields"][field]
+                else:
+                    raise Exception("Unknown item with field " + field)
+            else:
+                raise Exception("Unknown list class " + clazz)
+
         def read_itemstack(itr):
             """Reads an itemstack from the given iterator of instructions"""
             item = {}
@@ -110,15 +125,14 @@ class RecipesTopping(Topping):
                     if const.name_and_type.name.value == "<init>":
                         break
             if len(stack) == 3:
-                item['amount'] = stack[0]
+                item['item'] = convert_item(*stack[0])
                 item['count'] = stack[1]
                 item['metadata'] = stack[2]
             elif len(stack) == 2:
-                item['amount'] = stack[0]
+                item['item'] = convert_item(*stack[0])
                 item['count'] = stack[1]
             elif len(stack) == 1:
-                item['amount'] = stack[0]
-                item['count'] = 1
+                item['item'] = convert_item(*stack[0])
             else:
                 print ins, stack
             return item
@@ -151,105 +165,41 @@ class RecipesTopping(Topping):
                         raise Exception('Unexpected instruction: expected int constant, got ' + str(ins))
 
                     num_astore = 0
+                    data = None
+                    array = []
                     while num_astore < param_count:
                         ins = itr.next()
-                        if ins.mnemonic == "astore":
+                        # Read through the array; some strangeness of types,
+                        # though.  Also, note that the array index is pushed,
+                        # but we overwrite it with the second value and just
+                        # add in order instead.
+                        if ins.mnemonic == "aastore":
                             num_astore += 1
-                        else:
-                            print ins
+                            array.append(data)
+                            data = None
+                        elif ins.mnemonic in ("ldc", "ldc_w"):
+                            const = cf.constants.get(ins.operands[0].value)
+                            data = const.string.value
+                        elif ins.mnemonic.startswith("iconst_"):
+                            data = int(ins.mnemonic[-1])
+                        elif ins.mnemonic == "bipush":
+                            data = ins.operands[0].value
+                        elif ins.mnemonic == "invokestatic":
+                            const = cf.constants.get(ins.operands[0].value)
+                            if const.class_.name.value == "java/lang/Character" and const.name_and_type.name.value == "valueOf":
+                                data = chr(data)
+                            else:
+                                raise Exception("Unknown method invocation: " + repr(const))
+                        elif ins.mnemonic == "getstatic":
+                            const = cf.constants.get(ins.operands[0].value)
+                            clazz = const.class_.name.value
+                            field = const.name_and_type.name.value
+                            data = convert_item(clazz, field)
+                        elif ins.mnemonic == "new":
+                            data = read_itemstack(itr)
+                    print array
             except StopIteration:
                 pass
             return recipes
 
         tmp_recipes = find_recipes(jar, cf, method, target_class, setter_names)
-
-        # Re-arrange the block class so the key is the class
-        # name and field name.
-        block_class = aggregate["classes"]["block.list"]
-        block_map = {}
-        for id_, block in aggregate["blocks"]["block"].iteritems():
-            block_map["%s:%s" % (block_class, block["field"])] = block
-
-        item_class = aggregate["classes"]["item.list"]
-        item_map = {}
-        for id_, item in aggregate["items"]["item"].iteritems():
-            if "field" in item:
-                item_map["%s:%s" % (item_class, item["field"])] = item
-
-        def getName(cls_fld):
-            if cls_fld is None:
-                return None
-            field = ":".join(cls_fld[:2])
-            if field in block_map:
-                return block_map[field]
-            elif field in item_map:
-                return item_map[field]
-            else:
-                return cls_fld
-
-        for recipe in tmp_recipes:
-            final = {
-                "amount": recipe["makes"],
-                "type": recipe["type"]
-            }
-
-            shape = recipe["type"] == "shape"
-
-            # Filter invalid recipes
-            if shape and len(recipe["rows"]) == 0:
-                continue
-            elif recipe["recipe_target"] == None:
-                continue
-            elif not shape and len(recipe["ingredients"]) == 0:
-                continue
-
-            if shape:
-                final["raw"] = {
-                    "rows": recipe["rows"],
-                    "subs": recipe["substitutes"]
-                }
-
-            # Try to get the substitutes name
-            if shape:
-                subs = recipe["substitutes"]
-                for sub in subs:
-                    subs[sub] = getName(subs[sub])
-            else:
-                final["ingredients"] = []
-                for ingredient in recipe["ingredients"]:
-                    final["ingredients"].append(getName(ingredient))
-
-            # Try to get the created item/block name.
-            target = getName(recipe["recipe_target"])
-            final["makes"] = target
-            final["metadata"] = recipe["recipe_target"][2]
-            if isinstance(target, dict):
-                key = target["text_id"]
-            elif target is None:
-                key = "NA"
-            else:
-                final["field"] = target
-                key = ":".join(str(i) for i in target)
-
-            if shape:
-                rmap = []
-                for row in recipe["rows"]:
-                    tmp = []
-                    for col in row:
-                        if col == ' ':
-                            tmp.append(0)
-                        elif col in recipe["substitutes"]:
-                            if isinstance(recipe["substitutes"][col], dict):
-                                tmp.append(recipe["substitutes"][col]["text_id"])
-                            else:
-                                tmp.append(":".join(
-                                    recipe["substitutes"][col])
-                                )
-                        else:
-                            tmp.append(None)
-                    rmap.append(tmp)
-
-                final["shape"] = rmap
-            if key not in recipes:
-                recipes[key] = []
-            recipes[key].append(final)
