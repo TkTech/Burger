@@ -195,7 +195,7 @@ class RecipesTopping(Topping):
                             const = cf.constants.get(ins.operands[0].value)
                             clazz = const.class_.name.value
                             field = const.name_and_type.name.value
-                            material = get_material(clazz, field)
+                            data = get_material(clazz, field)
                         elif ins.mnemonic == "new":
                             data = read_itemstack(itr)
 
