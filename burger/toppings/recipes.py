@@ -74,17 +74,23 @@ class RecipesTopping(Topping):
             """Converts a class name and field into a block or item."""
             if clazz == aggregate["classes"]["block.list"]:
                 if field in aggregate["blocks"]["block_fields"]:
+                    name = aggregate["blocks"]["block_fields"][field]
+                    data = aggregate["blocks"]["block"][name]
                     return {
                         'type': 'block',
-                        'name': aggregate["blocks"]["block_fields"][field]
+                        'name': name,
+                        'data': data
                     }
                 else:
                     raise Exception("Unknown block with field " + field)
             elif clazz == aggregate["classes"]["item.list"]:
                 if field in aggregate["items"]["item_fields"]:
+                    name = aggregate["items"]["item_fields"][field]
+                    data = aggregate["items"]["item"][name]
                     return {
                         'type': 'item',
-                        'name': aggregate["items"]["item_fields"][field]
+                        'name': name,
+                        'data': data
                     }
                 else:
                     raise Exception("Unknown item with field " + field)
