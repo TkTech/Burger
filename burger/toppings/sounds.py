@@ -28,6 +28,8 @@ try:
 except ImportError:
     import simplejson as json
 
+import traceback
+
 from .topping import Topping
 
 from jawa.constants import *
@@ -78,8 +80,20 @@ class SoundTopping(Topping):
     @staticmethod
     def act(aggregate, jar, verbose=False):
         sounds = aggregate.setdefault('sounds', {})
-        assets = get_asset_index()
-        sounds_json = get_sounds(assets)
+        try:
+            assets = get_asset_index()
+        except Exception as e:
+            if verbose:
+                print "Error: Failed to download asset index for sounds: %s" % e
+                traceback.print_exc()
+            return
+        try:
+            sounds_json = get_sounds(assets)
+        except Exception as e:
+            if verbose:
+                print "Error: Failed to download sound list: %s" % e
+                traceback.print_exc()
+            return
 
         if not 'sounds.list' in aggregate["classes"]:
             # 1.8 - TODO implement this for 1.8
