@@ -245,6 +245,8 @@ class RecipesTopping(Topping):
                             for char in row:
                                 if not char.isspace():
                                     shape_row.append(subs[char])
+                                else:
+                                    shape_row.append(None)
                             shape.append(shape_row)
 
                         recipe_data['shape'] = shape
