@@ -52,18 +52,43 @@ class BiomeTopping(Topping):
             return
         superclass = aggregate["classes"]["biome.superclass"]
         cf = ClassFile(StringIO(jar.read(superclass + ".class")))
-        method = cf.methods.find_one(returns="V", args="", f=lambda m: m.access_flags.acc_static)
+        
+        mutate_method_desc = None
+        mutate_method_name = None
+        void_methods = cf.methods.find(returns="L" + superclass + ";", args="", f=lambda m: m.access_flags.acc_protected and not m.access_flags.acc_static)
+        for method in void_methods:
+            for ins in method.code.disassemble():
+                if ins.mnemonic == "sipush" and ins.operands[0].value == 128:
+                    mutate_method_desc = method.descriptor.value
+                    mutate_method_name = method.name.value
+
+        make_mutated_method_desc = None
+        make_mutated_method_name = None
+        int_methods = cf.methods.find(returns="L" + superclass + ";", args="I", f=lambda m: m.access_flags.acc_protected and not m.access_flags.acc_static)
+        for method in int_methods:
+            for ins in method.code.disassemble():
+                if ins.mnemonic == "new":
+                    make_mutated_method_desc = method.descriptor.value
+                    make_mutated_method_name = method.name.value
+
+        method = cf.methods.find_one("<clinit>")
         heights_by_field = {}
         tmp = None
         stack = None
+
+        def store_biome_if_valid(biome):
+            """Stores the given biome if it is a valid, complete biome."""
+            if biome is not None and biome.has_key("name") and biome["name"] != " and ":
+                biomes[biome["name"]] = biome
+
+        # OK, start running through the initializer for biomes.
         for ins in method.code.disassemble():
             if ins.mnemonic == "new":
-                if tmp is not None and "name" in tmp and tmp["name"] != " and ":
-                    biomes[tmp["name"]] = tmp
+                store_biome_if_valid(tmp)
+
                 stack = []
                 const = cf.constants.get(ins.operands[0].value)
                 tmp = {
-                    "calls": {},
                     "rainfall": 0.5,
                     "height": [0.1, 0.2],
                     "temperature": 0.5,
@@ -84,9 +109,32 @@ class BiomeTopping(Topping):
                 elif name != "<init>":
                     tmp["rainfall"] = 0
             elif ins.mnemonic == "invokevirtual":
-                if len(stack) == 1 and "color" not in tmp:
+                const = cf.constants.get(ins.operands[0].value)
+                name = const.name_and_type.name.value
+                desc = const.name_and_type.descriptor.value
+                if name == mutate_method_name and desc == mutate_method_desc:
+                    # New, separate biome
+                    tmp = tmp.copy()
+                    tmp["name"] += " M"
+                    tmp["id"] += 128
+                    if "field" in tmp:
+                        del tmp["field"]
+                    tmp["height"][0] += .1
+                    tmp["height"][1] += .2
+                    store_biome_if_valid(tmp)
+                elif name == make_mutated_method_name and desc == make_mutated_method_desc:
+                    # New, separate biome, but with a custom ID
+                    tmp = tmp.copy()
+                    tmp["name"] += " M"
+                    tmp["id"] += stack.pop()
+                    if "field" in tmp:
+                        del tmp["field"]
+                    tmp["height"][0] += .1
+                    tmp["height"][1] += .2
+                    store_biome_if_valid(tmp)
+                elif len(stack) == 1 and "color" not in tmp:
                     tmp["color"] = stack.pop()
-                if len(stack) == 2:
+                elif len(stack) == 2:
                     tmp["rainfall"] = stack.pop()
                     tmp["temperature"] = stack.pop()
             elif ins.mnemonic == "putstatic":
@@ -98,15 +146,18 @@ class BiomeTopping(Topping):
                 else:
                     tmp["field"] = field
             elif ins.mnemonic == "getstatic":
-                # Loading a height map
+                # Loading a height map or preparing to mutate a biome
                 const = cf.constants.get(ins.operands[0].value)
                 field = const.name_and_type.name.value
-                if field not in heights_by_field:
-                    # Happens with a duplicate ocean-like biome (possibly
-                    # used as the default biome?)
-                    continue
-
-                tmp["height"] = heights_by_field[field]
+                if field in heights_by_field:
+                    # Heightmap
+                    tmp["height"] = heights_by_field[field]
+                else:
+                    # Look for the biome with the given field.
+                    for biome in biomes.itervalues():
+                        if "field" in biome and biome["field"] == field:
+                            tmp = biome
+                            break
             # numeric values & constants
             elif ins.mnemonic in ("ldc", "ldc_w"):
                 const = cf.constants.get(ins.operands[0].value)
@@ -121,6 +172,7 @@ class BiomeTopping(Topping):
                 stack.append(ins.opcode - 0xb)
             elif ins.mnemonic == "bipush":
                 stack.append(ins.operands[0].value)
+            elif ins.mnemonic == "sipush":
+                stack.append(ins.operands[0].value)
 
-        if tmp is not None and tmp.has_key("name") and tmp["name"] != " and ":
-            biomes[tmp["name"]] = tmp
+        store_biome_if_valid(tmp)
