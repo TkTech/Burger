@@ -153,6 +153,8 @@ class BiomeTopping(Topping):
                     # Heightmap
                     tmp["height"] = heights_by_field[field]
                 else:
+                    # Store the old one first
+                    store_biome_if_valid(tmp)
                     # Look for the biome with the given field.
                     for biome in biomes.itervalues():
                         if "field" in biome and biome["field"] == field:
