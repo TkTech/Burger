@@ -54,6 +54,7 @@ def identify(class_file):
         ('Skipping Entity with id', 'entity.list'),
         ('disconnect.lost', 'nethandler.client'),
         ('Outdated server!', 'nethandler.server'),
+        ('Accessed Biomes before Bootstrap!', 'biome.list'), #1.9 only
         ('Ice Plains', 'biome.superclass'),
         ('Corrupt NBT tag', 'nbtcompound'),
         ('#%04d/%d%s', 'itemstack'),
