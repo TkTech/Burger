@@ -132,8 +132,8 @@ class BiomeTopping(Topping):
                     tmp["height"][0] += .1
                     tmp["height"][1] += .2
                     store_biome_if_valid(tmp)
-                elif len(stack) == 1 and "color" not in tmp:
-                    tmp["color"] = stack.pop()
+                elif len(stack) == 1:
+                    stack.pop()
                 elif len(stack) == 2:
                     tmp["rainfall"] = stack.pop()
                     tmp["temperature"] = stack.pop()
