@@ -93,7 +93,7 @@ class BiomeTopping(Topping):
             if biome is not None and "name" in biome and biome["name"] != " and ":
                 biomes[biome["name"]] = biome
                 if "field" in biome:
-                    biome_fields[biome["field"]] = biome
+                    biome_fields[biome["field"]] = biome["name"]
 
         # OK, start running through the initializer for biomes.
         for ins in method.code.disassemble():
@@ -170,7 +170,7 @@ class BiomeTopping(Topping):
                     # Store the old one first
                     store_biome_if_valid(tmp)
                     if field in biome_fields:
-                        tmp = biome_fields[field]
+                        tmp = biomes[biome_fields[field]]
             # numeric values & constants
             elif ins.mnemonic in ("ldc", "ldc_w"):
                 const = cf.constants.get(ins.operands[0].value)
