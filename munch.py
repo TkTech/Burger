@@ -242,13 +242,6 @@ if __name__ == "__main__":
         for topping in to_be_run:
             topping.act(aggregate, jar, verbose)
 
-        # TEMPORARY
-        for topping in to_be_run:
-            if topping not in loaded_toppings:
-                for provided in topping.PROVIDES:
-                    if provided in aggregate:
-                        del aggregate[provided]
-
         summary.append(aggregate)
 
     if not compact:
