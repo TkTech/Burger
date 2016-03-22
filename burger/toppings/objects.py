@@ -42,7 +42,7 @@ class ObjectTopping(Topping):
     ]
 
     DEPENDS = [
-        "identify.nethandler",
+        "identify.nethandler.client",
         "entities.entity",
         "packets.classes"
     ]

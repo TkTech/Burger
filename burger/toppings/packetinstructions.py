@@ -52,7 +52,8 @@ class PacketInstructionsTopping(Topping):
         "identify.packet.packetbuffer",
         "identify.nbtcompound",
         "identify.itemstack",
-        "identify.chatcomponent"
+        "identify.chatcomponent",
+        "identify.metadata"
     ]
 
     TYPES = {

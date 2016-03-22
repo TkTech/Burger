@@ -42,6 +42,8 @@ class RecipesTopping(Topping):
 
     DEPENDS = [
         "identify.recipe.superclass",
+        "identify.block.list",
+        "identify.item.list",
         "blocks",
         "items"
     ]

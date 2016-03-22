@@ -44,21 +44,21 @@ def identify(class_file):
     # We can identify almost every class we need just by
     # looking for consistent strings.
     matches = (
-        ('oreGold', 'block.superclass'),
-        ('Accessed Blocks before Bootstrap!', 'block.list'),
-        (' is already assigned to protocol ', 'packet.connectionstate'),
-        ('The received encoded string buffer length is less than zero! Weird string!', 'packet.packetbuffer'),
-        ('X#X', 'recipe.superclass'),
-        ('leggingsIron', 'item.superclass'),
-        ('Accessed Items before Bootstrap!', 'item.list'),
-        ('Skipping Entity with id', 'entity.list'),
-        ('disconnect.lost', 'nethandler.client'),
-        ('Outdated server!', 'nethandler.server'),
         ('Accessed Biomes before Bootstrap!', 'biome.list'), #1.9 only
         ('Ice Plains', 'biome.superclass'),
-        ('Corrupt NBT tag', 'nbtcompound'),
+        ('Accessed Blocks before Bootstrap!', 'block.list'),
+        ('lightgem', 'block.superclass'),
+        ('Skipping Entity with id', 'entity.list'),
+        ('Accessed Items before Bootstrap!', 'item.list'),
+        ('yellowDust', 'item.superclass'),
         ('#%04d/%d%s', 'itemstack'),
+        ('disconnect.lost', 'nethandler.client'),
+        ('Outdated server!', 'nethandler.server'),
+        ('Corrupt NBT tag', 'nbtcompound'),
+        (' is already assigned to protocol ', 'packet.connectionstate'),
+        ('The received encoded string buffer length is less than zero! Weird string!', 'packet.packetbuffer'),
         ('Data value id is too big', 'metadata'),
+        ('X#X', 'recipe.superclass'),
         ('Accessed Sounds before Bootstrap!', 'sounds.list'),
     )
     for c in class_file.constants.find(ConstantString):
@@ -90,23 +90,24 @@ class IdentifyTopping(Topping):
     """Finds important superclasses needed by other toppings."""
 
     PROVIDES = [
-        "identify.block.superclass",
+        "identify.biome.list",
+        "identify.biome.superclass",
         "identify.block.list",
+        "identify.block.superclass",
+        "identify.chatcomponent",
+        "identify.entity.list",
+        "identify.item.list",
+        "identify.item.superclass",
+        "identify.itemstack",
+        "identify.metadata",
+        "identify.nbtcompound",
+        "identify.nethandler.client",
+        "identify.nethandler.server",
         "identify.packet.connectionstate",
         "identify.packet.packetbuffer",
         "identify.recipe.superclass",
-        "identify.recipe.inventory",
-        "identify.recipe.cloth",
-        "identify.item.superclass",
-        "identify.item.list",
-        "identify.entity.list",
-        "identify.nethandler",
-        "identify.biome.superclass",
-        "identify.nbtcompound",
-        "identify.itemstack",
-        "identify.chatcomponent",
-        "identify.sounds.list",
-        "identify.sounds.event"
+        "identify.sounds.event",
+        "identify.sounds.list"
     ]
 
     DEPENDS = []
@@ -121,6 +122,8 @@ class IdentifyTopping(Topping):
             cf = ClassFile(StringIO(jar.read(path)))
             result = identify(cf)
             if result:
+                if result[0] in classes:
+                    raise Exception("Already registered " + result[0] + " to " + classes[result[0]] + "!  Can't overwrite it with " + result[1])
                 classes[result[0]] = result[1]
                 if len(classes) == len(IdentifyTopping.PROVIDES):
                     break

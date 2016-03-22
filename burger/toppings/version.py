@@ -38,7 +38,7 @@ class VersionTopping(Topping):
     ]
 
     DEPENDS = [
-        "identify.nethandler",
+        "identify.nethandler.server",
     ]
 
     @staticmethod

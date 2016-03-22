@@ -43,7 +43,8 @@ class BiomeTopping(Topping):
     ]
 
     DEPENDS = [
-        "identify.biome.superclass"
+        "identify.biome.superclass",
+        "identify.biome.list"
     ]
 
     @staticmethod
