@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 """
-Copyright (c) 2011 Tyler Kenendy <tk@tkte.ch>
+Copyright (c) 2010-2011 Tyler Kennedy <tk@tkte.ch>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -21,27 +21,23 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
+from distutils.core import setup
 
-
-class Topping(object):
-    PROVIDES = None
-    DEPENDS = None
-
-    @staticmethod
-    def act(aggregate, jar, verbose=False):
-        raise NotImplementedError()
-
-    @staticmethod
-    def parse_lang(contents):
-        contents = contents.split("\n")
-        for line in contents:
-            line = line.strip()
-            if not line:
-                continue
-            if line[0] == "#":
-                continue
-
-            tag, value = line.split("=", 1)
-            category, name = tag.split(".", 1)
-
-            yield (category, name, value)
+setup(
+    name = "Sŏlum",
+    packages = ["solum", "solum.classfile", "solum.context"],
+    version = "0.2.0",
+    description = "A low-level library for JVM class file disassembly.",
+    author = "Tyler Kennedy",
+    author_email = "tk@tkte.ch",
+    url = "http://github.com/TkTech/Solum",
+    keywords = ["java", "disassembly", "disassembler"],
+    classifiers = [
+        "Programming Language :: Python",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Developers",
+        "Topic :: Software Development :: Disassemblers"
+    ]
+)

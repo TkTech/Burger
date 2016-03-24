@@ -21,12 +21,18 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-from solum import ClassFile, ConstantType
 
 from .topping import Topping
 
+from jawa.constants import ConstantString
+from jawa.cf import ClassFile
 
-def identify(cf):
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
+
+def identify(class_file):
     """
     The first pass across the JAR will identify all possible classes it
     can, maping them by the 'type' it implements.
@@ -35,96 +41,73 @@ def identify(cf):
     check for known signatures and predictable constants. In the next pass,
     we'll have the initial mapping from this pass available to us.
     """
-    # First up, finding the "block superclass" (as we'll call it).
-    # We'll look for one of the debugging messages.
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: "when adding" in c["string"]["value"]
+    # We can identify almost every class we need just by
+    # looking for consistent strings.
+    matches = (
+        ('Accessed Biomes before Bootstrap!', 'biome.list'), #1.9 only
+        ('Ice Plains', 'biome.superclass'),
+        ('Accessed Blocks before Bootstrap!', 'block.list'),
+        ('lightgem', 'block.superclass'),
+        ('Skipping Entity with id', 'entity.list'),
+        ('Accessed Items before Bootstrap!', 'item.list'),
+        ('yellowDust', 'item.superclass'),
+        ('#%04d/%d%s', 'itemstack'),
+        ('disconnect.lost', 'nethandler.client'),
+        ('Outdated server!', 'nethandler.server'),
+        ('Corrupt NBT tag', 'nbtcompound'),
+        (' is already assigned to protocol ', 'packet.connectionstate'),
+        ('The received encoded string buffer length is less than zero! Weird string!', 'packet.packetbuffer'),
+        ('Data value id is too big', 'metadata'),
+        ('X#X', 'recipe.superclass'),
+        ('Accessed Sounds before Bootstrap!', 'sounds.list'),
     )
+    for c in class_file.constants.find(ConstantString):
+        value = c.string.value
+        for match, match_name in matches:
+            if match not in value:
+                continue
 
-    if const:
-        # We've found the block superclass, all done.
-        return ("block.superclass", cf.this)
+            return match_name, class_file.this.name.value
+        if 'BaseComponent' in value:
+            # We want the interface for chat components, but it has no
+            # string constants, so we need to use the abstract class and then
+            # get its first implemented interface.
+            assert len(class_file.interfaces) == 1
+            const = class_file.constants.get(class_file.interfaces[0])
+            return 'chatcomponent', const.name.value
+        if 'ambient.cave' in value:
+            # We _may_ have found the SoundEvent class, but there are several
+            # other classes with this string constant.  So we need to check
+            # for registration methods.
+            register_method = class_file.methods.find_one(args='', returns='V', f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
+            private_register_method = class_file.methods.find_one(args='', returns='V', f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
 
-    # Next up, see if we've got the packet superclass in the same way.
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: "Duplicate packet" in c["string"]["value"]
-    )
-
-    if const:
-        # We've found the packet superclass.
-        return ("packet.superclass", cf.this)
-
-    # The main recipe superclass.
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: "X#X" in c["string"]["value"]
-    )
-
-    if const:
-        return ("recipe.superclass", cf.this)
-
-    # Item superclass
-    const = cf.constants.find_one(
-       ConstantType.STRING,
-       lambda c: ("crafting results" in c["string"]["value"] or
-                  "CONFLICT @ " in c["string"]["value"])
-    )
-
-    if const:
-        return ("item.superclass", cf.this)
-
-    # Entity list
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: "Skipping Entity with id " in c["string"]["value"]
-    )
-
-    if const:
-        return ("entity.list", cf.this)
-
-    # Protocol version (Client)
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: "disconnect.loginFailedInfo" in c["string"]["value"]
-    )
-
-    if const:
-        return ("nethandler.client", cf.this)
-
-    # Protocol version (Server)
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: "Outdated client!" in c["string"]["value"]
-    )
-
-    if const:
-        return ("nethandler.server", cf.this)
-
-    # Biome
-    const = cf.constants.find_one(
-        ConstantType.STRING,
-        lambda c: ("Plains") in c["string"]["value"]
-    )
-
-    if const:
-        return ("biome.superclass", cf.this)
+            if register_method and private_register_method:
+                return 'sounds.event', class_file.this.name.value
 
 
 class IdentifyTopping(Topping):
     """Finds important superclasses needed by other toppings."""
 
     PROVIDES = [
+        "identify.biome.list",
+        "identify.biome.superclass",
+        "identify.block.list",
         "identify.block.superclass",
-        "identify.packet.superclass",
-        "identify.recipe.superclass",
-        "identify.recipe.inventory",
-        "identify.recipe.cloth",
-        "identify.item.superclass",
+        "identify.chatcomponent",
         "identify.entity.list",
-        "identify.nethandler",
-        "identify.biome.superclass"
+        "identify.item.list",
+        "identify.item.superclass",
+        "identify.itemstack",
+        "identify.metadata",
+        "identify.nbtcompound",
+        "identify.nethandler.client",
+        "identify.nethandler.server",
+        "identify.packet.connectionstate",
+        "identify.packet.packetbuffer",
+        "identify.recipe.superclass",
+        "identify.sounds.event",
+        "identify.sounds.list"
     ]
 
     DEPENDS = []
@@ -132,9 +115,16 @@ class IdentifyTopping(Topping):
     @staticmethod
     def act(aggregate, jar, verbose=False):
         classes = aggregate.setdefault("classes", {})
-        for cf in jar.classes:
+        for path in jar.namelist():
+            if not path.endswith(".class"):
+                continue
+
+            cf = ClassFile(StringIO(jar.read(path)))
             result = identify(cf)
             if result:
+                if result[0] in classes:
+                    raise Exception("Already registered " + result[0] + " to " + classes[result[0]] + "!  Can't overwrite it with " + result[1])
                 classes[result[0]] = result[1]
-                if len(classes) == 8:
+                if len(classes) == len(IdentifyTopping.PROVIDES):
                     break
+        print "identify classes:",classes

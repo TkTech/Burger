@@ -1,6 +1,6 @@
 # Burger
-Burger is a tiny "framework" for automatically extracting data
-from the minecraft game for the purpose of writing the protocol
+Burger is a "framework" for automatically extracting data
+from the Minecraft game for the purpose of writing the protocol
 specification, interoperability, and other neat uses.
 
 ## The Idea
@@ -15,24 +15,24 @@ flag, which will download the minecraft client for you.
 
     $ python munch.py --download
 
-Alternatively, you can specify either the client or the server
-JAR by passing it as an argument.
+Alternatively, you can specify the client JAR by passing it as an argument.
 
-    $ python munch.py minecraft_server.jar
+    $ python munch.py 1.8.jar
 
-We can redirect the output from the default `stdout` by passing
+You can redirect the output from the default `stdout` by passing
 `-o <path>` or `--output <path>`.
     
     $ python munch.py -d --output output.json
 
-We can see what toppings are available by passing `-l` or `--list`.
+You can see what toppings are available by passing `-l` or `--list`.
 
     $ python munch.py --list
 
-We can also run specific toppings by passing a comma-delimited list
+You can also run specific toppings by passing a comma-delimited list
 to `-t` or `--toppings`. If a topping cannot be used because it's
 missing a dependency, it will output an error telling you what 
-also needs to be included.
+also needs to be included.  Toppings will generally automatically load
+their dependencies, however.
 
     $ python munch.py -d --toppings language,stats
 

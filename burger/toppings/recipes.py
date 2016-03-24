@@ -21,11 +21,17 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-from solum import ConstantType
-from solum.descriptor import method_descriptor
 
 from .topping import Topping
 
+from jawa.util.descriptor import method_descriptor
+from jawa.constants import *
+from jawa.cf import ClassFile
+
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
 
 class RecipesTopping(Topping):
     """Provides a list of most possible crafting recipes."""
@@ -36,6 +42,8 @@ class RecipesTopping(Topping):
 
     DEPENDS = [
         "identify.recipe.superclass",
+        "identify.block.list",
+        "identify.item.list",
         "blocks",
         "items"
     ]
@@ -45,248 +53,220 @@ class RecipesTopping(Topping):
         superclass = aggregate["classes"]["recipe.superclass"]
         recipes = aggregate.setdefault("recipes", {})
 
-        cf = jar.open_class(superclass)
+        cf = ClassFile(StringIO(jar.read(superclass + ".class")))
 
-        # Find the loader function, which takes nothing, returns nothing,
-        # and is private.
+        # Find the constructor
         method = cf.methods.find_one(
-            returns="void",
-            args=(),
-            f=lambda x: x.is_private
+            name="<init>"
         )
 
         # Find the set function, so we can figure out what class defines
         # a recipe.
-        setters = cf.methods.find(
-            f=lambda x: "java.lang.Object[]" in x.args
-        )
+        # This method's second parameter is an array of objects.
+        setters = list(cf.methods.find(
+            f = lambda m: len(m.args) == 2 and m.args[1].dimensions == 1 and m.args[1].name == "java/lang/Object"
+        ))
+
+        itemstack = aggregate["classes"]["itemstack"]
+
         target_class = setters[0].args[0]
-        setter_names = [x.name for x in setters]
+        setter_names = [x.name.value for x in setters]
+
+        def get_material(clazz, field):
+            """Converts a class name and field into a block or item."""
+            if clazz == aggregate["classes"]["block.list"]:
+                if field in aggregate["blocks"]["block_fields"]:
+                    name = aggregate["blocks"]["block_fields"][field]
+                    data = aggregate["blocks"]["block"][name]
+                    return {
+                        'type': 'block',
+                        'name': name,
+                        'data': data
+                    }
+                else:
+                    raise Exception("Unknown block with field " + field)
+            elif clazz == aggregate["classes"]["item.list"]:
+                if field in aggregate["items"]["item_fields"]:
+                    name = aggregate["items"]["item_fields"][field]
+                    data = aggregate["items"]["item"][name]
+                    return {
+                        'type': 'item',
+                        'name': name,
+                        'data': data
+                    }
+                else:
+                    raise Exception("Unknown item with field " + field)
+            else:
+                raise Exception("Unknown list class " + clazz)
+
+        def read_itemstack(itr):
+            """Reads an itemstack from the given iterator of instructions"""
+            stack = []
+            while True:
+                ins = itr.next()
+                if ins.mnemonic.startswith("iconst_"):
+                    stack.append(int(ins.mnemonic[-1]))
+                elif ins.mnemonic == "bipush":
+                    stack.append(ins.operands[0].value)
+                elif ins.mnemonic == "getstatic":
+                    const = cf.constants.get(ins.operands[0].value)
+                    clazz = const.class_.name.value
+                    name = const.name_and_type.name.value
+                    stack.append((clazz, name))
+                elif ins.mnemonic == "invokevirtual":
+                    # TODO: This is a _total_ hack...
+                    # We assume that this is an enum, used to get the data value
+                    # for the given block.  We also assume that the return value
+                    # matches the enum constant's position... and do math from that.
+                    name = stack.pop()[1]
+                    # As I said... ugly.  There's probably a way better way of doing this.
+                    dv = int(name, 36) - int('a', 36)
+                    stack.append(dv)
+                elif ins.mnemonic == "iadd":
+                    # For whatever reason, there are a few cases where 4 is both
+                    # added and subtracted to the enum constant value.
+                    # So we need to handle that :/
+                    i2 = stack.pop()
+                    i1 = stack.pop()
+                    stack.append(i1 + i2);
+                elif ins.mnemonic == "isub":
+                    i2 = stack.pop()
+                    i1 = stack.pop()
+                    stack.append(i1 - i2);
+                elif ins.mnemonic == "invokespecial":
+                    const = cf.constants.get(ins.operands[0].value)
+                    if const.name_and_type.name.value == "<init>":
+                        break
+
+            item = get_material(*stack[0])
+            if len(stack) == 3:
+                item['count'] = stack[1]
+                item['metadata'] = stack[2]
+            elif len(stack) == 2:
+                item['count'] = stack[1]
+            return item
 
         def find_recipes(jar, cf, method, target_class, setter_names):
-            # Temporary state variables
-            tmp_recipes = []
-            started_item = False
-            next_push_is_val = False
-            with_metadata = False
-            block_substitute = None
-            block_subs = {}
-            rows = []
-            make_count = 0
-            metadata = 0
-            recipe_target = None
-            pushes_are_counts = False
-            positions = True
+            # Go through all instructions.
+            itr = iter(method.code.disassemble())
+            recipes = []
+            try:
+                while True:
+                    ins = itr.next()
+                    if ins.mnemonic != "new":
+                        # Wait until an item starts
+                        continue
+                    # Start of another recipe - the ending item.
+                    const = cf.constants.get(ins.operands[0].value)
+                    if const.name.value != itemstack:
+                        # Or it could be another type; irrelevant
+                        continue
+                    # The crafted item, first parameter
+                    crafted_item = read_itemstack(itr)
 
-            # Iterate over the methods instructions from the
-            # bottom-up so we can catch the invoke/new range.
-            for ins in method.instructions.reverse():
-                # Find the call that stores the generated recipe.
-                if ins.name == "invokevirtual" and not started_item:
-                    const_i = ins.operands[0][1]
-                    const = cf.constants[const_i]
-
-                    # Parse the string method descriptor
-                    desc = const["name_and_type"]["descriptor"]["value"]
-                    args, returns = method_descriptor(desc)
-
-                    # We've found the recipe storage method
-                    if "java.lang.Object[]" in args:
-                        started_item = True
-                        pushes_are_counts = False
-                        next_push_is_val = False
-                        with_metadata = False
-                        rows = []
-                        make_count = 0
-                        metadata = 0
-                        recipe_target = None
-                        method_name = const["name_and_type"]["name"]["value"]
-                        positions = method_name == setter_names[0]
-                        if positions:
-                            block_subs = {}
-                        else:
-                            block_subs = []
-                    elif superclass in args:
-                        _class = const["class"]["name"]["value"]
-                        sub_cf = jar.open_class(_class)
-                        tmp_recipes += find_recipes(
-                            jar, sub_cf,
-                            sub_cf.methods.find_one(args=args),
-                            target_class, setter_names
-                        )
-                # We've found the start of the recipe declaration (or the end
-                # as it is in our case).
-                elif ins.name == "new" and started_item:
-                    started_item = False
-                    if positions:
-                        tmp_recipes.append({
-                            "type": "shape",
-                            "substitutes": block_subs,
-                            "rows": rows,
-                            "makes": make_count,
-                            "recipe_target": recipe_target
-                        })
+                    ins = itr.next()
+                    # Size of the parameter array
+                    if ins.mnemonic.startswith("iconst_"):
+                        param_count = int(ins.mnemonic[-1])
+                    elif ins.mnemonic == "bipush":
+                        param_count = ins.operands[0].value
                     else:
-                        tmp_recipes.append({
-                            "type": "shapeless",
-                            "ingredients": block_subs,
-                            "makes": make_count,
-                            "recipe_target": recipe_target
-                        })
-                # The item/block to be substituted
-                elif (ins.name == "getstatic" and started_item
-                        and not pushes_are_counts):
-                    const_i = ins.operands[0][1]
-                    const = cf.constants[const_i]
+                        raise Exception('Unexpected instruction: expected int constant, got ' + str(ins))
 
-                    cl_name = const["class"]["name"]["value"]
-                    cl_field = const["name_and_type"]["name"]["value"]
+                    num_astore = 0
+                    data = None
+                    array = []
+                    while num_astore < param_count:
+                        ins = itr.next()
+                        # Read through the array; some strangeness of types,
+                        # though.  Also, note that the array index is pushed,
+                        # but we overwrite it with the second value and just
+                        # add in order instead.
+                        if ins.mnemonic == "aastore":
+                            num_astore += 1
+                            array.append(data)
+                            data = None
+                        elif ins.mnemonic in ("ldc", "ldc_w"):
+                            const = cf.constants.get(ins.operands[0].value)
+                            data = const.string.value
+                        elif ins.mnemonic.startswith("iconst_"):
+                            data = int(ins.mnemonic[-1])
+                        elif ins.mnemonic == "bipush":
+                            data = ins.operands[0].value
+                        elif ins.mnemonic == "invokestatic":
+                            const = cf.constants.get(ins.operands[0].value)
+                            if const.class_.name.value == "java/lang/Character" and const.name_and_type.name.value == "valueOf":
+                                data = chr(data)
+                            else:
+                                raise Exception("Unknown method invocation: " + repr(const))
+                        elif ins.mnemonic == "getstatic":
+                            const = cf.constants.get(ins.operands[0].value)
+                            clazz = const.class_.name.value
+                            field = const.name_and_type.name.value
+                            data = get_material(clazz, field)
+                        elif ins.mnemonic == "new":
+                            data = read_itemstack(itr)
 
-                    block_substitute = (cl_name, cl_field)
-                    if not positions:
-                        block_subs.append(block_substitute)
-                elif ins.name == "getstatic" and pushes_are_counts:
-                    const_i = ins.operands[0][1]
-                    const = cf.constants[const_i]
+                    ins = itr.next()
+                    assert ins.mnemonic == "invokevirtual"
+                    const = cf.constants.get(ins.operands[0].value)
 
-                    cl_name = const["class"]["name"]["value"]
-                    cl_field = const["name_and_type"]["name"]["value"]
+                    recipe_data = {}
+                    if const.name_and_type.name.value == setter_names[0]:
+                        # Shaped
+                        recipe_data['type'] = 'shape'
+                        recipe_data['makes'] = crafted_item
+                        rows = []
+                        subs = {}
+                        # TODO: Is there a better way to distinguish chars
+                        # and strings?  Right now, chars seem to be strings,
+                        # except that the strings that come from jawa are
+                        # unicode ones and the ones that come from chr() are
+                        # just 'str'...
+                        try:
+                            itr2 = iter(array)
+                            while True:
+                                obj = itr2.next()
+                                if isinstance(obj, unicode):
+                                    # Pattern
+                                    rows.append(obj)
+                                elif isinstance(obj, str):
+                                    # Character
+                                    item = itr2.next()
+                                    subs[obj] = item
+                        except StopIteration:
+                            pass
+                        recipe_data['raw'] = {
+                            'rows': rows,
+                            'subs': subs
+                        }
 
-                    recipe_target = (cl_name, cl_field, metadata)
-                # Block string substitute value
-                elif ins.name == "bipush" and next_push_is_val:
-                    next_push_is_val = False
-                    block_subs[chr(ins.operands[0][1])] = block_substitute
-                # Number of items that the recipe makes
-                elif ins.name == "bipush" and pushes_are_counts:
-                    make_count = ins.operands[0][1]
-                    if with_metadata:
-                        metadata = make_count
-                        with_metadata = False
-                elif ins.name.startswith("iconst_") and pushes_are_counts:
-                    make_count = int(ins.name[-1])
-                    if with_metadata:
-                        metadata = make_count
-                        with_metadata = False
-                # Recipe row
-                elif ins.name == "ldc" and started_item:
-                    const_i = ins.operands[0][1]
-                    const = cf.constants[const_i]
+                        shape = []
+                        for row in rows:
+                            shape_row = []
+                            for char in row:
+                                if not char.isspace():
+                                    shape_row.append(subs[char])
+                                else:
+                                    shape_row.append(None)
+                            shape.append(shape_row)
 
-                    if const['tag'] == ConstantType.STRING:
-                        rows.append(const['string']['value'])
-                # The Character.valueOf() call
-                elif ins.name == "invokestatic":
-                    const_i = ins.operands[0][1]
-                    const = cf.constants[const_i]
+                        recipe_data['shape'] = shape
+                    else:
+                        # Shapeless
+                        recipe_data['type'] = 'shapeless'
+                        recipe_data['makes'] = crafted_item
+                        recipe_data['ingredients'] = array
 
-                    # Parse the string method descriptor
-                    desc = const["name_and_type"]["descriptor"]["value"]
-                    args, returns = method_descriptor(desc)
-
-                    if "char" in args and returns == "java.lang.Character":
-                        # The next integer push will be the character value.
-                        next_push_is_val = True
-                elif ins.name == "invokespecial" and started_item:
-                    const_i = ins.operands[0][1]
-                    const = cf.constants[const_i]
-
-                    name = const["name_and_type"]["name"]["value"]
-                    if name == "<init>":
-                        pushes_are_counts = True
-                        if ("II" in
-                                const["name_and_type"]["descriptor"]["value"]):
-                            with_metadata = True
-            return tmp_recipes
+                    recipes.append(recipe_data)
+            except StopIteration:
+                pass
+            return recipes
 
         tmp_recipes = find_recipes(jar, cf, method, target_class, setter_names)
-
-        # Re-arrange the block class so the key is the class
-        # name and field name.
-        block_class = aggregate["classes"]["block.superclass"]
-        block_map = {}
-        for id_, block in aggregate["blocks"]["block"].iteritems():
-            block_map["%s:%s" % (block_class, block["field"])] = block
-
-        item_class = aggregate["classes"]["item.superclass"]
-        item_map = {}
-        for id_, item in aggregate["items"]["item"].iteritems():
-            item_map["%s:%s" % (item_class, item["field"])] = item
-
-        def getName(cls_fld):
-            if cls_fld is None:
-                return None
-            field = ":".join(cls_fld[:2])
-            if field in block_map:
-                return block_map[field]
-            elif field in item_map:
-                return item_map[field]
-            else:
-                return cls_fld
-
+        
         for recipe in tmp_recipes:
-            final = {
-                "amount": recipe["makes"],
-                "type": recipe["type"]
-            }
-
-            shape = recipe["type"] == "shape"
-
-            # Filter invalid recipes
-            if shape and len(recipe["rows"]) == 0:
-                continue
-            elif recipe["recipe_target"] == None:
-                continue
-            elif not shape and len(recipe["ingredients"]) == 0:
-                continue
-
-            if shape:
-                final["raw"] = {
-                    "rows": recipe["rows"],
-                    "subs": recipe["substitutes"]
-                }
-
-            # Try to get the substitutes name
-            if shape:
-                subs = recipe["substitutes"]
-                for sub in subs:
-                    subs[sub] = getName(subs[sub])
-            else:
-                final["ingredients"] = []
-                for ingredient in recipe["ingredients"]:
-                    final["ingredients"].append(getName(ingredient))
-
-            # Try to get the created item/block name.
-            target = getName(recipe["recipe_target"])
-            final["makes"] = target
-            final["metadata"] = recipe["recipe_target"][2]
-            if isinstance(target, dict):
-                key = target["id"]
-            elif target is None:
-                key = "NA"
-            else:
-                final["field"] = target
-                key = ":".join(str(i) for i in target)
-
-            if shape:
-                rmap = []
-                for row in recipe["rows"]:
-                    tmp = []
-                    for col in row:
-                        if col == ' ':
-                            tmp.append(0)
-                        elif col in recipe["substitutes"]:
-                            if isinstance(recipe["substitutes"][col], dict):
-                                tmp.append(recipe["substitutes"][col]["id"])
-                            else:
-                                tmp.append(":".join(
-                                    recipe["substitutes"][col])
-                                )
-                        else:
-                            tmp.append(None)
-                    rmap.append(tmp)
-
-                final["shape"] = rmap
-            if key not in recipes:
-                recipes[key] = []
-            recipes[key].append(final)
+            makes = recipe['makes']['name']
+            
+            recipes_for_item = recipes.setdefault(makes, [])
+            recipes_for_item.append(recipe)

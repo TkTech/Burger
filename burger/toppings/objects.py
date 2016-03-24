@@ -21,11 +21,18 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-from solum import ClassFile, ConstantType
+
 from copy import copy
 
 from .topping import Topping
 
+from jawa.constants import *
+from jawa.cf import ClassFile
+
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
 
 class ObjectTopping(Topping):
     """Gets most vehicle/object types."""
@@ -35,7 +42,7 @@ class ObjectTopping(Topping):
     ]
 
     DEPENDS = [
-        "identify.nethandler",
+        "identify.nethandler.client",
         "entities.entity",
         "packets.classes"
     ]
@@ -46,27 +53,28 @@ class ObjectTopping(Topping):
             return
 
         superclass = aggregate["classes"]["nethandler.client"]
-        cf = jar.open_class(superclass)
+        cf = ClassFile(StringIO(jar.read(superclass + ".class")))
 
         # Find the vehicle handler
-        packet = aggregate["packets"]["packet"][23]["class"]
-        method = cf.methods.find_one(args=(packet,))
+        SPAWN_OBJECT_PACKET_ID = "PLAY_CLIENTBOUND_14";
+        packet = aggregate["packets"]["packet"][SPAWN_OBJECT_PACKET_ID]["class"]
+        method = cf.methods.find_one(args="L" + packet.replace(".class", "") + ";")
         entities = aggregate["entities"]
         objects = entities.setdefault("object", {})
 
         potential_id = 0
         current_id = 0
 
-        for ins in method.instructions:
-            if ins.opcode == 160:  # if_icmpne
+        for ins in method.code.disassemble():
+            if ins.mnemonic == "if_icmpne":
                 current_id = potential_id
-            elif ins.opcode == 16:  # bipush
-                potential_id = ins.operands[0][1]
+            elif ins.mnemonic == "bipush":
+                potential_id = ins.operands[0].value
             elif ins.opcode <= 8 and ins.opcode >= 2:
                 potential_id = ins.opcode - 3
-            elif ins.opcode == 187:  # new
-                const = cf.constants[ins.operands[0][1]]
-                tmp = {"id": current_id, "class": const["name"]["value"]}
+            elif ins.mnemonic == "new":
+                const = cf.constants.get(ins.operands[0].value)
+                tmp = {"id": current_id, "class": const.name.value}
                 objects[tmp["id"]] = tmp
 
         classes = {}
@@ -79,7 +87,8 @@ class ObjectTopping(Topping):
                 o["entity"] = copy(classes[o["class"]])
                 del o["entity"]["class"]
             else:
-                size = EntityTopping.size(jar.open_class(o["class"]))
+                cf = ClassFile(StringIO(jar.read(o["class"] + ".class")))
+                size = EntityTopping.size(cf)
                 if size:
                     o["entity"] = {"width": size[0], "height": size[1]}
                     if size[2]:

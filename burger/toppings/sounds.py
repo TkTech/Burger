@@ -21,68 +21,47 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-import urllib
-import re
-from xml.sax import ContentHandler, make_parser
 
-from solum import ClassFile, ConstantType
+import urllib
+try:
+    import json
+except ImportError:
+    import simplejson as json
+
+import traceback
 
 from .topping import Topping
 
+from jawa.constants import *
+from jawa.cf import ClassFile
 
-def load_resource_list():
-    parser = make_parser()
-    handler = FindSounds()
-    parser.setContentHandler(handler)
-    f = urllib.urlopen("http://s3.amazonaws.com/MinecraftResources/")
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
+
+ASSET_INDEX = "https://s3.amazonaws.com/Minecraft.Download/indexes/1.9.json"
+RESOURCES_SITE = "http://resources.download.minecraft.net/%s/%s"
+
+def get_asset_index(url=ASSET_INDEX):
+    """Downloads the Minecraft asset index"""
+    index_file = urllib.urlopen(url)
     try:
-        parser.parse(f)
+        return json.load(index_file)
     finally:
-        f.close()
-    return handler.sounds
+        index_file.close()
 
+def get_sounds(asset_index, resources_site=RESOURCES_SITE):
+    """Downloads the sounds.json file from the assets index"""
+    sounds_hash = asset_index["objects"]["minecraft/sounds.json"]["hash"]
+    sounds_url = resources_site % (sounds_hash[0:2], sounds_hash)
 
-class FindSounds(ContentHandler):
-    def __init__(self):
-        self.sounds = {}
-        self.inside_key = False
-        self.pattern = re.compile("^(\D+)(\d+)$")
-        self.key = ""
+    sounds_file = urllib.urlopen(sounds_url)
 
-    def startElement(self, name, attrs):
-        if name == "Key":
-            self.inside_key = True
-
-    def endElement(self, name):
-        if name == "Key":
-            self.parse_key(self.key)
-            self.key = ""
-            self.inside_key = False
-
-    def characters(self, characters):
-        if self.inside_key:
-            self.key += characters
-
-    def parse_key(self, key):
-        if "." not in key:
-            return
-        path = key
-        key, _, extension = str(key).partition(".")
-        package, _, name = key.replace("/", ".").partition(".")
-        match = re.match(self.pattern, name)
-        if match is not None:
-            name = match.group(1)
-            variant = int(match.group(2))
-        else:
-            variant = None
-        sound = self.sounds.setdefault(name, {'name': name,
-                                              'versions': {}})
-        version = sound['versions'].setdefault(package, [])
-        version.append({'variant': variant,
-                        'format': extension,
-                        'path': path})
-        version.sort(key=lambda v: v['variant'])
-
+    try:
+        return json.load(sounds_file)
+    finally:
+        sounds_file.close()
 
 class SoundTopping(Topping):
     """Finds all named sound effects which are both used in the server and
@@ -92,19 +71,93 @@ class SoundTopping(Topping):
         "sounds"
     ]
 
-    DEPENDS = []
+    DEPENDS = [
+        "identify.sounds.list",
+        "identify.sounds.event",
+        "language"
+    ]
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
         sounds = aggregate.setdefault('sounds', {})
         try:
-            resources = load_resource_list()
-        except Exception, e:
+            assets = get_asset_index()
+        except Exception as e:
             if verbose:
-                print "Unable to load resource list from mojang: %s" % e
+                print "Error: Failed to download asset index for sounds: %s" % e
+                traceback.print_exc()
             return
-        for cf in jar.classes:
-            for c in cf.constants.find(ConstantType.STRING):
-                key = c['string']['value']
-                if key in resources:
-                    sounds[key] = resources[key]
+        try:
+            sounds_json = get_sounds(assets)
+        except Exception as e:
+            if verbose:
+                print "Error: Failed to download sound list: %s" % e
+                traceback.print_exc()
+            return
+
+        if not 'sounds.list' in aggregate["classes"]:
+            # 1.8 - TODO implement this for 1.8
+            return
+
+        soundevent = aggregate["classes"]["sounds.event"]
+        cf = ClassFile(StringIO(jar.read(soundevent + ".class")))
+
+        # Find the static sound registration method
+        method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
+
+        sound_name = None
+        sound_id = 0
+        for ins in method.code.disassemble():
+            if ins.mnemonic in ('ldc', 'ldc_w'):
+                const = cf.constants.get(ins.operands[0].value)
+                sound_name = const.string.value
+            elif ins.mnemonic == 'invokestatic':
+                sound = {
+                    "name": sound_name,
+                    "id": sound_id
+                }
+                sound_id += 1
+
+                if sound_name in sounds_json:
+                    json_sound = sounds_json[sound_name]
+                    if "sounds" in json_sound:
+                        sound["sounds"] = []
+                        for value in json_sound["sounds"]:
+                            data = {}
+                            if isinstance(value, basestring):
+                                data["name"] = value
+                                path = value
+                            elif isinstance(value, dict):
+                                # Guardians use this to have a reduced volume
+                                data = value
+                                path = value["name"]
+                            asset_key = "minecraft/sounds/%s.ogg" % path
+                            if asset_key in assets["objects"]:
+                                data["hash"] = assets["objects"][asset_key]["hash"]
+                            sound["sounds"].append(data)
+                    if "subtitle" in json_sound:
+                        subtitle = json_sound["subtitle"]
+                        sound["subtitle_key"] = subtitle
+                        # Get rid of the starting key since the language topping
+                        # splits it off like that
+                        subtitle_trimmed = subtitle[len("subtitles."):]
+                        if subtitle_trimmed in aggregate["language"]["subtitles"]:
+                            sound["subtitle"] = aggregate["language"]["subtitles"][subtitle_trimmed]
+
+                sounds[sound_name] = sound
+
+        # Get fields now
+        soundlist = aggregate["classes"]["sounds.list"]
+        lcf = ClassFile(StringIO(jar.read(soundlist + ".class")))
+
+        method = lcf.methods.find_one(name="<clinit>")
+        for ins in method.code.disassemble():
+            if ins.mnemonic in ('ldc', 'ldc_w'):
+                const = lcf.constants.get(ins.operands[0].value)
+                sound_name = const.string.value
+            elif ins.mnemonic == "putstatic":
+                if sound_name is None or sound_name == "Accessed Sounds before Bootstrap!":
+                    continue
+                const = lcf.constants.get(ins.operands[0].value)
+                field = const.name_and_type.name.value
+                sounds[sound_name]["field"] = field

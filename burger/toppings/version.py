@@ -19,10 +19,16 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
-from solum import ClassFile, ConstantType
 
 from .topping import Topping
 
+from jawa.constants import *
+from jawa.cf import ClassFile
+
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
 
 class VersionTopping(Topping):
     """Provides the protocol version."""
@@ -32,55 +38,25 @@ class VersionTopping(Topping):
     ]
 
     DEPENDS = [
-        "identify.nethandler",
-        "packets.ids",
-        "packets.classes"
+        "identify.nethandler.server",
     ]
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
         versions = aggregate.setdefault("version", {})
-        try:
-            handshake = aggregate["packets"]["packet"][2]["class"]
-            login = aggregate["packets"]["packet"][1]["class"]
-        except:
-            if verbose:
-                print "Unable to find packets needed",
-                print "to determine protocol version"
-            return
         if "nethandler.server" in aggregate["classes"]:
-            cf = jar.open_class(aggregate["classes"]["nethandler.server"])
-            methods = cf.methods.find()
+            nethandler = aggregate["classes"]["nethandler.server"] + ".class"
+            cf = ClassFile(StringIO(jar.read(nethandler)))
             version = None
-            for method in methods:
-                for instr in method.instructions:
-                    if instr.opcode == 16:
-                        version = instr.operands[0][1]
-                    elif instr.opcode == 18 and version:
-                        constant = cf.constants[instr.operands[0][1]]
-                        if constant["string"]["value"] == "Outdated server!":
-                            versions["protocol"] = version
-                            return
-        elif "nethandler.client" in aggregate["classes"]:
-            cf = jar.open_class(aggregate["classes"]["nethandler.client"])
-            method = cf.methods.find_one(args=(handshake,))
-            if method is None:
-                return
-
-            lookForVersion = False
-            version = None
-            for instr in method.instructions:
-                if instr.opcode == 187:
-                    constant = cf.constants.storage[instr.operands[0][1]]
-                    if constant["name"]["value"] == login:
-                        lookForVersion = True
-                    else:
-                        lookForVersion = False
-                elif lookForVersion and instr.opcode == 16:
-                    version = instr.operands[0][1]
-                    break
-
-            if version:
-                versions["protocol"] = version
+            for method in cf.methods:
+                for instr in method.code.disassemble():
+                    if instr.mnemonic == "bipush":
+                        version = instr.operands[0].value
+                    elif instr.mnemonic == "ldc" and version is not None:
+                        constant = cf.constants.get(instr.operands[0].value)
+                        if isinstance(constant, ConstantString):
+                            if "Outdated server!" in constant.string.value:
+                                versions["protocol"] = version
+                                return
         elif verbose:
             print "Unable to determine protocol version"

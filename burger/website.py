@@ -32,7 +32,8 @@ class Website(object):
         self.version = version
 
     @staticmethod
-    def client_jar(path=None, reporthook=None):
-        url = "http://s3.amazonaws.com/MinecraftDownload/minecraft.jar"
+    def client_jar(path=None, reporthook=None, version="1.9"):
+        url = "http://s3.amazonaws.com/Minecraft.Download/versions/%s/%s.jar" % (version, version)
+        #url = "http://s3.amazonaws.com/MinecraftDownload/minecraft.jar" # 1.5.2
         r = urllib.urlretrieve(url, filename=path, reporthook=reporthook)
         return r[0]
