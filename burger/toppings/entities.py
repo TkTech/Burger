@@ -61,6 +61,9 @@ class EntityTopping(Topping):
             """
             found_ldc = False
             for ins in method.code.disassemble():
+                if ins.mnemonic == "new":
+                    # Aliases of some sort come after new; these aren't handled yet
+                    return
                 if found_ldc:
                     yield ins
                 elif ins.mnemonic in ("ldc", "ldc_w"):
