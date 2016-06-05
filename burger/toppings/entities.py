@@ -55,6 +55,49 @@ class EntityTopping(Topping):
         alias = entities.setdefault("alias", {})
         tmp = {}
 
+        minecart_info = entities.setdefault("minecart_info", {})
+
+        def load_minecart_enum(classname):
+            """Stores data about the minecart enum in aggregate"""
+            minecart_info["class"] = classname
+
+            minecart_types = minecart_info.setdefault("types", {})
+            minecart_types_by_field = minecart_info.setdefault("types_by_field", {})
+
+            minecart_cf = ClassFile(StringIO(jar.read(classname + ".class")))
+            init_method = minecart_cf.methods.find_one("<clinit>")
+
+            already_has_minecart_name = False
+            for ins in init_method.code.disassemble():
+                if ins.mnemonic == "new":
+                    const = minecart_cf.constants.get(ins.operands[0].value)
+                    minecart_class = const.name.value
+                elif ins.mnemonic == "ldc":
+                    const = minecart_cf.constants.get(ins.operands[0].value)
+                    if isinstance(const, ConstantString):
+                        if already_has_minecart_name:
+                            minecart_type = const.string.value
+                        else:
+                            already_has_minecart_name = True
+                            minecart_name = const.string.value
+                elif ins.mnemonic == "putstatic":
+                    const = minecart_cf.constants.get(ins.operands[0].value)
+                    if const.name_and_type.descriptor.value != "L" + classname + ";":
+                        # Other parts of the enum initializer (values array) that we don't care about
+                        continue
+
+                    minecart_field = const.name_and_type.name.value
+
+                    minecart_types[minecart_name] = {
+                        "class": minecart_class,
+                        "field": minecart_field,
+                        "name": minecart_name,
+                        "entitytype": minecart_type
+                    }
+                    minecart_types_by_field[minecart_field] = minecart_name
+
+                    already_has_minecart_name = False
+
         mode = "starting"
 
         stack = []
@@ -74,7 +117,7 @@ class EntityTopping(Topping):
                         stack.append(const.string.value)
                     else:
                         stack.append(const.value)
-                elif ins.mnemonic == "bipush":  # bipush
+                elif ins.mnemonic in ("bipush", "sipush"):
                     stack.append(ins.operands[0].value)
                 elif ins.opcode <= 8 and ins.opcode >= 2: # iconst
                     stack.append(ins.opcode - 3)
@@ -84,12 +127,19 @@ class EntityTopping(Topping):
                     mode = "aliases"
                     const = cf.constants.get(ins.operands[0].value)
                     stack.append(const.name.value)
+                elif ins.mnemonic == "getstatic":
+                    # Minecarts use an enum for their data - assume that this is that enum
+                    const = cf.constants.get(ins.operands[0].value)
+                    if not "types_by_field" in minecart_info:
+                        load_minecart_enum(const.class_.name.value)
+                    # This technically happens when invokevirtual is called, but do it like this for simplicity
+                    minecart_name = minecart_info["types_by_field"][const.name_and_type.name.value]
+                    stack.append(minecart_info["types"][minecart_name]["entitytype"])
                 elif ins.mnemonic == "invokestatic":  # invokestatic
                     if mode == "entities":
                         tmp["class"] = stack[0]
                         tmp["name"] = stack[1]
-                        if (len(stack) >= 3):
-                            tmp["id"] = stack[2]
+                        tmp["id"] = stack[2]
                         if (len(stack) >= 5):
                             tmp["egg_primary"] = stack[3]
                             tmp["egg_secondary"] = stack[4]
