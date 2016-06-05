@@ -143,8 +143,7 @@ class EntityTopping(Topping):
                         if (len(stack) >= 5):
                             tmp["egg_primary"] = stack[3]
                             tmp["egg_secondary"] = stack[4]
-                        if "id" in tmp:
-                            entity[tmp["id"]] = tmp
+                        entity[tmp["name"]] = tmp
                     elif mode == "aliases":
                         tmp["entity"] = stack[0]
                         tmp["name"] = stack[1]
