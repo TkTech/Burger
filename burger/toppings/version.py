@@ -50,7 +50,7 @@ class VersionTopping(Topping):
             version = None
             for method in cf.methods:
                 for instr in method.code.disassemble():
-                    if instr.mnemonic == "bipush":
+                    if instr.mnemonic in ("bipush", "sipush"):
                         version = instr.operands[0].value
                     elif instr.mnemonic == "ldc" and version is not None:
                         constant = cf.constants.get(instr.operands[0].value)
