@@ -43,24 +43,53 @@ class ObjectTopping(Topping):
 
     DEPENDS = [
         "identify.nethandler.client",
+        "identify.entity.trackerentry",
         "entities.entity",
         "packets.classes"
     ]
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
-        if "nethandler.client" not in aggregate["classes"]:
+        if "entity.trackerentry" not in aggregate["classes"] or "nethandler.client" not in aggregate["classes"]:
             return
 
-        superclass = aggregate["classes"]["nethandler.client"]
-        cf = ClassFile(StringIO(jar.read(superclass + ".class")))
-
-        # Find the vehicle handler
-        SPAWN_OBJECT_PACKET_ID = "PLAY_CLIENTBOUND_14";
-        packet = aggregate["packets"]["packet"][SPAWN_OBJECT_PACKET_ID]["class"]
-        method = cf.methods.find_one(args="L" + packet.replace(".class", "") + ";")
         entities = aggregate["entities"]
+
+        # Find the spawn object packet ID using EntityTrackerEntry.createSpawnPacket
+        # (which handles other spawn packets too, but the first item in it is correct)
+        entitytrackerentry = aggregate["classes"]["entity.trackerentry"]
+        entitytrackerentry_cf = ClassFile(StringIO(jar.read(entitytrackerentry + ".class")))
+
+        createspawnpacket_method = entitytrackerentry_cf.methods.find_one(args="",
+                f=lambda x: x.access_flags.acc_private and not x.access_flags.acc_static and not x.returns.name == "void")
+
+        packet_class_name = None
+
+        for ins in createspawnpacket_method.code.disassemble():
+            if ins.mnemonic == "new":
+                # The first new is for EntityItem, which uses spawn object.
+                # This _might_ change in which case we'd get the wrong packet, but it hopefully won't.
+                const = entitytrackerentry_cf.constants.get(ins.operands[0].value)
+                packet_class_name = const.name.value
+                break
+
+        if packet_class_name is None:
+            print "Failed to find spawn object packet"
+            return
+
+        # Get the packet info for the spawn object packet - not required but it is helpful information
+        for key, packet in aggregate["packets"]["packet"].iteritems():
+            if packet_class_name in packet["class"]:
+                # "in" is used because packet["class"] would have ".class" at the end
+                entities["info"]["spawn_object_packet"] = key
+                break
+
         objects = entities.setdefault("object", {})
+
+        # Now find the spawn object packet handler and use it to figure out IDs
+        nethandler = aggregate["classes"]["nethandler.client"]
+        nethandler_cf = ClassFile(StringIO(jar.read(nethandler + ".class")))
+        method = nethandler_cf.methods.find_one(args="L" + packet_class_name + ";")
 
         potential_id = 0
         current_id = 0
@@ -68,12 +97,12 @@ class ObjectTopping(Topping):
         for ins in method.code.disassemble():
             if ins.mnemonic == "if_icmpne":
                 current_id = potential_id
-            elif ins.mnemonic == "bipush":
+            elif ins.mnemonic in ("bipush", "sipush"):
                 potential_id = ins.operands[0].value
-            elif ins.opcode <= 8 and ins.opcode >= 2:
+            elif ins.opcode <= 8 and ins.opcode >= 2: # iconst
                 potential_id = ins.opcode - 3
             elif ins.mnemonic == "new":
-                const = cf.constants.get(ins.operands[0].value)
+                const = nethandler_cf.constants.get(ins.operands[0].value)
                 tmp = {"id": current_id, "class": const.name.value}
                 objects[tmp["id"]] = tmp
 
