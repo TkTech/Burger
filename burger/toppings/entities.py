@@ -49,7 +49,6 @@ class EntityTopping(Topping):
         cf = ClassFile(StringIO(jar.read(superclass + ".class")))
 
         # Find the static constructor
-        method = cf.methods.find_one("<clinit>")
         entities = aggregate.setdefault("entities", {})
         entity = entities.setdefault("entity", {})
         alias = entities.setdefault("alias", {})
@@ -98,17 +97,23 @@ class EntityTopping(Topping):
 
                     already_has_minecart_name = False
 
-        mode = "starting"
+        # Detect whether post-1.11 logic should be used
+        is_1point11 = False
+        for c in cf.constants.find(ConstantString):
+            # Lowercase 1.11 naming in a special constant
+            if c.string.value == "lightning_bolt":
+                is_1point11 = True
+                break
 
-        stack = []
-        for ins in method.code.disassemble():
-            if mode == "starting":
-                # We don't care about the logger setup stuff at the beginning;
-                # wait until an entity definition starts.
-                if ins.mnemonic in ("ldc", "ldc_w"):
-                    mode = "entities"
-            # elif is not used here because we need to handle modes changing
-            if mode != "starting":
+        if is_1point11:
+            # 1.11 logic
+            if verbose:
+                print "Using 1.11 entity format"
+
+            method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
+
+            stack = []
+            for ins in method.code.disassemble():
                 if ins.mnemonic in ("ldc", "ldc_w"):
                     const = cf.constants.get(ins.operands[0].value)
                     if isinstance(const, ConstantClass):
@@ -121,12 +126,6 @@ class EntityTopping(Topping):
                     stack.append(ins.operands[0].value)
                 elif ins.opcode <= 8 and ins.opcode >= 2: # iconst
                     stack.append(ins.opcode - 3)
-                elif ins.mnemonic == "new":
-                    # Entity aliases (for lack of a better term) start with 'new's.
-                    # Switch modes (this operation will be processed there)
-                    mode = "aliases"
-                    const = cf.constants.get(ins.operands[0].value)
-                    stack.append(const.name.value)
                 elif ins.mnemonic == "getstatic":
                     # Minecarts use an enum for their data - assume that this is that enum
                     const = cf.constants.get(ins.operands[0].value)
@@ -135,26 +134,89 @@ class EntityTopping(Topping):
                     # This technically happens when invokevirtual is called, but do it like this for simplicity
                     minecart_name = minecart_info["types_by_field"][const.name_and_type.name.value]
                     stack.append(minecart_info["types"][minecart_name]["entitytype"])
-                elif ins.mnemonic == "invokestatic":  # invokestatic
-                    if mode == "entities":
-                        tmp["class"] = stack[0]
-                        tmp["name"] = stack[1]
-                        tmp["id"] = stack[2]
-                        if (len(stack) >= 5):
-                            tmp["egg_primary"] = stack[3]
-                            tmp["egg_secondary"] = stack[4]
-                        entity[tmp["name"]] = tmp
-                    elif mode == "aliases":
-                        tmp["entity"] = stack[0]
-                        tmp["name"] = stack[1]
-                        if (len(stack) >= 5):
-                            tmp["egg_primary"] = stack[2]
-                            tmp["egg_secondary"] = stack[3]
-                        tmp["class"] = stack[-1] # last item, made by new.
-                        alias[tmp["name"]] = tmp
+                elif ins.mnemonic == "invokestatic":
+                    if len(stack) == 4:
+                        # Initial registration
+                        name = stack[1]
 
-                    tmp = {}
+                        entity[name] = {
+                            "id": stack[0],
+                            "name": name,
+                            "class": stack[2],
+                            "old_name": stack[3]
+                        }
+                    elif len(stack) == 3:
+                        # Spawn egg registration
+                        name = stack[0]
+                        if name in entity:
+                            entity[name]["egg_primary"] = stack[1]
+                            entity[name]["egg_secondary"] = stack[2]
+                        else:
+                            print "Missing entity during egg registration:", name
                     stack = []
+        else:
+            # 1.10 logic
+            if verbose:
+                print "Using 1.10 entity format"
+
+            method = cf.methods.find_one("<clinit>")
+            mode = "starting"
+
+            stack = []
+            for ins in method.code.disassemble():
+                if mode == "starting":
+                    # We don't care about the logger setup stuff at the beginning;
+                    # wait until an entity definition starts.
+                    if ins.mnemonic in ("ldc", "ldc_w"):
+                        mode = "entities"
+                # elif is not used here because we need to handle modes changing
+                if mode != "starting":
+                    if ins.mnemonic in ("ldc", "ldc_w"):
+                        const = cf.constants.get(ins.operands[0].value)
+                        if isinstance(const, ConstantClass):
+                            stack.append(const.name.value)
+                        elif isinstance(const, ConstantString):
+                            stack.append(const.string.value)
+                        else:
+                            stack.append(const.value)
+                    elif ins.mnemonic in ("bipush", "sipush"):
+                        stack.append(ins.operands[0].value)
+                    elif ins.opcode <= 8 and ins.opcode >= 2: # iconst
+                        stack.append(ins.opcode - 3)
+                    elif ins.mnemonic == "new":
+                        # Entity aliases (for lack of a better term) start with 'new's.
+                        # Switch modes (this operation will be processed there)
+                        mode = "aliases"
+                        const = cf.constants.get(ins.operands[0].value)
+                        stack.append(const.name.value)
+                    elif ins.mnemonic == "getstatic":
+                        # Minecarts use an enum for their data - assume that this is that enum
+                        const = cf.constants.get(ins.operands[0].value)
+                        if not "types_by_field" in minecart_info:
+                            load_minecart_enum(const.class_.name.value)
+                        # This technically happens when invokevirtual is called, but do it like this for simplicity
+                        minecart_name = minecart_info["types_by_field"][const.name_and_type.name.value]
+                        stack.append(minecart_info["types"][minecart_name]["entitytype"])
+                    elif ins.mnemonic == "invokestatic":  # invokestatic
+                        if mode == "entities":
+                            tmp["class"] = stack[0]
+                            tmp["name"] = stack[1]
+                            tmp["id"] = stack[2]
+                            if (len(stack) >= 5):
+                                tmp["egg_primary"] = stack[3]
+                                tmp["egg_secondary"] = stack[4]
+                            entity[tmp["name"]] = tmp
+                        elif mode == "aliases":
+                            tmp["entity"] = stack[0]
+                            tmp["name"] = stack[1]
+                            if (len(stack) >= 5):
+                                tmp["egg_primary"] = stack[2]
+                                tmp["egg_secondary"] = stack[3]
+                            tmp["class"] = stack[-1] # last item, made by new.
+                            alias[tmp["name"]] = tmp
+
+                        tmp = {}
+                        stack = []
 
         for e in entity.itervalues():
             cf = ClassFile(StringIO(jar.read(e["class"] + ".class")))

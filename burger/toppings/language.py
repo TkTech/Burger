@@ -54,6 +54,12 @@ class LanguageTopping(Topping):
             "assets/minecraft/lang/en_US.lang",
             verbose
         )
+        LanguageTopping.load_language(
+            aggregate,
+            jar,
+            "assets/minecraft/lang/en_us.lang",
+            verbose
+        )
 
     @staticmethod
     def load_language(aggregate, jar, path, verbose=False):
