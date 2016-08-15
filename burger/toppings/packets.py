@@ -198,7 +198,8 @@ class PacketsTopping(Topping):
                         "class": stack[1],
                         "direction": direction,
                         "from_client": from_client(method_name),
-                        "from_server": from_server(method_name)
+                        "from_server": from_server(method_name),
+                        "state": state_name
                     }
                     stack = []
 
