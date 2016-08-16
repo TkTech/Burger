@@ -62,18 +62,19 @@ def import_toppings():
 
     from burger.toppings.topping import Topping
     toppings = {}
-    count = 0
+    last = Topping.__subclasses__()
 
     for topping in from_list:
         __import__("burger.toppings.%s" % topping)
-        subclasses = Topping.__subclasses__()
-        if len(subclasses) == count:
+        current = Topping.__subclasses__()
+        subclasses = list([o for o in current if o not in last])
+        last = Topping.__subclasses__()
+        if len(subclasses) == 0:
             print "Topping '%s' contains no topping" % topping
-        elif len(subclasses) >= count + 2:
+        elif len(subclasses) >= 2:
             print "Topping '%s' contains more than one topping" % topping
         else:
-            toppings[topping] = subclasses[-1]
-        count = len(subclasses)
+            toppings[topping] = subclasses[0]
 
     return toppings
 
