@@ -255,3 +255,6 @@ if __name__ == "__main__":
         os.remove(client_path)
     if url:
         os.remove(url_path)
+    # Cleanup file output (if used)
+    if output is not sys.stdout:
+        output.close()
