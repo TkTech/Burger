@@ -65,10 +65,17 @@ class ObjectTopping(Topping):
 
         packet_class_name = None
 
+        # Handle capitalization changes from 1.11
+        item_entity_class = entities["entity"]["item"]["class"] if "item" in entities["entity"] else entities["entity"]["Item"]["class"]
+
+        will_be_spawn_object_packet = False
         for ins in createspawnpacket_method.code.disassemble():
-            if ins.mnemonic == "new":
-                # The first new is for EntityItem, which uses spawn object.
-                # This _might_ change in which case we'd get the wrong packet, but it hopefully won't.
+            if ins.mnemonic == "instanceof":
+                # Check to make sure that it's a spawn packet for item entities
+                const = entitytrackerentry_cf.constants.get(ins.operands[0].value)
+                if const.name.value == item_entity_class:
+                    will_be_spawn_object_packet = True
+            elif ins.mnemonic == "new" and will_be_spawn_object_packet:
                 const = entitytrackerentry_cf.constants.get(ins.operands[0].value)
                 packet_class_name = const.name.value
                 break

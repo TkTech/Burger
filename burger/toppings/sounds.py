@@ -40,7 +40,7 @@ try:
 except ImportError:
     from StringIO import StringIO
 
-ASSET_INDEX = "https://s3.amazonaws.com/Minecraft.Download/indexes/1.9.json"
+ASSET_INDEX = "https://s3.amazonaws.com/Minecraft.Download/indexes/1.11.json"
 RESOURCES_SITE = "http://resources.download.minecraft.net/%s/%s"
 
 def get_asset_index(url=ASSET_INDEX):
