@@ -61,6 +61,8 @@ def identify(class_file):
         ('Data value id is too big', 'metadata'),
         ('X#X', 'recipe.superclass'),
         ('Accessed Sounds before Bootstrap!', 'sounds.list'),
+        ('Skipping BlockEntity with id ', 'tileentity.superclass'),
+        ('Unable to resolve BlockEntity for ItemInstance:', 'tileentity.blockentitytag')
     )
     for c in class_file.constants.find(ConstantString):
         value = c.string.value
@@ -109,7 +111,9 @@ class IdentifyTopping(Topping):
         "identify.packet.packetbuffer",
         "identify.recipe.superclass",
         "identify.sounds.event",
-        "identify.sounds.list"
+        "identify.sounds.list",
+        "identify.tileentity.superclass",
+        "identify.tileentity.blockentitytag"
     ]
 
     DEPENDS = []
