@@ -11,6 +11,7 @@ try:
 except ImportError:
     from StringIO import StringIO
 
+
 class TileEntityTopping(Topping):
     """Gets tile entity (block entity) types."""
 
@@ -30,7 +31,7 @@ class TileEntityTopping(Topping):
     def act(aggregate, jar, verbose=False):
         te = aggregate.setdefault("tileentity", {})
 
-        if not "tileentity.superclass" in aggregate["classes"]:
+        if "tileentity.superclass" not in aggregate["classes"]:
             if verbose:
                 print "Missing tileentity.superclass"
             return
@@ -85,11 +86,14 @@ class TileEntityTopping(Topping):
                     continue
 
                 packet_cf = ClassFile(StringIO(jar.read(packet["class"])))
-                # Check if the packet has the expected fields in the class file for the update tile entity packet
+                # Check if the packet has the expected fields in the class file
+                # for the update tile entity packet
                 if (len(packet_cf.fields) >= 3 and
-                        len(list(packet_cf.fields.find(type_ = "I"))) >= 1 and # Tile entity type int, at minimum
-                        len(list(packet_cf.fields.find(type_ = "L" + aggregate["classes"]["nbtcompound"] + ";")))): # New NBT
-                    # There are other fields, but they very by version.
+                        # Tile entity type int, at least (maybe also position)
+                        len(list(packet_cf.fields.find(type_="I"))) >= 1 and
+                        # New NBT tag
+                        len(list(packet_cf.fields.find(type_="L" + aggregate["classes"]["nbtcompound"] + ";")))):
+                    # There are other fields, but they vary by version.
                     updatepacket = packet
                     break
 
