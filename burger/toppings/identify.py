@@ -32,6 +32,7 @@ try:
 except ImportError:
     from StringIO import StringIO
 
+
 def identify(class_file):
     """
     The first pass across the JAR will identify all possible classes it
@@ -44,7 +45,7 @@ def identify(class_file):
     # We can identify almost every class we need just by
     # looking for consistent strings.
     matches = (
-        ('Accessed Biomes before Bootstrap!', 'biome.list'), #1.9 only
+        ('Accessed Biomes before Bootstrap!', 'biome.list'),  # 1.9 only
         ('Ice Plains', 'biome.superclass'),
         ('Accessed Blocks before Bootstrap!', 'block.list'),
         ('lightgem', 'block.superclass'),
@@ -57,12 +58,19 @@ def identify(class_file):
         ('Outdated server!', 'nethandler.server'),
         ('Corrupt NBT tag', 'nbtcompound'),
         (' is already assigned to protocol ', 'packet.connectionstate'),
-        ('The received encoded string buffer length is less than zero! Weird string!', 'packet.packetbuffer'),
+        (
+            'The received encoded string buffer length is ' \
+            'less than zero! Weird string!',
+            'packet.packetbuffer'
+        ),
         ('Data value id is too big', 'metadata'),
         ('X#X', 'recipe.superclass'),
         ('Accessed Sounds before Bootstrap!', 'sounds.list'),
         ('Skipping BlockEntity with id ', 'tileentity.superclass'),
-        ('Unable to resolve BlockEntity for ItemInstance:', 'tileentity.blockentitytag')
+        (
+            'Unable to resolve BlockEntity for ItemInstance:',
+            'tileentity.blockentitytag'
+        )
     )
     for c in class_file.constants.find(ConstantString):
         value = c.string.value
@@ -82,10 +90,27 @@ def identify(class_file):
             # We _may_ have found the SoundEvent class, but there are several
             # other classes with this string constant.  So we need to check
             # for registration methods.
-            register_method = class_file.methods.find_one(args='', returns='V', f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
-            private_register_method = class_file.methods.find_one(args='', returns='V', f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
+            def is_public_static(m):
+                return m.access_flags.acc_public and m.access_flags.acc_static
 
-            if register_method and private_register_method:
+            def is_private_static(m):
+                return m.access_flags.acc_public and m.access_flags.acc_static
+
+            pub_args = {
+                "args": "",
+                "returns": "",
+                "f": is_public_static
+            }
+            priv_args = {
+                "args": "",
+                "returns": "",
+                "f": is_private_static
+            }
+
+            public_register_method = class_file.methods.find_one(**pub_args)
+            private_register_method = class_file.methods.find_one(**priv_args)
+
+            if public_register_method and private_register_method:
                 return 'sounds.event', class_file.this.name.value
 
 
@@ -129,8 +154,17 @@ class IdentifyTopping(Topping):
             result = identify(cf)
             if result:
                 if result[0] in classes:
-                    raise Exception("Already registered " + result[0] + " to " + classes[result[0]] + "!  Can't overwrite it with " + result[1])
+                    raise Exception(
+                            "Already registered %(value)s to %(old_class)s! "
+                            "Can't overwrite it with %(new_class)s" % {
+                                "value": result[0],
+                                "old_class": classes[result[0]],
+                                "new_class": result[1]
+                            })
                 classes[result[0]] = result[1]
                 if len(classes) == len(IdentifyTopping.PROVIDES):
+                    # If everything has been found, we don't need to keep
+                    # searching, so stop early for performance
                     break
-        print "identify classes:",classes
+        if verbose:
+            print("identify classes:", classes)

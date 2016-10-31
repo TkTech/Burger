@@ -3,7 +3,7 @@
 
 from .topping import Topping
 
-from jawa.constants import *
+from jawa.constants import ConstantClass, ConstantString
 from jawa.cf import ClassFile
 
 try:
@@ -52,13 +52,15 @@ class TileEntityTopping(Topping):
                     tmp["name"] = const.string.value
             elif ins.mnemonic == "invokestatic":
                 if "class" in tmp and "name" in tmp:
+                    tmp["blocks"] = []
                     tileentities[tmp["name"]] = tmp
                     te_classes[tmp["class"]] = tmp["name"]
                     tmp = {}
 
         if "tileentity.blockentitytag" in aggregate["classes"]:
             # Block entity tag matches block names to tile entities.
-            tag_cf = ClassFile(StringIO(jar.read(aggregate["classes"]["tileentity.blockentitytag"] + ".class")))
+            tag = aggregate["classes"]["tileentity.blockentitytag"] + ".class"
+            tag_cf = ClassFile(StringIO(jar.read(tag)))
             method = tag_cf.methods.find_one("<clinit>")
 
             stack = []
@@ -72,17 +74,22 @@ class TileEntityTopping(Topping):
                         if not stack[1] in tileentities:
                             if verbose:
                                 # This does currently happen in 1.9
-                                print "Trying to mark %s as a block with tile entity %s but that tile entity does not exist!" % (stack[0], stack[1])
+                                print ("Trying to mark %s as a block with "
+                                       "tile entity %s but that tile entity "
+                                       "does not exist!"
+                                       % (stack[0], stack[1]))
                         else:
-                            tileentities[stack[1]].setdefault("blocks", []).append(stack[0])
+                            tileentities[stack[1]]["blocks"].append(stack[0])
                     stack = []
         elif verbose:
             print "No block entity tag info; skipping that"
 
+        nbt_tag_type = "L" + aggregate["classes"]["nbtcompound"] + ";"
         if "nethandler.client" in aggregate["classes"]:
             updatepacket = None
             for packet in aggregate["packets"]["packet"].itervalues():
-                if packet["direction"] != "CLIENTBOUND" or packet["state"] != "PLAY":
+                if (packet["direction"] != "CLIENTBOUND" or
+                        packet["state"] != "PLAY"):
                     continue
 
                 packet_cf = ClassFile(StringIO(jar.read(packet["class"])))
@@ -92,7 +99,7 @@ class TileEntityTopping(Topping):
                         # Tile entity type int, at least (maybe also position)
                         len(list(packet_cf.fields.find(type_="I"))) >= 1 and
                         # New NBT tag
-                        len(list(packet_cf.fields.find(type_="L" + aggregate["classes"]["nbtcompound"] + ";")))):
+                        len(list(packet_cf.fields.find(type_=nbt_tag_type)))):
                     # There are other fields, but they vary by version.
                     updatepacket = packet
                     break
@@ -102,9 +109,13 @@ class TileEntityTopping(Topping):
                 return
 
             te["update_packet"] = updatepacket
-            nethandler_cf = ClassFile(StringIO(jar.read(aggregate["classes"]["nethandler.client"] + ".class")))
+            nethandler = aggregate["classes"]["nethandler.client"] + ".class"
+            nethandler_cf = ClassFile(StringIO(jar.read(nethandler)))
 
-            method = nethandler_cf.methods.find_one(args="L" + updatepacket["class"].replace(".class", "") + ";")
+            updatepacket_name = updatepacket["class"].replace(".class", "")
+
+            method = nethandler_cf.methods.find_one(
+                    args="L" + updatepacket_name + ";")
 
             value = None
             for ins in method.code.disassemble():
@@ -118,5 +129,6 @@ class TileEntityTopping(Topping):
                         continue
 
                     const = nethandler_cf.constants.get(ins.operands[0].value)
-                    tileentities[te_classes[const.name.value]]["network_id"] = value
+                    te_name = te_classes[const.name.value]
+                    tileentities[te_name]["network_id"] = value
                     value = None
