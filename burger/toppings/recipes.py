@@ -33,6 +33,11 @@ try:
 except ImportError:
     from StringIO import StringIO
 
+try:
+    import json
+except ImportError:
+    import simplejson as json
+
 class RecipesTopping(Topping):
     """Provides a list of most possible crafting recipes."""
 
@@ -50,8 +55,110 @@ class RecipesTopping(Topping):
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
-        superclass = aggregate["classes"]["recipe.superclass"]
+        if "assets/minecraft/recipes/stick.json" in jar.namelist():
+            recipe_list = RecipesTopping.find_from_json(aggregate, jar, verbose)
+        else:
+            recipe_list = RecipesTopping.find_from_jar(aggregate, jar, verbose)
+
         recipes = aggregate.setdefault("recipes", {})
+
+        for recipe in recipe_list:
+            makes = recipe['makes']['name']
+
+            recipes_for_item = recipes.setdefault(makes, [])
+            recipes_for_item.append(recipe)
+
+    @staticmethod
+    def find_from_json(aggregate, jar, verbose):
+        if verbose:
+            print "Extracting recipes from JSON"
+
+        recipes = []
+
+        def parse_item(blob):
+            """ Converts a JSON item into a burger item"""
+            # There's some wierd stuff regarding 0 or 32767 here; I'm not worrying about it though
+            # Probably 0 is the default for results, and 32767 means "any" for ingredients
+            assert "item" in blob
+            result = {}
+
+            id = blob["item"]
+            if id.startswith("minecraft:"):
+                id = id[len("minecraft:"):] # TODO: In the future, we don't want to strip namespaces
+
+            result["name"] = id
+            # TODO: Do we need the type and data fields anymore?  They're fairly redundant (and don't reflect ingame behavior anymore)
+            # Check if it's a block
+            if id in aggregate["blocks"]["block"]:
+                result["data"] = aggregate["blocks"]["block"][id]
+                result["type"] = "block"
+            else:
+                result["data"] = aggregate["items"]["item"][id]
+                result["type"] = "item"
+
+            if "data" in blob:
+                result["metadata"] = blob["data"]
+            if "count" in blob:
+                result["count"] = blob["count"]
+
+            return result
+
+        for name in jar.namelist():
+            if name.startswith("assets/minecraft/recipes/") and name.endswith(".json"):
+                data = json.loads(jar.read(name))
+                recipe_id = "minecraft:" + name[len("assets/minecraft/recipes/"):-len(".json")]
+
+                assert "type" in data
+                assert "result" in data
+
+                recipe = {}
+                recipe["makes"] = parse_item(data["result"])
+                if "count" not in recipe["makes"]:
+                    recipe["makes"]["count"] = 1 # default, TODO should we keep specifying this?
+
+                if data["type"] == "crafting_shapeless":
+                    recipe["type"] = 'shapeless'
+
+                    assert "ingredients" in data
+
+                    recipe["ingredients"] = [parse_item(ingredient) for ingredient in data["ingredients"]]
+                elif data["type"] == "crafting_shaped":
+                    recipe["type"] = 'shape'
+
+                    assert "pattern" in data
+                    assert "key" in data
+
+                    pattern = data["pattern"]
+                    key = {id: parse_item(value) for (id, value) in data["key"].iteritems()}
+                    recipe["raw"] = {
+                        "rows": pattern,
+                        "subs": key
+                    }
+
+                    shape = []
+                    for row in pattern:
+                        shape_row = []
+                        for char in row:
+                            if not char.isspace():
+                                shape_row.append(key[char])
+                            else:
+                                shape_row.append(None)
+                        shape.append(shape_row)
+                    recipe["shape"] = shape
+                else:
+                    raise Exception("Unknown or invalid recipe type", data[type], "for recipe", recipe_id)
+
+                recipe["id"] = recipe_id # new for 1.12, but used ingame
+                recipes.append(recipe)
+
+        return recipes
+
+    @staticmethod
+    def find_from_jar(aggregate, jar, verbose):
+        superclass = aggregate["classes"]["recipe.superclass"]
+
+        if verbose:
+            print "Extracting recipes from", superclass
 
         cf = ClassFile(StringIO(jar.read(superclass + ".class")))
 
@@ -263,10 +370,4 @@ class RecipesTopping(Topping):
                 pass
             return recipes
 
-        tmp_recipes = find_recipes(jar, cf, method, target_class, setter_names)
-        
-        for recipe in tmp_recipes:
-            makes = recipe['makes']['name']
-            
-            recipes_for_item = recipes.setdefault(makes, [])
-            recipes_for_item.append(recipe)
+        return find_recipes(jar, cf, method, target_class, setter_names)
