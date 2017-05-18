@@ -77,6 +77,11 @@ class RecipesTopping(Topping):
 
         def parse_item(blob):
             """ Converts a JSON item into a burger item"""
+            # TODO: This converts a list into a single item, in a bad, data-losing way.
+            # However, handling it more cleanly is hard, due to backwards compatibility.
+            # As such, a TOTAL HACK of taking just the first element is used.
+            if isinstance(blob, list):
+                blob = blob[0]
             # There's some wierd stuff regarding 0 or 32767 here; I'm not worrying about it though
             # Probably 0 is the default for results, and 32767 means "any" for ingredients
             assert "item" in blob
