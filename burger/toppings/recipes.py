@@ -126,6 +126,9 @@ class RecipesTopping(Topping):
                     recipe = {}
                     recipe["id"] = recipe_id # new for 1.12, but used ingame
 
+                    if "group" in data:
+                        recipe["group"] = data["group"]
+
                     recipe["makes"] = parse_item(data["result"], False)
                     if "count" not in recipe["makes"]:
                         recipe["makes"]["count"] = 1 # default, TODO should we keep specifying this?
