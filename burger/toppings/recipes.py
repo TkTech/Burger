@@ -38,6 +38,8 @@ try:
 except ImportError:
     import simplejson as json
 
+import copy
+
 class RecipesTopping(Topping):
     """Provides a list of most possible crafting recipes."""
 
@@ -75,13 +77,17 @@ class RecipesTopping(Topping):
 
         recipes = []
 
-        def parse_item(blob):
-            """ Converts a JSON item into a burger item"""
-            # TODO: This converts a list into a single item, in a bad, data-losing way.
-            # However, handling it more cleanly is hard, due to backwards compatibility.
-            # As such, a TOTAL HACK of taking just the first element is used.
+        def parse_item(blob, allow_lists=True):
+            """
+            Converts a JSON item into a burger item.
+            If the blob is a list, then a list is returned (if allowed).
+            """
+            # If the key involves a list, then convert to a list and parse them all.
             if isinstance(blob, list):
-                blob = blob[0]
+                if allow_lists:
+                    return [parse_item(entry) for entry in blob]
+                else:
+                    raise Exception("A list of items is not allowed in this context")
             # There's some wierd stuff regarding 0 or 32767 here; I'm not worrying about it though
             # Probably 0 is the default for results, and 32767 means "any" for ingredients
             assert "item" in blob
@@ -110,51 +116,84 @@ class RecipesTopping(Topping):
 
         for name in jar.namelist():
             if name.startswith("assets/minecraft/recipes/") and name.endswith(".json"):
-                data = json.loads(jar.read(name))
-                recipe_id = "minecraft:" + name[len("assets/minecraft/recipes/"):-len(".json")]
+                try:
+                    data = json.loads(jar.read(name))
+                    recipe_id = "minecraft:" + name[len("assets/minecraft/recipes/"):-len(".json")]
 
-                assert "type" in data
-                assert "result" in data
+                    assert "type" in data
+                    assert "result" in data
 
-                recipe = {}
-                recipe["makes"] = parse_item(data["result"])
-                if "count" not in recipe["makes"]:
-                    recipe["makes"]["count"] = 1 # default, TODO should we keep specifying this?
+                    recipe = {}
+                    recipe["id"] = recipe_id # new for 1.12, but used ingame
 
-                if data["type"] == "crafting_shapeless":
-                    recipe["type"] = 'shapeless'
+                    recipe["makes"] = parse_item(data["result"], False)
+                    if "count" not in recipe["makes"]:
+                        recipe["makes"]["count"] = 1 # default, TODO should we keep specifying this?
 
-                    assert "ingredients" in data
+                    matching_recipes = [recipe]
 
-                    recipe["ingredients"] = [parse_item(ingredient) for ingredient in data["ingredients"]]
-                elif data["type"] == "crafting_shaped":
-                    recipe["type"] = 'shape'
+                    if data["type"] == "crafting_shapeless":
+                        recipe["type"] = 'shapeless'
 
-                    assert "pattern" in data
-                    assert "key" in data
+                        assert "ingredients" in data
 
-                    pattern = data["pattern"]
-                    key = {id: parse_item(value) for (id, value) in data["key"].iteritems()}
-                    recipe["raw"] = {
-                        "rows": pattern,
-                        "subs": key
-                    }
-
-                    shape = []
-                    for row in pattern:
-                        shape_row = []
-                        for char in row:
-                            if not char.isspace():
-                                shape_row.append(key[char])
+                        recipe["ingredients"] = []
+                        for ingredient in data["ingredients"]:
+                            item = parse_item(ingredient)
+                            if isinstance(item, list):
+                                tmp = []
+                                for recipe_choice in matching_recipes:
+                                    for real_item in item:
+                                        recipe_choice_work = copy.deepcopy(recipe_choice)
+                                        recipe_choice_work["ingredients"].append(real_item)
+                                        tmp.append(recipe_choice_work)
+                                matching_recipes = tmp
                             else:
-                                shape_row.append(None)
-                        shape.append(shape_row)
-                    recipe["shape"] = shape
-                else:
-                    raise Exception("Unknown or invalid recipe type", data[type], "for recipe", recipe_id)
+                                for recipe_choice in matching_recipes:
+                                    recipe_choice["ingredients"].append(item)
+                    elif data["type"] == "crafting_shaped":
+                        recipe["type"] = 'shape'
 
-                recipe["id"] = recipe_id # new for 1.12, but used ingame
-                recipes.append(recipe)
+                        assert "pattern" in data
+                        assert "key" in data
+
+                        pattern = data["pattern"]
+                        recipe["raw"] = {
+                            "rows": pattern,
+                            "subs": {}
+                        }
+                        for (id, value) in data["key"].iteritems():
+                            item = parse_item(value)
+                            if isinstance(item, list):
+                                tmp = []
+                                for recipe_choice in matching_recipes:
+                                    for real_item in item:
+                                        recipe_choice_work = copy.deepcopy(recipe_choice)
+                                        recipe_choice_work["raw"]["subs"][id] = real_item
+                                        tmp.append(recipe_choice_work)
+                                matching_recipes = tmp
+                            else:
+                                for recipe_choice in matching_recipes:
+                                    recipe_choice["raw"]["subs"][id] = item
+
+                        for recipe_choice in matching_recipes:
+                            shape = []
+                            for row in recipe_choice["raw"]["rows"]:
+                                shape_row = []
+                                for char in row:
+                                    if not char.isspace():
+                                        shape_row.append(recipe_choice["raw"]["subs"][char])
+                                    else:
+                                        shape_row.append(None)
+                                shape.append(shape_row)
+                            recipe_choice["shape"] = shape
+                    else:
+                        raise Exception("Unknown or invalid recipe type", data[type], "for recipe", recipe_id)
+
+                    recipes.extend(matching_recipes)
+                except Exception as e:
+                    print "Failed to parse %s: %s" % (recipe_id, e)
+                    raise
 
         return recipes
 
