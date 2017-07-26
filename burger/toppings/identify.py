@@ -96,16 +96,16 @@ def identify(class_file):
                 return m.access_flags.acc_public and m.access_flags.acc_static
 
             def is_private_static(m):
-                return m.access_flags.acc_public and m.access_flags.acc_static
+                return m.access_flags.acc_private and m.access_flags.acc_static
 
             pub_args = {
                 "args": "",
-                "returns": "",
+                "returns": "V",
                 "f": is_public_static
             }
             priv_args = {
-                "args": "",
-                "returns": "",
+                "args": "Ljava/lang/String;",
+                "returns": "V",
                 "f": is_private_static
             }
 
