@@ -45,40 +45,42 @@ def identify(class_file):
     # We can identify almost every class we need just by
     # looking for consistent strings.
     matches = (
-        ('Accessed Biomes before Bootstrap!', 'biome.list'),  # 1.9 only
-        ('Ice Plains', 'biome.superclass'),
-        ('Accessed Blocks before Bootstrap!', 'block.list'),
-        ('lightgem', 'block.superclass'),
-        ('Skipping Entity with id', 'entity.list'),
-        ('Fetching addPacket for removed entity', 'entity.trackerentry'),
-        ('Accessed Items before Bootstrap!', 'item.list'),
-        ('yellowDust', 'item.superclass'),
-        ('#%04d/%d%s', 'itemstack'),
-        ('disconnect.lost', 'nethandler.client'),
-        ('Outdated server!', 'nethandler.server'),
-        ('Corrupt NBT tag', 'nbtcompound'),
-        (' is already assigned to protocol ', 'packet.connectionstate'),
+        (['Accessed Biomes before Bootstrap!'], 'biome.list'),  # 1.9 only
+        (['Ice Plains'], 'biome.superclass'),
+        (['Accessed Blocks before Bootstrap!'], 'block.list'),
+        (['lightgem'], 'block.superclass'),
+        (['Skipping Entity with id'], 'entity.list'),
+        (['Fetching addPacket for removed entity'], 'entity.trackerentry'),
+        (['Accessed Items before Bootstrap!'], 'item.list'),
+        (['yellowDust'], 'item.superclass'),
+        (['#%04d/%d%s'], 'itemstack'),
+        (['disconnect.lost'], 'nethandler.client'),
+        (['Outdated server!', 'multiplayer.disconnect.outdated_client'],
+            'nethandler.server'),
+        (['Corrupt NBT tag'], 'nbtcompound'),
+        ([' is already assigned to protocol '], 'packet.connectionstate'),
         (
-            'The received encoded string buffer length is ' \
-            'less than zero! Weird string!',
+            ['The received encoded string buffer length is ' \
+            'less than zero! Weird string!'],
             'packet.packetbuffer'
         ),
-        ('Data value id is too big', 'metadata'),
-        ('X#X', 'recipe.superclass'),
-        ('Accessed Sounds before Bootstrap!', 'sounds.list'),
-        ('Skipping BlockEntity with id ', 'tileentity.superclass'),
+        (['Data value id is too big'], 'metadata'),
+        (['X#X'], 'recipe.superclass'),
+        (['Accessed Sounds before Bootstrap!'], 'sounds.list'),
+        (['Skipping BlockEntity with id '], 'tileentity.superclass'),
         (
-            'Unable to resolve BlockEntity for ItemInstance:',
+            ['Unable to resolve BlockEntity for ItemInstance:'],
             'tileentity.blockentitytag'
         )
     )
     for c in class_file.constants.find(ConstantString):
         value = c.string.value
-        for match, match_name in matches:
-            if match not in value:
-                continue
+        for match_list, match_name in matches:
+            for match in match_list:
+                if match not in value:
+                    continue
 
-            return match_name, class_file.this.name.value
+                return match_name, class_file.this.name.value
         if 'BaseComponent' in value:
             # We want the interface for chat components, but it has no
             # string constants, so we need to use the abstract class and then
