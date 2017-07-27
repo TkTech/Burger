@@ -115,6 +115,20 @@ def identify(class_file):
             if public_register_method and private_register_method:
                 return 'sounds.event', class_file.this.name.value
 
+        if value == 'minecraft':
+            # Look for two protected final strings
+            def is_protected_final(m):
+                return m.access_flags.acc_protected and m.access_flags.acc_final
+
+            find_args = {
+                "type_": "Ljava/lang/String;",
+                "f": is_protected_final
+            }
+            fields = class_file.fields.find(**find_args)
+
+            if len(list(fields)) == 2:
+                return 'identifier', class_file.this.name.value
+
 
 class IdentifyTopping(Topping):
     """Finds important superclasses needed by other toppings."""
@@ -140,7 +154,8 @@ class IdentifyTopping(Topping):
         "identify.sounds.event",
         "identify.sounds.list",
         "identify.tileentity.superclass",
-        "identify.tileentity.blockentitytag"
+        "identify.tileentity.blockentitytag",
+        "identify.resourcelocation"
     ]
 
     DEPENDS = []

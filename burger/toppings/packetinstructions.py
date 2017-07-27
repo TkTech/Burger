@@ -53,7 +53,8 @@ class PacketInstructionsTopping(Topping):
         "identify.nbtcompound",
         "identify.itemstack",
         "identify.chatcomponent",
-        "identify.metadata"
+        "identify.metadata",
+        "identify.resourcelocation"
     ]
 
     TYPES = {
@@ -334,6 +335,10 @@ class PacketInstructionsTopping(Topping):
                 elif num_arguments == 1 and descriptor.args[0].name == classes["chatcomponent"]:
                     operations.append(Operation(instruction.pos, "write",
                                                 type="chatcomponent",
+                                                field=stack.pop()))
+                elif num_arguments == 1 and descriptor.args[0].name == classes["identifier"]:
+                    operations.append(Operation(instruction.pos, "write",
+                                                type="identifier",
                                                 field=stack.pop()))
                 else:
                     if num_arguments > 0:
