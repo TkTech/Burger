@@ -215,8 +215,8 @@ class PacketInstructionsTopping(Topping):
             if len(methods) == 2:
                 method = methods[1]
             else:
-                if cf.super_:
-                    return _PIT.operations(jar, cf.super_.name + ".class", classes)
+                if cf.super_.name.value != "java/lang/Object":
+                    return _PIT.operations(jar, cf.super_.name.value + ".class", classes)
                 else:
                     raise Exception("Failed to find method in class or superclass")
         elif methodname is None:
