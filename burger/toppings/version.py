@@ -34,7 +34,8 @@ class VersionTopping(Topping):
     """Provides the protocol version."""
 
     PROVIDES = [
-        "version.protocol"
+        "version.protocol",
+        "version.name"
     ]
 
     DEPENDS = [
@@ -48,15 +49,29 @@ class VersionTopping(Topping):
             nethandler = aggregate["classes"]["nethandler.server"] + ".class"
             cf = ClassFile(StringIO(jar.read(nethandler)))
             version = None
+            looking_for_version_name = False
             for method in cf.methods:
                 for instr in method.code.disassemble():
                     if instr.mnemonic in ("bipush", "sipush"):
                         version = instr.operands[0].value
+                    elif instr.mnemonic.startswith("iconst"):
+                        version = int(instr.mnemonic[-1])
                     elif instr.mnemonic == "ldc" and version is not None:
                         constant = cf.constants.get(instr.operands[0].value)
                         if isinstance(constant, ConstantString):
-                            if "Outdated server!" in constant.string.value:
+                            str = constant.string.value
+
+                            if "multiplayer.disconnect.outdated_client" in str:
                                 versions["protocol"] = version
+                                looking_for_version_name = True
+                                continue
+                            elif looking_for_version_name:
+                                versions["name"] = str
+                                return
+                            elif "Outdated server!" in str:
+                                versions["protocol"] = version
+                                versions["name"] = \
+                                    str[len("Outdated server! I'm still on "):]
                                 return
         elif verbose:
             print "Unable to determine protocol version"

@@ -40,21 +40,38 @@ try:
 except ImportError:
     from StringIO import StringIO
 
-ASSET_INDEX = "https://s3.amazonaws.com/Minecraft.Download/indexes/1.11.json"
-RESOURCES_SITE = "http://resources.download.minecraft.net/%s/%s"
+VERSION_META = "https://s3.amazonaws.com/Minecraft.Download/versions/%(version)s/%(version)s.json"
+RESOURCES_SITE = "http://resources.download.minecraft.net/%(short_hash)s/%(hash)s"
 
-def get_asset_index(url=ASSET_INDEX):
-    """Downloads the Minecraft asset index"""
-    index_file = urllib.urlopen(url)
+def load_json(url):
+    stream = urllib.urlopen(url)
     try:
-        return json.load(index_file)
+        return json.load(stream)
     finally:
-        index_file.close()
+        stream.close()
+
+def get_version_meta(version):
+    """
+    Gets a version metadata file using the (deprecated)
+    s3.amazonaws.com/Minecraft.Download pages.  This is done because e.g.
+    older snapshots do not exist in the version manifest but do exist here.
+    """
+    return load_json(VERSION_META % {'version': version})
+
+def get_asset_index(version_meta, verbose):
+    """Downloads the Minecraft asset index"""
+    if "assetIndex" not in version_meta:
+        raise Exception("No asset index defined in the version meta")
+    asset_index = version_meta["assetIndex"]
+    if verbose:
+        print "Assets: id %(id)s, url %(url)s" % asset_index
+    return load_json(asset_index["url"])
 
 def get_sounds(asset_index, resources_site=RESOURCES_SITE):
     """Downloads the sounds.json file from the assets index"""
-    sounds_hash = asset_index["objects"]["minecraft/sounds.json"]["hash"]
-    sounds_url = resources_site % (sounds_hash[0:2], sounds_hash)
+    hash = asset_index["objects"]["minecraft/sounds.json"]["hash"]
+    short_hash = hash[0:2]
+    sounds_url = resources_site % {'hash': hash, 'short_hash': short_hash}
 
     sounds_file = urllib.urlopen(sounds_url)
 
@@ -74,6 +91,7 @@ class SoundTopping(Topping):
     DEPENDS = [
         "identify.sounds.list",
         "identify.sounds.event",
+        "version.name",
         "language"
     ]
 
@@ -81,7 +99,14 @@ class SoundTopping(Topping):
     def act(aggregate, jar, verbose=False):
         sounds = aggregate.setdefault('sounds', {})
         try:
-            assets = get_asset_index()
+            version_meta = get_version_meta(aggregate["version"]["name"])
+        except Exception as e:
+            if verbose:
+                print "Error: Failed to download version meta for sounds: %s" % e
+                traceback.print_exc()
+            return
+        try:
+            assets = get_asset_index(version_meta, verbose)
         except Exception as e:
             if verbose:
                 print "Error: Failed to download asset index for sounds: %s" % e

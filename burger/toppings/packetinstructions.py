@@ -53,7 +53,8 @@ class PacketInstructionsTopping(Topping):
         "identify.nbtcompound",
         "identify.itemstack",
         "identify.chatcomponent",
-        "identify.metadata"
+        "identify.metadata",
+        "identify.resourcelocation"
     ]
 
     TYPES = {
@@ -215,8 +216,8 @@ class PacketInstructionsTopping(Topping):
             if len(methods) == 2:
                 method = methods[1]
             else:
-                if cf.super_:
-                    return _PIT.operations(jar, cf.super_.name + ".class", classes)
+                if cf.super_.name.value != "java/lang/Object":
+                    return _PIT.operations(jar, cf.super_.name.value + ".class", classes)
                 else:
                     raise Exception("Failed to find method in class or superclass")
         elif methodname is None:
@@ -334,6 +335,10 @@ class PacketInstructionsTopping(Topping):
                 elif num_arguments == 1 and descriptor.args[0].name == classes["chatcomponent"]:
                     operations.append(Operation(instruction.pos, "write",
                                                 type="chatcomponent",
+                                                field=stack.pop()))
+                elif num_arguments == 1 and descriptor.args[0].name == classes["identifier"]:
+                    operations.append(Operation(instruction.pos, "write",
+                                                type="identifier",
                                                 field=stack.pop()))
                 else:
                     if num_arguments > 0:

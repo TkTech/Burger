@@ -45,40 +45,42 @@ def identify(class_file):
     # We can identify almost every class we need just by
     # looking for consistent strings.
     matches = (
-        ('Accessed Biomes before Bootstrap!', 'biome.list'),  # 1.9 only
-        ('Ice Plains', 'biome.superclass'),
-        ('Accessed Blocks before Bootstrap!', 'block.list'),
-        ('lightgem', 'block.superclass'),
-        ('Skipping Entity with id', 'entity.list'),
-        ('Fetching addPacket for removed entity', 'entity.trackerentry'),
-        ('Accessed Items before Bootstrap!', 'item.list'),
-        ('yellowDust', 'item.superclass'),
-        ('#%04d/%d%s', 'itemstack'),
-        ('disconnect.lost', 'nethandler.client'),
-        ('Outdated server!', 'nethandler.server'),
-        ('Corrupt NBT tag', 'nbtcompound'),
-        (' is already assigned to protocol ', 'packet.connectionstate'),
+        (['Accessed Biomes before Bootstrap!'], 'biome.list'),  # 1.9 only
+        (['Ice Plains'], 'biome.superclass'),
+        (['Accessed Blocks before Bootstrap!'], 'block.list'),
+        (['lightgem'], 'block.superclass'),
+        (['Skipping Entity with id'], 'entity.list'),
+        (['Fetching addPacket for removed entity'], 'entity.trackerentry'),
+        (['Accessed Items before Bootstrap!'], 'item.list'),
+        (['yellowDust'], 'item.superclass'),
+        (['#%04d/%d%s'], 'itemstack'),
+        (['disconnect.lost'], 'nethandler.client'),
+        (['Outdated server!', 'multiplayer.disconnect.outdated_client'],
+            'nethandler.server'),
+        (['Corrupt NBT tag'], 'nbtcompound'),
+        ([' is already assigned to protocol '], 'packet.connectionstate'),
         (
-            'The received encoded string buffer length is ' \
-            'less than zero! Weird string!',
+            ['The received encoded string buffer length is ' \
+            'less than zero! Weird string!'],
             'packet.packetbuffer'
         ),
-        ('Data value id is too big', 'metadata'),
-        ('X#X', 'recipe.superclass'),
-        ('Accessed Sounds before Bootstrap!', 'sounds.list'),
-        ('Skipping BlockEntity with id ', 'tileentity.superclass'),
+        (['Data value id is too big'], 'metadata'),
+        (['X#X'], 'recipe.superclass'),
+        (['Accessed Sounds before Bootstrap!'], 'sounds.list'),
+        (['Skipping BlockEntity with id '], 'tileentity.superclass'),
         (
-            'Unable to resolve BlockEntity for ItemInstance:',
+            ['Unable to resolve BlockEntity for ItemInstance:'],
             'tileentity.blockentitytag'
         )
     )
     for c in class_file.constants.find(ConstantString):
         value = c.string.value
-        for match, match_name in matches:
-            if match not in value:
-                continue
+        for match_list, match_name in matches:
+            for match in match_list:
+                if match not in value:
+                    continue
 
-            return match_name, class_file.this.name.value
+                return match_name, class_file.this.name.value
         if 'BaseComponent' in value:
             # We want the interface for chat components, but it has no
             # string constants, so we need to use the abstract class and then
@@ -94,16 +96,16 @@ def identify(class_file):
                 return m.access_flags.acc_public and m.access_flags.acc_static
 
             def is_private_static(m):
-                return m.access_flags.acc_public and m.access_flags.acc_static
+                return m.access_flags.acc_private and m.access_flags.acc_static
 
             pub_args = {
                 "args": "",
-                "returns": "",
+                "returns": "V",
                 "f": is_public_static
             }
             priv_args = {
-                "args": "",
-                "returns": "",
+                "args": "Ljava/lang/String;",
+                "returns": "V",
                 "f": is_private_static
             }
 
@@ -112,6 +114,20 @@ def identify(class_file):
 
             if public_register_method and private_register_method:
                 return 'sounds.event', class_file.this.name.value
+
+        if value == 'minecraft':
+            # Look for two protected final strings
+            def is_protected_final(m):
+                return m.access_flags.acc_protected and m.access_flags.acc_final
+
+            find_args = {
+                "type_": "Ljava/lang/String;",
+                "f": is_protected_final
+            }
+            fields = class_file.fields.find(**find_args)
+
+            if len(list(fields)) == 2:
+                return 'identifier', class_file.this.name.value
 
 
 class IdentifyTopping(Topping):
@@ -138,7 +154,8 @@ class IdentifyTopping(Topping):
         "identify.sounds.event",
         "identify.sounds.list",
         "identify.tileentity.superclass",
-        "identify.tileentity.blockentitytag"
+        "identify.tileentity.blockentitytag",
+        "identify.resourcelocation"
     ]
 
     DEPENDS = []
