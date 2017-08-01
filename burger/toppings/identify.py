@@ -83,8 +83,8 @@ def identify(class_file):
             # We want the interface for chat components, but it has no
             # string constants, so we need to use the abstract class and then
             # get its first implemented interface.
-            assert len(class_file.interfaces) == 1
-            const = class_file.constants.get(class_file.interfaces[0])
+            const = next(class_file.interfaces, None)
+            assert const
             return 'chatcomponent', const.name.value
         if 'ambient.cave' in value:
             # We _may_ have found the SoundEvent class, but there are several
