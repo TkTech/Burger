@@ -71,6 +71,10 @@ def identify(class_file):
         (
             ['Unable to resolve BlockEntity for ItemInstance:'],
             'tileentity.blockentitytag'
+        ),
+        (
+            ['ThreadedAnvilChunkStorage ({}): All chunks are saved'],
+            'anvilchunkloader'
         )
     )
     for c in class_file.constants.find(ConstantString):
@@ -134,6 +138,7 @@ class IdentifyTopping(Topping):
     """Finds important superclasses needed by other toppings."""
 
     PROVIDES = [
+        "identify.anvilchunkloader",
         "identify.biome.list",
         "identify.biome.superclass",
         "identify.block.list",

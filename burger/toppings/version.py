@@ -40,10 +40,16 @@ class VersionTopping(Topping):
 
     DEPENDS = [
         "identify.nethandler.server",
+        "identify.anvilchunkloader"
     ]
 
     @staticmethod
     def act(aggregate, jar, verbose=False):
+        VersionTopping.get_protocol_version(aggregate, jar, verbose)
+        VersionTopping.get_data_version(aggregate, jar, verbose)
+
+    @staticmethod
+    def get_protocol_version(aggregate, jar, verbose):
         versions = aggregate.setdefault("version", {})
         if "nethandler.server" in aggregate["classes"]:
             nethandler = aggregate["classes"]["nethandler.server"] + ".class"
@@ -75,3 +81,35 @@ class VersionTopping(Topping):
                                 return
         elif verbose:
             print "Unable to determine protocol version"
+
+    @staticmethod
+    def get_data_version(aggregate, jar, verbose):
+        if "anvilchunkloader" in aggregate["classes"]:
+            anvilchunkloader = aggregate["classes"]["anvilchunkloader"] + ".class"
+            cf = ClassFile(StringIO(jar.read(anvilchunkloader)))
+
+            for method in cf.methods:
+                next_ins_is_version = False
+                for ins in method.code.disassemble():
+                    if ins.mnemonic in ("ldc", "ldc_w"):
+                        const = cf.constants.get(ins.operands[0].value)
+                        if isinstance(const, ConstantString):
+                            if const.string.value == "DataVersion":
+                                next_ins_is_version = True
+                        elif isinstance(const, ConstantInteger):
+                            if next_ins_is_version:
+                                aggregate["version"]["data"] = const.value
+                            break
+                    elif not next_ins_is_version:
+                        pass
+                    elif ins.mnemonic in ("bipush", "sipush"):
+                        aggregate["version"]["data"] = ins.operands[0].value
+                        break
+                    elif ins.mnemonic.startswith("iconst"):
+                        aggregate["version"]["data"] = int(ins.mnemonic[-1])
+                        break
+
+                if next_ins_is_version:
+                    break
+        elif verbose:
+            print "Unable to determine data version"
