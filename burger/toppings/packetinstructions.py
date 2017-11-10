@@ -382,14 +382,23 @@ class PacketInstructionsTopping(Topping):
                                                     "write", type="metadata",
                                                     field=obj if obj != "static" else arguments[0]))
                                     break
-                                # If calling a sub method that takes a packetbuffer
-                                # as a parameter, it's possible that it's a sub
-                                # method that writes to the buffer, so we need to
-                                # check it.
-                                operations += _PIT.sub_operations(
-                                    jar, cf, classes, instruction, operands[0],
-                                    [obj] + arguments if obj != "static" else arguments
-                                )
+                                if opcode != 0xb9:
+                                    # If calling a sub method that takes a packetbuffer
+                                    # as a parameter, it's possible that it's a sub
+                                    # method that writes to the buffer, so we need to
+                                    # check it.
+                                    operations += _PIT.sub_operations(
+                                        jar, cf, classes, instruction, operands[0],
+                                        [obj] + arguments if obj != "static" else arguments
+                                    )
+                                else:
+                                    # However, for interface method calls, we can't
+                                    # check its code -- so just note that it's a call
+                                    operations.append(Operation(instruction.pos,
+                                                        "interfacecall",
+                                                        target=operands[0].c,
+                                                        method=name + desc,
+                                                        field=obj))
                                 break
 
             # Conditional statements and loops
@@ -761,7 +770,8 @@ class InstructionField:
     def find_class(self):
         """Finds the class defining the method called in instruction"""
         return self.find_constant({ConstantFieldRef.TAG: lambda c: c.class_.index,
-                                   ConstantMethodRef.TAG: lambda c: c.class_.index})
+                                   ConstantMethodRef.TAG: lambda c: c.class_.index,
+                                   ConstantInterfaceMethodRef.TAG: lambda c: c.class_.index})
 
     def find_name(self):
         """Finds the name of a method called in the suplied instruction"""
