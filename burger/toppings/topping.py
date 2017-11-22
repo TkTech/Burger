@@ -31,17 +31,3 @@ class Topping(object):
     def act(aggregate, jar, verbose=False):
         raise NotImplementedError()
 
-    @staticmethod
-    def parse_lang(contents):
-        contents = contents.split("\n")
-        for line in contents:
-            line = line.strip()
-            if not line:
-                continue
-            if line[0] == "#":
-                continue
-
-            tag, value = line.split("=", 1)
-            category, name = tag.split(".", 1)
-
-            yield (category, name, value)

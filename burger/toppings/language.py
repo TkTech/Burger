@@ -70,6 +70,29 @@ class LanguageTopping(Topping):
                 print "Can't find file %s in jar" % path
             return
 
-        for category, name, value in Topping.parse_lang(contents):
+        for category, name, value in LanguageTopping.parse_lang(contents, verbose):
             cat = aggregate["language"].setdefault(category, {})
             cat[name] = value
+
+    @staticmethod
+    def parse_lang(contents, verbose):
+        contents = contents.split("\n")
+        lineno = 0
+        for line in contents:
+            lineno = lineno + 1
+            line = line.strip()
+
+            if not line:
+                continue
+            if line[0] == "#":
+                continue
+
+            if not "=" in line or not "." in line:
+                if verbose:
+                    print "Language file line %s is malformed: %s" % (lineno, line)
+                continue
+
+            tag, value = line.split("=", 1)
+            category, name = tag.split(".", 1)
+
+            yield (category, name, value)
