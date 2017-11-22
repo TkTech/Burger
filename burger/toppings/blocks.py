@@ -49,11 +49,13 @@ class BlocksTopping(Topping):
     def act(aggregate, jar, verbose=False):
         superclass = aggregate["classes"]["block.superclass"]
         cf = ClassFile(StringIO(jar.read(superclass + ".class")))
-        
+
         individual_textures = True #aggregate["version"]["protocol"] >= 52 # assume >1.5 http://wiki.vg/Protocol_History#1.5.x since don't read packets TODO
 
         if "tile" in aggregate["language"]:
             language = aggregate["language"]["tile"]
+        elif "block" in aggregate["language"]:
+            language = aggregate["language"]["block"]
         else:
             language = None
 
@@ -82,7 +84,7 @@ class BlocksTopping(Topping):
                     "class": class_name,
                     "calls": {}
                 }
-                
+
                 if len(stack) == 2:
                     # If the block is constructed in the registration method,
                     # like `registerBlock(1, "stone", (new BlockStone()))`, then
@@ -91,11 +93,22 @@ class BlocksTopping(Topping):
                     current_block["numeric_id"] = stack[0]
                     current_block["text_id"] = stack[1]
                 elif len(stack) == 1:
-                    # Air uses a different registration method, with a
-                    # ResourceLocation instead of a string; the location isn't
-                    # on the stack in this case so we need to get it manually.
-                    current_block["numeric_id"] = stack[0]
+                    if (isinstance(stack[0], int)):
+                        assert stack[0] == 0
+                        # Air uses a different registration method, with a
+                        # ResourceLocation instead of a string; the location isn't
+                        # on the stack in this case so we need to get it manually.
+                        current_block["numeric_id"] = stack[0]
+                        current_block["text_id"] = "air"
+                    else:
+                        # Newer minecraft version, no text IDs
+                        current_block["text_id"] = stack[0]
+                        current_block["name"] = current_block["text_id"]
+                elif len(stack) == 0:
+                    # Newer minecraft version, no text IDs.
+                    # Air remains a hrorible hack.
                     current_block["text_id"] = "air"
+                    current_block["name"] = current_block["text_id"]
                 stack = []
             elif ins.mnemonic.startswith("iconst"):
                 stack.append(int(ins.mnemonic[-1]))
@@ -122,12 +135,14 @@ class BlocksTopping(Topping):
                 current_block["calls"][method_name + method_desc] = stack
                 stack = []
             elif ins.mnemonic == "invokestatic":
+                # Some blocks are constructed as a method variable rather
+                # than directly in the registration method; thus the
+                # paremters are set here.
                 if len(stack) == 2:
-                    # Some blocks are constructed as a method variable rather
-                    # than directly in the registration method; thus the
-                    # paremters are set here.
                     current_block["numeric_id"] = stack[0]
                     current_block["text_id"] = stack[1]
+                elif len(stack) == 1:
+                    current_block["text_id"] = stack[0]
                 stack = []
                 tmp.append(current_block)
 
@@ -137,12 +152,15 @@ class BlocksTopping(Topping):
         #      This is the name or texture setting function.
         #   2. Find the function that returns 'this' and accepts a float.
         #      This is the function that sets the hardness.
-        
+
         string_setter = cf.methods.find_one(returns="L" + superclass + ";",
                 args="Ljava/lang/String;",
                 f=lambda x: not x.access_flags.acc_static)
 
-        name_setter = string_setter.name.value + cf.constants.get(string_setter.descriptor.index).value
+        if string_setter:
+            name_setter = string_setter.name.value + cf.constants.get(string_setter.descriptor.index).value
+        else:
+            name_setter = None
 
         #NOTE: There are a bunch more of these now...
         hardness_setters = cf.methods.find(
@@ -161,31 +179,43 @@ class BlocksTopping(Topping):
         for blk in tmp:
             final = {}
 
-            if name_setter in blk["calls"]:
-                final["name"] = blk["calls"][name_setter][0]
-
-                lang_key = "%s.name" % final["name"]
-                if language and lang_key in language:
-                    final["display_name"] = language[lang_key]
-
-            if hardness_setter not in blk["calls"]:
-                final["hardness"] = 0.00
-            else:
-                final["hardness"] = blk["calls"][hardness_setter][0]
-
             if "numeric_id" in blk:
                 final["numeric_id"] = blk["numeric_id"]
             if "text_id" in blk:
                 final["text_id"] = blk["text_id"]
+
             final["class"] = blk["class"]
+
+            if name_setter in blk["calls"]:
+                final["name"] = blk["calls"][name_setter][0]
+            elif "name" in blk:
+                final["name"] = blk["name"]
+
+            if "name" in final:
+                lang_key = "%s.name" % final["name"]
+                if language and lang_key in language:
+                    final["display_name"] = language[final["name"]]
+
+            if hardness_setter not in blk["calls"]:
+                final["hardness"] = 0.00
+            else:
+                stack = blk["calls"][hardness_setter]
+                if len(stack) == 0:
+                    if verbose:
+                        print "%s: Broken hardness value" % final["text_id"]
+                    final["hardness"] = 0.00
+                else:
+                    final["hardness"] = blk["calls"][hardness_setter][0]
 
             if "text_id" in final:
                 block[final["text_id"]] = final
+            else:
+                print "Dropping nameless block:", blk
 
         # Go through the block list and add the field info.
         list = aggregate["classes"]["block.list"]
         lcf = ClassFile(StringIO(jar.read(list + ".class")))
-        
+
         # Find the static block, and load the fields for each.
         method = lcf.methods.find_one(name="<clinit>")
         blk_name = ""
@@ -199,9 +229,12 @@ class BlocksTopping(Topping):
                     continue
                 const = lcf.constants.get(ins.operands[0].value)
                 field = const.name_and_type.name.value
-                block[blk_name]["field"] = field
+                if blk_name in block:
+                    block[blk_name]["field"] = field
+                elif verbose:
+                    print "Cannot find a block matching %s for field %s" % (blk_name, field)
                 block_fields[field] = blk_name
-            
+
         blocks["info"] = {
             "count": len(block),
             "real_count": len(tmp)
