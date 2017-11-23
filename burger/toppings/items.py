@@ -213,6 +213,10 @@ class ItemsTopping(Topping):
                 }
 
         for item in tmp:
+            if not "text_id" in item:
+                print "Dropping nameless item:", item
+                continue
+
             final = {}
 
             if "numeric_id" in item:
@@ -224,22 +228,21 @@ class ItemsTopping(Topping):
 
             if "name" in item:
                 final["name"] = item["name"]
-            elif "name" in item:
-                final["name"] = item["name"]
             if "display_name" in item:
                 final["display_name"] = item["display_name"]
 
             if name_setter in item["calls"]:
                 final["name"] = item["calls"][name_setter][0]
 
+            if "name" in final:
                 lang_key = "%s.name" % final["name"]
-                if language and lang_key in language:
-                    final["display_name"] = language[lang_key]
-
-            if "text_id" in final:
-                item_list[final["text_id"]] = final
             else:
-                print "Dropping nameless item:", item
+                # 17w43a (1.13) and above - no specific translation string, only the id
+                lang_key = "minecraft.%s" % final["text_id"]
+            if language and lang_key in language:
+                final["display_name"] = language[lang_key]
+
+            item_list[final["text_id"]] = final
 
         # Go through the item list and add the field info.
         list = aggregate["classes"]["item.list"]

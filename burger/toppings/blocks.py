@@ -177,6 +177,10 @@ class BlocksTopping(Topping):
                     break
 
         for blk in tmp:
+            if not "text_id" in blk:
+                print "Dropping nameless block:", blk
+                continue
+
             final = {}
 
             if "numeric_id" in blk:
@@ -188,13 +192,14 @@ class BlocksTopping(Topping):
 
             if name_setter in blk["calls"]:
                 final["name"] = blk["calls"][name_setter][0]
-            elif "name" in blk:
-                final["name"] = blk["name"]
 
             if "name" in final:
                 lang_key = "%s.name" % final["name"]
-                if language and lang_key in language:
-                    final["display_name"] = language[final["name"]]
+            else:
+                # 17w43a (1.13) and above - no specific translation string, only the id
+                lang_key = "minecraft.%s" % final["text_id"]
+            if language and lang_key in language:
+                final["display_name"] = language[lang_key]
 
             if hardness_setter not in blk["calls"]:
                 final["hardness"] = 0.00
@@ -207,10 +212,7 @@ class BlocksTopping(Topping):
                 else:
                     final["hardness"] = blk["calls"][hardness_setter][0]
 
-            if "text_id" in final:
-                block[final["text_id"]] = final
-            else:
-                print "Dropping nameless block:", blk
+            block[final["text_id"]] = final
 
         # Go through the block list and add the field info.
         list = aggregate["classes"]["block.list"]
