@@ -103,9 +103,17 @@ class RecipesTopping(Topping):
             if id in aggregate["blocks"]["block"]:
                 result["data"] = aggregate["blocks"]["block"][id]
                 result["type"] = "block"
-            else:
+            elif id in aggregate["items"]["item"]:
                 result["data"] = aggregate["items"]["item"][id]
                 result["type"] = "item"
+            else:
+                if verbose:
+                    print "No information is available for recipe entry %s" % id
+                result["data"] = {
+                    "text_id": id,
+                    "name": id
+                }
+                result["type"] = "unknown"
 
             if "data" in blob:
                 result["metadata"] = blob["data"]
