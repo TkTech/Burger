@@ -25,6 +25,7 @@ from .topping import Topping
 
 from jawa.constants import *
 from jawa.cf import ClassFile
+from jawa.util.descriptor import method_descriptor
 
 try:
     from cStringIO import StringIO
@@ -68,13 +69,11 @@ class BlocksTopping(Topping):
         block = blocks.setdefault("block", {})
         block_fields = blocks.setdefault("block_fields", {})
         tmp = []
-        current_block = {
-                    "class": None,
-                    "calls": {}
-                }
 
         stack = []
+        locals = {}
         for ins in method.code.disassemble():
+            #print stack
             #print "INS",ins
             if ins.mnemonic == "new":
                 # The beginning of a new block definition
@@ -85,37 +84,19 @@ class BlocksTopping(Topping):
                     "calls": {}
                 }
 
-                if len(stack) == 2:
-                    # If the block is constructed in the registration method,
-                    # like `registerBlock(1, "stone", (new BlockStone()))`, then
-                    # the parameters are pushed onto the stack before the
-                    # constructor is called.
-                    current_block["numeric_id"] = stack[0]
-                    current_block["text_id"] = stack[1]
-                elif len(stack) == 1:
-                    if (isinstance(stack[0], int)):
-                        assert stack[0] == 0
-                        # Air uses a different registration method, with a
-                        # ResourceLocation instead of a string; the location isn't
-                        # on the stack in this case so we need to get it manually.
-                        current_block["numeric_id"] = stack[0]
-                        current_block["text_id"] = "air"
-                    else:
-                        # Newer minecraft version, no text IDs
-                        current_block["text_id"] = stack[0]
-                        current_block["name"] = current_block["text_id"]
-                elif len(stack) == 0:
-                    # Newer minecraft version, no text IDs.
-                    # Air remains a hrorible hack.
-                    current_block["text_id"] = "air"
-                    current_block["name"] = current_block["text_id"]
-                stack = []
+                stack.append(current_block)
             elif ins.mnemonic.startswith("iconst"):
                 stack.append(int(ins.mnemonic[-1]))
             elif ins.mnemonic.startswith("fconst"):
                 stack.append(float(ins.mnemonic[-1]))
+            elif ins.mnemonic == "aconst_null":
+                stack.append(None)
             elif ins.mnemonic.endswith("ipush"):
                 stack.append(ins.operands[0].value)
+            elif ins.mnemonic == "fdiv":
+                den = stack.pop()
+                num = stack.pop()
+                stack.append({"numerator": num, "denominator": den})
             elif ins.mnemonic in ("ldc", "ldc_w"):
                 const = cf.constants.get(ins.operands[0].value)
 
@@ -126,25 +107,78 @@ class BlocksTopping(Topping):
                 else:
                     stack.append(const.value)
                 #print "ldc",stack
+            elif ins.mnemonic == "getstatic":
+                const = cf.constants.get(ins.operands[0].value)
+                if const.class_.name.value == superclass:
+                    # Probably getting the static AIR resource location
+                    stack.append("air")
+                else:
+                    stack.append({"obj": None, "field": repr(const)})
+            elif ins.mnemonic == "getfield":
+                const = cf.constants.get(ins.operands[0].value)
+                obj = stack.pop()
+                stack.append({"obj": obj, "field": repr(const)})
             elif ins.mnemonic in ("invokevirtual", "invokespecial"):
                 # A method invocation
                 const = cf.constants.get(ins.operands[0].value)
                 method_name = const.name_and_type.name.value
                 method_desc = const.name_and_type.descriptor.value
-                current_block["calls"][method_name] = stack
-                current_block["calls"][method_name + method_desc] = stack
-                stack = []
+                desc = method_descriptor(method_desc)
+                num_args = len(desc.args)
+
+                args = []
+                for i in range(num_args):
+                    args.insert(0, stack.pop())
+                obj = stack.pop()
+
+                if "calls" in obj:
+                    obj["calls"][method_name + method_desc] = args
+                else:
+                    #print obj
+                    pass
+                if desc.returns.name != "void":
+                    if desc.returns.name == superclass:
+                        stack.append(obj)
+                    else:
+                        stack.append({"obj": obj, "method": const, "args": args})
             elif ins.mnemonic == "invokestatic":
-                # Some blocks are constructed as a method variable rather
-                # than directly in the registration method; thus the
-                # paremters are set here.
-                if len(stack) == 2:
-                    current_block["numeric_id"] = stack[0]
-                    current_block["text_id"] = stack[1]
-                elif len(stack) == 1:
-                    current_block["text_id"] = stack[0]
-                stack = []
+                # Call to the registration method
+                const = cf.constants.get(ins.operands[0].value)
+                desc = method_descriptor(const.name_and_type.descriptor.value)
+                num_args = len(desc.args)
+
+                if num_args == 3:
+                    current_block = stack.pop()
+                    current_block["text_id"] = stack.pop()
+                    current_block["numeric_id"] = stack.pop()
+                else:
+                    assert num_args == 2
+                    current_block = stack.pop()
+                    current_block["text_id"] = stack.pop()
+
                 tmp.append(current_block)
+            elif ins.mnemonic.startswith("astore"):
+                if ins.mnemonic == "astore":
+                    index = ins.operands[0].value
+                else:
+                    index = int(ins.mnemonic[-1])
+                locals[index] = stack.pop()
+            elif ins.mnemonic.startswith("aload"):
+                if ins.mnemonic == "aload":
+                    index = ins.operands[0].value
+                else:
+                    index = int(ins.mnemonic[-1])
+                stack.append(locals[index])
+            elif ins.mnemonic == "dup":
+                stack.append(stack[-1])
+            elif ins.mnemonic == "invokeinterface":
+                # We've reached the end of block registration
+                # (and have started iterating over registry keys)
+                break
+            elif ins.mnemonic == "checkcast":
+                pass
+            elif verbose:
+                print "Unknown instruction %s: stack is %s" % (ins, stack)
 
         # Now that we have all of the blocks, we need a few more things
         # to make sense of what it all means. So,
