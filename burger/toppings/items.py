@@ -53,21 +53,26 @@ class ItemsTopping(Topping):
         superclass = aggregate["classes"]["item.superclass"]
         blockclass = aggregate["classes"]["block.superclass"]
         blocklist = aggregate["classes"]["block.list"]
-        
+
         def add_block_info_to_item(field_info, item):
             """Adds data from the given field (should be in Blocks) to the given item"""
             assert field_info["class"] == blocklist
-            
+
             block_name = aggregate["blocks"]["block_fields"][field_info["name"]]
+            if block_name not in aggregate["blocks"]["block"]:
+                if verbose:
+                    print "No information available for item-block for %s/%s" % (field_info["name"], block_name)
+                return
             block = aggregate["blocks"]["block"][block_name]
-            
-            current_item["numeric_id"] = block["numeric_id"]
+
+            if "numeric_id" in block:
+                current_item["numeric_id"] = block["numeric_id"]
             current_item["text_id"] = block["text_id"]
             if "name" in block:
                 current_item["name"] = block["name"]
             if "display_name" in block:
                 current_item["display_name"] = block["display_name"]
-        
+
         cf = ClassFile(StringIO(jar.read(superclass + ".class")))
 
         # Find the registration method
@@ -84,12 +89,17 @@ class ItemsTopping(Topping):
         string_setter = cf.methods.find_one(returns="L" + superclass + ";",
                 args="Ljava/lang/String;",
                 f=lambda x: not x.access_flags.acc_static)
-        # There will be 2, but the first one is the name setter
-        name_setter = string_setter.name.value + cf.constants.get(string_setter.descriptor.index).value
+
+        if string_setter:
+            # There will be 2, but the first one is the name setter
+            name_setter = string_setter.name.value + cf.constants.get(string_setter.descriptor.index).value
+        else:
+            name_setter = None
 
         register_item_block_method = cf.methods.find_one(args='L' + blockclass + ';', returns="V")
         register_item_block_method_custom = cf.methods.find_one(args='L' + blockclass + ';L' + superclass + ';', returns="V")
-        register_item_method = cf.methods.find_one(args='ILjava/lang/String;L' + superclass + ';', returns="V")
+        register_item_method = cf.methods.find_one(args='ILjava/lang/String;L' + superclass + ';', returns="V") \
+                or cf.methods.find_one(args='Ljava/lang/String;L' + superclass + ';', returns="V")
 
         item_block_class = None
         # Find the class used that represents an item that is a block
@@ -105,14 +115,14 @@ class ItemsTopping(Topping):
             "calls": {}
         }
         tmp = []
-        
+
         for ins in method.code.disassemble():
             #print "INS",ins
             if ins.mnemonic == "new":
                 # The beginning of a new block definition
                 const = cf.constants.get(ins.operands[0].value)
                 class_name = const.name.value
-                
+
                 class_file = ClassFile(StringIO(jar.read(class_name + ".class")))
                 if class_file.super_.name.value == "java/lang/Object":
                     # A function created for an item shouldn't be counted - we
@@ -122,12 +132,12 @@ class ItemsTopping(Topping):
                     if class_file.this.name.value != superclass:
                         # If it's a call to 'new Item()' then it's still an item
                         continue
-                
+
                 current_item = {
                     "class": class_name,
                     "calls": {}
                 }
-                
+
                 if len(stack) == 2:
                     # If the block is constructed in the registration method,
                     # like `registerBlock(1, "stone", (new BlockStone()))`, then
@@ -136,8 +146,11 @@ class ItemsTopping(Topping):
                     current_item["numeric_id"] = stack[0]
                     current_item["text_id"] = stack[1]
                 elif len(stack) == 1:
-                    # Assuming this is a field set via getstatic
-                    add_block_info_to_item(stack[0], current_item)
+                    if isinstance(stack[0], (str, unicode)):
+                        current_item["text_id"] = stack[0]
+                    else:
+                        # Assuming this is a field set via getstatic
+                        add_block_info_to_item(stack[0], current_item)
                 stack = []
             elif ins.mnemonic.startswith("iconst"):
                 stack.append(int(ins.mnemonic[-1]))
@@ -183,12 +196,14 @@ class ItemsTopping(Topping):
                     # Other information was set at 'new'
                 elif name_index == register_item_method.name.index and descriptor_index == register_item_method.descriptor.index:
                     current_item["register_method"] = "item"
+                    # Some items are constructed as a method variable rather
+                    # than directly in the registration method; thus the
+                    # paremters are set here.
                     if len(stack) == 2:
-                        # Some blocks are constructed as a method variable rather
-                        # than directly in the registration method; thus the
-                        # paremters are set here.
                         current_item["numeric_id"] = stack[0]
                         current_item["text_id"] = stack[1]
+                    elif len(stack) == 1:
+                        current_item["text_id"] = stack[0]
 
                 stack = []
                 tmp.append(current_item)
@@ -200,7 +215,16 @@ class ItemsTopping(Topping):
         for item in tmp:
             final = {}
 
+            if "numeric_id" in item:
+                final["numeric_id"] = item["numeric_id"]
+            if "text_id" in item:
+                final["text_id"] = item["text_id"]
+            final["register_method"] = item["register_method"]
+            final["class"] = item["class"]
+
             if "name" in item:
+                final["name"] = item["name"]
+            elif "name" in item:
                 final["name"] = item["name"]
             if "display_name" in item:
                 final["display_name"] = item["display_name"]
@@ -212,22 +236,15 @@ class ItemsTopping(Topping):
                 if language and lang_key in language:
                     final["display_name"] = language[lang_key]
 
-            if "numeric_id" in item:
-                final["numeric_id"] = item["numeric_id"]
-            if "text_id" in item:
-                final["text_id"] = item["text_id"]
-            final["register_method"] = item["register_method"]
-            final["class"] = item["class"]
-
             if "text_id" in final:
                 item_list[final["text_id"]] = final
             else:
-                print 'ditched item', item
+                print "Dropping nameless item:", item
 
         # Go through the item list and add the field info.
         list = aggregate["classes"]["item.list"]
         lcf = ClassFile(StringIO(jar.read(list + ".class")))
-        
+
         # Find the static block, and load the fields for each.
         method = lcf.methods.find_one(name="<clinit>")
         item_name = ""
