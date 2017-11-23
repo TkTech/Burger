@@ -48,7 +48,7 @@ def identify(class_file):
         (['Accessed Biomes before Bootstrap!'], 'biome.list'),  # 1.9 only
         (['Ice Plains'], 'biome.superclass'),
         (['Accessed Blocks before Bootstrap!'], 'block.list'),
-        (['lightgem', 'client: {} @ {} - Destroy: {} from {}'], 'block.superclass'),
+        (['lightgem', 'Block{'], 'block.superclass'),
         (['Skipping Entity with id'], 'entity.list'),
         (['Fetching addPacket for removed entity'], 'entity.trackerentry'),
         (['Accessed Items before Bootstrap!'], 'item.list'),
