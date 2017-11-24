@@ -35,7 +35,8 @@ class VersionTopping(Topping):
 
     PROVIDES = [
         "version.protocol",
-        "version.name"
+        "version.name",
+        "version.data"
     ]
 
     DEPENDS = [

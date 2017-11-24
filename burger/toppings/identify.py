@@ -76,7 +76,8 @@ def identify(class_file):
         (
             ['ThreadedAnvilChunkStorage ({}): All chunks are saved'],
             'anvilchunkloader'
-        )
+        ),
+        (['has invalidly named property'], 'blockstatecontainer')
     )
     for c in class_file.constants.find(ConstantString):
         value = c.string.value
@@ -161,7 +162,8 @@ class IdentifyTopping(Topping):
         "identify.sounds.list",
         "identify.tileentity.superclass",
         "identify.tileentity.blockentitytag",
-        "identify.resourcelocation"
+        "identify.resourcelocation",
+        "identify.blockstatecontainer"
     ]
 
     DEPENDS = []
