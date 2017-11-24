@@ -64,23 +64,49 @@ class TileEntityTopping(Topping):
             method = tag_cf.methods.find_one("<clinit>")
 
             stack = []
+
+            # There may be two fields, one for old/new name and one item/name.
+            # Or there may just be item/name.
+            num_maps = len(list(tag_cf.fields.find(type_="Ljava/util/Map;")))
+            assert num_maps in (1, 2)
+
+            num_getstatic = 0
             for ins in method.code.disassemble():
-                if ins.mnemonic in ("ldc", "ldc_w"):
+                if ins.mnemonic == "getstatic":
+                    num_getstatic += 1
+                    assert num_getstatic <= num_maps
+                elif ins.mnemonic in ("ldc", "ldc_w") and num_getstatic != 0:
                     const = tag_cf.constants.get(ins.operands[0].value)
                     if isinstance(const, ConstantString):
                         stack.append(const.string.value)
                 elif ins.mnemonic == "invokeinterface":
-                    if len(stack) == 2:
-                        if not stack[1] in tileentities:
+                    if len(stack) != 2:
+                        if verbose:
+                            print "Unexpected stack length for BETag:", stack
+                        stack = []
+                        continue
+
+                    entity_id = stack.pop()
+                    block_id = stack.pop()
+                    if entity_id.startswith("minecraft:"):
+                        entity_id = entity_id[len("minecraft:"):]
+
+                    if num_getstatic == num_maps:
+                        # The last map is the block name to block entity map
+                        if not entity_id in tileentities:
                             if verbose:
                                 # This does currently happen in 1.9
                                 print ("Trying to mark %s as a block with "
                                        "tile entity %s but that tile entity "
                                        "does not exist!"
-                                       % (stack[0], stack[1]))
+                                       % (block_id, entity_id))
                         else:
-                            tileentities[stack[1]]["blocks"].append(stack[0])
-                    stack = []
+                            tileentities[entity_id]["blocks"].append(block_id)
+                    else:
+                        # The other map has block name to _old_ block entity
+                        # name.  But we don't want that (burger currently
+                        # doesn't track the old block entity name).
+                        pass
         elif verbose:
             print "No block entity tag info; skipping that"
 
