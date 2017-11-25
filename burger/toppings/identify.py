@@ -77,7 +77,8 @@ def identify(class_file):
             ['ThreadedAnvilChunkStorage ({}): All chunks are saved'],
             'anvilchunkloader'
         ),
-        (['has invalidly named property'], 'blockstatecontainer')
+        (['has invalidly named property'], 'blockstatecontainer'),
+        (['Someone\'s been tampering with the universe!'], 'enumfacing.plane')
     )
     for c in class_file.constants.find(ConstantString):
         value = c.string.value

@@ -12,6 +12,14 @@ try:
 except ImportError:
     from StringIO import StringIO
 
+# Planes
+class Plane:
+    def __init__(self, *args):
+        self.values = args
+
+HORIZONTAL = Plane('north', 'east', 'south', 'west')
+VERTICAL = Plane('up', 'down')
+
 class BlockStateTopping(Topping):
     """Gets tile entity (block entity) types."""
 
@@ -37,6 +45,7 @@ class BlockStateTopping(Topping):
 
         blockstatecontainer = aggregate["classes"]["blockstatecontainer"]
         block_cf = ClassFile(StringIO(jar.read(aggregate["classes"]["block.superclass"] + ".class")))
+        plane = aggregate["classes"]["enumfacing.plane"]
 
         base_method = block_cf.methods.find_one(returns="L" + blockstatecontainer + ";", f=lambda m: m.access_flags.acc_protected)
         print blockstatecontainer
@@ -127,13 +136,18 @@ class BlockStateTopping(Topping):
                         return value
                 elif ins.mnemonic == "getstatic":
                     const = cf.constants.get(ins.operands[0].value)
-                    desc = field_descriptor(const.name_and_type.descriptor.value)
-                    if desc.name not in property_types:
-                        stack.append(None)
-                        continue
+                    target = const.class_.name.value
+                    type = field_descriptor(const.name_and_type.descriptor.value).name
                     name = const.name_and_type.name.value
                     cls2 = const.class_.name.value
-                    stack.append(find_field(cls2, name))
+                    if type in property_types:
+                        stack.append(find_field(cls2, name))
+                    elif type == plane:
+                        # Assume 2 planes: HORIZONTAL (a) and VERTIAL (b)
+                        assert name in ('a', 'b')
+                        stack.append(HORIZONTAL if name == 'a' else VERTIAL)
+                    else:
+                        stack.append(None)
                 elif ins.mnemonic in ("ldc", "ldc_w"):
                     const = cf.constants.get(ins.operands[0].value)
 
@@ -165,6 +179,19 @@ class BlockStateTopping(Topping):
                         stack.append(prop)
                     elif desc.returns.name != "void":
                         stack.append(None)
+                elif ins.mnemonic == "invokevirtual":
+                    const = cf.constants.get(ins.operands[0].value)
+                    desc = method_descriptor(const.name_and_type.descriptor.value)
+                    num_args = len(desc.args)
+                    args = stack[-num_args:]
+                    for _ in xrange(num_args):
+                        stack.pop()
+
+                    obj = stack.pop()
+                    if isinstance(obj, Plane):
+                        stack.append(obj.values)
+                    else:
+                        print "unknown invoke", obj, desc, args
                 else:
                     print "Unhandled:", ins
 
