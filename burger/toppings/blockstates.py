@@ -147,8 +147,8 @@ class BlockStateTopping(Topping):
                         assert name in ('a', 'b')
                         stack.append(HORIZONTAL if name == 'a' else VERTIAL)
                     else:
-                        stack.append(None)
-                elif ins.mnemonic in ("ldc", "ldc_w"):
+                        stack.append(object())
+                elif ins.mnemonic in ("ldc", "ldc_w", "ldc2_w"):
                     const = cf.constants.get(ins.operands[0].value)
 
                     if isinstance(const, ConstantClass):
@@ -159,15 +159,32 @@ class BlockStateTopping(Topping):
                         stack.append(const.value)
                 elif ins.mnemonic.startswith("iconst"):
                     stack.append(int(ins.mnemonic[-1]))
+                elif ins.mnemonic.startswith("dconst"):
+                    stack.append(float(ins.mnemonic[-1]))
                 elif ins.mnemonic.endswith("ipush"):
                     stack.append(ins.operands[0].value)
-                elif ins.mnemonic == "invokestatic":
+                elif ins.mnemonic == "anewarray":
+                    length = stack.pop()
+                    stack.append([None] * length)
+                elif ins.mnemonic == "aastore":
+                    value = stack.pop()
+                    index = stack.pop()
+                    array = stack.pop()
+                    array[index] = value
+                elif ins.mnemonic == "dup":
+                    stack.append(stack[-1])
+                elif ins.mnemonic.startswith("invoke"):
                     const = cf.constants.get(ins.operands[0].value)
                     desc = method_descriptor(const.name_and_type.descriptor.value)
                     num_args = len(desc.args)
                     args = stack[-num_args:]
                     for _ in xrange(num_args):
                         stack.pop()
+
+                    if ins.mnemonic == "invokestatic":
+                        obj = None
+                    else:
+                        obj = stack.pop()
 
                     if desc.returns.name in property_types:
                         name = args[0]
@@ -177,32 +194,26 @@ class BlockStateTopping(Topping):
                             "args": args
                         }
                         stack.append(prop)
-                    elif desc.returns.name != "void":
-                        stack.append(None)
-                elif ins.mnemonic == "invokevirtual":
-                    const = cf.constants.get(ins.operands[0].value)
-                    desc = method_descriptor(const.name_and_type.descriptor.value)
-                    num_args = len(desc.args)
-                    args = stack[-num_args:]
-                    for _ in xrange(num_args):
-                        stack.pop()
-
-                    obj = stack.pop()
-                    if isinstance(obj, Plane):
+                    elif isinstance(obj, Plane):
                         stack.append(obj.values)
-                    else:
-                        print "unknown invoke", obj, desc, args
+                    elif const.name_and_type.name.value == "<init>":
+                        stack.append(object())
+                    elif desc.returns.name != "void":
+                        stack.append(object())
+                elif ins.mnemonic == "new":
+                    stack.append(object())
                 else:
-                    print "Unhandled:", ins
+                    print "Unhandled:", cls, ins
 
         for cls, properties in properties_by_class.iteritems():
+            print cls
             # TODO: Optimize this - less class loading!
             for property in properties:
                 field_name = property["field_name"]
-                print cls, property
                 try:
                     print find_field(cls, field_name)
                 except Exception as e:
+                    print cls, property
                     print e
 
         raise Exception()
