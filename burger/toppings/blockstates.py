@@ -57,8 +57,6 @@ class BlockStateTopping(Topping):
         _property_types = set()
         # Properties that are used by each block class
         properties_by_class = {}
-        # Properties that are declared in each block class
-        #properties_in_class = {}
         def process_class(name):
             """
             Gets the properties for the given block class, checking the parent
@@ -143,11 +141,11 @@ class BlockStateTopping(Topping):
                     if type in property_types:
                         stack.append(find_field(cls2, name))
                     elif type == plane:
-                        # Assume 2 planes: HORIZONTAL (a) and VERTIAL (b)
+                        # Assume 2 planes: HORIZONTAL (a) and VERTICAL (b)
                         assert name in ('a', 'b')
-                        stack.append(HORIZONTAL if name == 'a' else VERTIAL)
+                        stack.append(HORIZONTAL if name == 'a' else VERTICAL)
                     else:
-                        stack.append(object())
+                        stack.append(find_field(target, name))
                 elif ins.mnemonic in ("ldc", "ldc_w", "ldc2_w"):
                     const = cf.constants.get(ins.operands[0].value)
 
@@ -197,11 +195,15 @@ class BlockStateTopping(Topping):
                     elif isinstance(obj, Plane):
                         stack.append(obj.values)
                     elif const.name_and_type.name.value == "<init>":
-                        stack.append(object())
+                        obj["args"] = args
                     elif desc.returns.name != "void":
                         stack.append(object())
                 elif ins.mnemonic == "new":
-                    stack.append(object())
+                    const = cf.constants.get(ins.operands[0].value)
+                    obj = {
+                        "type": const.name.value
+                    }
+                    stack.append(obj)
                 else:
                     print "Unhandled:", cls, ins
 
