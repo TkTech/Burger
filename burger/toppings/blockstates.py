@@ -48,8 +48,6 @@ class BlockStateTopping(Topping):
         plane = aggregate["classes"]["enumfacing.plane"]
 
         base_method = block_cf.methods.find_one(returns="L" + blockstatecontainer + ";", f=lambda m: m.access_flags.acc_protected)
-        print blockstatecontainer
-        print base_method, vars(base_method)
         def matches(other_method):
             return (other_method.name.value == base_method.name.value and
                     other_method.descriptor.value == base_method.descriptor.value)
@@ -75,13 +73,27 @@ class BlockStateTopping(Topping):
                 properties_by_class[name] = properties
                 return properties
 
-            created_array = False
-            properties = []
+            properties = None
+            stack = []
             for ins in method.code.disassemble():
-                if ins.mnemonic == "anewarray":
-                    created_array = True
-                elif not created_array:
-                    continue
+                # This could _almost_ just be checking for getstatic, but
+                # brewing stands use an array of properties as the field,
+                # so we need some stupid extra logic.
+                if ins.mnemonic == "new":
+                    const = cf.constants.get(ins.operands[0].value)
+                    type_name = const.name.value
+                    assert type_name == blockstatecontainer
+                    stack.append(object())
+                elif ins.mnemonic.startswith("iconst"):
+                    stack.append(int(ins.mnemonic[-1]))
+                elif ins.mnemonic.endswith("ipush"):
+                    stack.append(ins.operands[0].value)
+                elif ins.mnemonic == "anewarray":
+                    len = stack.pop()
+                    val = [None] * len
+                    if not properties:
+                        properties = val
+                    stack.append(val)
                 elif ins.mnemonic == "getstatic":
                     const = cf.constants.get(ins.operands[0].value)
                     prop = {
@@ -89,7 +101,20 @@ class BlockStateTopping(Topping):
                     }
                     desc = field_descriptor(const.name_and_type.descriptor.value)
                     _property_types.add(desc.name)
-                    properties.append(prop)
+                    stack.append(prop)
+                elif ins.mnemonic == "aaload":
+                    index = stack.pop()
+                    array = stack.pop()
+                    prop = array.copy()
+                    prop["array_index"] = index
+                    stack.append(prop)
+                elif ins.mnemonic == "aastore":
+                    value = stack.pop()
+                    index = stack.pop()
+                    array = stack.pop()
+                    array[index] = value
+                elif ins.mnemonic == "dup":
+                    stack.append(stack[-1])
                 elif ins.mnemonic == "invokespecial":
                     break
 
@@ -214,12 +239,15 @@ class BlockStateTopping(Topping):
                     print "Unhandled:", cls, ins
 
         for cls, properties in properties_by_class.iteritems():
-            print cls
+            #print cls, properties
             # TODO: Optimize this - less class loading!
             for property in properties:
                 field_name = property["field_name"]
                 try:
-                    print find_field(cls, field_name)
+                    field = find_field(cls, field_name)
+                    if "array_index" in property:
+                        field = field[property["array_index"]]
+                    print field
                 except Exception as e:
                     print cls, property
                     print e
