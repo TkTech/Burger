@@ -175,9 +175,8 @@ class BlockStateTopping(Topping):
                     const = cf.constants.get(ins.operands[0].value)
                     desc = method_descriptor(const.name_and_type.descriptor.value)
                     num_args = len(desc.args)
-                    args = stack[-num_args:]
-                    for _ in xrange(num_args):
-                        stack.pop()
+                    args = [stack.pop() for _ in xrange(num_args)]
+                    args.reverse()
 
                     if ins.mnemonic == "invokestatic":
                         obj = None
@@ -188,6 +187,7 @@ class BlockStateTopping(Topping):
                         name = args[0]
                         prop = {
                             "name": name,
+                            "class": desc.returns.name,
                             "type": property_types[desc.returns.name],
                             "args": args
                         }
@@ -195,13 +195,19 @@ class BlockStateTopping(Topping):
                     elif isinstance(obj, Plane):
                         stack.append(obj.values)
                     elif const.name_and_type.name.value == "<init>":
-                        obj["args"] = args
+                        if obj["is_enum"]:
+                            obj["enum_name"] = args[0]
+                        else:
+                            obj["args"] = args
                     elif desc.returns.name != "void":
                         stack.append(object())
                 elif ins.mnemonic == "new":
                     const = cf.constants.get(ins.operands[0].value)
+                    type_name = const.name.value
+                    tcf = ClassFile(StringIO(jar.read(type_name + ".class")))
                     obj = {
-                        "type": const.name.value
+                        "class": type_name,
+                        "is_enum": tcf.super_.name.value == "java/lang/Enum"
                     }
                     stack.append(obj)
                 else:
