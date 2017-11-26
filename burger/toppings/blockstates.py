@@ -12,14 +12,6 @@ try:
 except ImportError:
     from StringIO import StringIO
 
-# Planes
-class Plane:
-    def __init__(self, *args):
-        self.values = args
-
-HORIZONTAL = Plane('north', 'east', 'south', 'west')
-VERTICAL = Plane('up', 'down')
-
 class BlockStateTopping(Topping):
     """Gets tile entity (block entity) types."""
 
@@ -165,10 +157,6 @@ class BlockStateTopping(Topping):
                     cls2 = const.class_.name.value
                     if type in property_types:
                         stack.append(find_field(cls2, name))
-                    elif type == plane:
-                        # Assume 2 planes: HORIZONTAL (a) and VERTICAL (b)
-                        assert name in ('a', 'b')
-                        stack.append(HORIZONTAL if name == 'a' else VERTICAL)
                     else:
                         stack.append(find_field(target, name))
                 elif ins.mnemonic in ("ldc", "ldc_w", "ldc2_w"):
@@ -217,15 +205,22 @@ class BlockStateTopping(Topping):
                             "args": args
                         }
                         stack.append(prop)
-                    elif isinstance(obj, Plane):
-                        stack.append(obj.values)
                     elif const.name_and_type.name.value == "<init>":
                         if obj["is_enum"]:
                             obj["enum_name"] = args[0]
                         else:
                             obj["args"] = args
                     elif desc.returns.name != "void":
-                        stack.append(object())
+                        if obj and obj["class"] == plane:
+                            # One special case, where EnumFacing.Plane is used
+                            # to get a list of directions
+                            assert obj["enum_name"] in ("HORIZONTAL", "VERTICAL")
+                            if obj["enum_name"] == "HORIZONTAL":
+                                stack.append(["NORTH", "EAST", "SOUTH", "WEST"])
+                            else:
+                                stack.append(["UP", "DOWN"])
+                        else:
+                            stack.append(object())
                 elif ins.mnemonic == "new":
                     const = cf.constants.get(ins.operands[0].value)
                     type_name = const.name.value
@@ -248,8 +243,11 @@ class BlockStateTopping(Topping):
                     if "array_index" in property:
                         field = field[property["array_index"]]
                     print field
+                    property["value"] = field
                 except Exception as e:
                     print cls, property
                     print e
 
-        raise Exception()
+        for block in aggregate["blocks"]["block"].itervalues():
+            block["states"] = [it["value"] for it in properties_by_class[block["class"]]]
+
