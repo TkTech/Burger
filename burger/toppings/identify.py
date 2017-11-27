@@ -69,7 +69,8 @@ def identify(class_file):
         (['Accessed Sounds before Bootstrap!'], 'sounds.list'),
         (['Skipping BlockEntity with id '], 'tileentity.superclass'),
         (
-            ['Unable to resolve BlockEntity for ItemInstance:'],
+            ['Unable to resolve BlockEntity for ItemInstance:',
+            'Unable to resolve BlockEntity for ItemStack:'],
             'tileentity.blockentitytag'
         ),
         (
