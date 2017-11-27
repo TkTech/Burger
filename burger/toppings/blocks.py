@@ -118,13 +118,18 @@ class BlocksTopping(Topping):
                 const = cf.constants.get(ins.operands[0].value)
                 obj = stack.pop()
                 stack.append({"obj": obj, "field": repr(const)})
-            elif ins.mnemonic in ("invokevirtual", "invokespecial"):
+            elif ins.mnemonic in ("invokevirtual", "invokespecial", "invokeinterface"):
                 # A method invocation
                 const = cf.constants.get(ins.operands[0].value)
                 method_name = const.name_and_type.name.value
                 method_desc = const.name_and_type.descriptor.value
                 desc = method_descriptor(method_desc)
                 num_args = len(desc.args)
+
+                if method_name == "hasNext":
+                    # We've reached the end of block registration
+                    # (and have started iterating over registry keys)
+                    break
 
                 args = []
                 for i in range(num_args):
@@ -171,10 +176,6 @@ class BlocksTopping(Topping):
                 stack.append(locals[index])
             elif ins.mnemonic == "dup":
                 stack.append(stack[-1])
-            elif ins.mnemonic == "invokeinterface":
-                # We've reached the end of block registration
-                # (and have started iterating over registry keys)
-                break
             elif ins.mnemonic == "checkcast":
                 pass
             elif verbose:
