@@ -58,7 +58,9 @@ class RecipesTopping(Topping):
     @staticmethod
     def act(aggregate, jar, verbose=False):
         if "assets/minecraft/recipes/stick.json" in jar.namelist():
-            recipe_list = RecipesTopping.find_from_json(aggregate, jar, verbose)
+            recipe_list = RecipesTopping.find_from_json(aggregate, jar, "assets/minecraft/recipes/", verbose)
+        elif "data/minecraft/recipes/stick.json" in jar.namelist():
+            recipe_list = RecipesTopping.find_from_json(aggregate, jar, "data/minecraft/recipes/", verbose)
         else:
             recipe_list = RecipesTopping.find_from_jar(aggregate, jar, verbose)
 
@@ -71,7 +73,7 @@ class RecipesTopping(Topping):
             recipes_for_item.append(recipe)
 
     @staticmethod
-    def find_from_json(aggregate, jar, verbose):
+    def find_from_json(aggregate, jar, prefix, verbose):
         if verbose:
             print "Extracting recipes from JSON"
 
@@ -123,13 +125,12 @@ class RecipesTopping(Topping):
             return result
 
         for name in jar.namelist():
-            if name.startswith("assets/minecraft/recipes/") and name.endswith(".json"):
+            if name.startswith(prefix) and name.endswith(".json"):
                 try:
                     data = json.loads(jar.read(name))
-                    recipe_id = "minecraft:" + name[len("assets/minecraft/recipes/"):-len(".json")]
+                    recipe_id = "minecraft:" + name[len(prefix):-len(".json")]
 
                     assert "type" in data
-                    assert "result" in data
 
                     recipe = {}
                     recipe["id"] = recipe_id # new for 1.12, but used ingame
@@ -137,6 +138,13 @@ class RecipesTopping(Topping):
                     if "group" in data:
                         recipe["group"] = data["group"]
 
+                    if data["type"] not in ("crafting_shaped", "crafting_shapeless"):
+                        if verbose:
+                            print "Unrecognized recipe type %s for %s" % (data["type"], recipe_id)
+                        continue
+
+
+                    assert "result" in data
                     recipe["makes"] = parse_item(data["result"], False)
                     if "count" not in recipe["makes"]:
                         recipe["makes"]["count"] = 1 # default, TODO should we keep specifying this?
@@ -198,8 +206,6 @@ class RecipesTopping(Topping):
                                         shape_row.append(None)
                                 shape.append(shape_row)
                             recipe_choice["shape"] = shape
-                    else:
-                        raise Exception("Unknown or invalid recipe type", data[type], "for recipe", recipe_id)
 
                     recipes.extend(matching_recipes)
                 except Exception as e:
