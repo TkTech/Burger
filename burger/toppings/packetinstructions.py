@@ -118,7 +118,7 @@ class PacketInstructionsTopping(Topping):
         0x2a: (0, "{1}", lambda op: op - 0x2a),     # aload_<n>
         0xbd: (1, "new {1.class}[{0}]"),            # anewarray
         0xbe: (1, "{0}.length"),                    # arraylength
-        0xbf: (1),                                  # athrow
+        0xbf: (1, "throw {0}"),                     # athrow
         0x10: (0, "0x{0.value:x}"),                 # bipush
         0xc0: (1, "(({1.classname}){0})"),          # checkcast
         0x90: (1, "((double){0})", 2),              # d2f
@@ -211,7 +211,7 @@ class PacketInstructionsTopping(Topping):
         cf = ClassFile(StringIO(jar.read(classname)))
 
         if methodname is None and args is None:
-            methods = list(cf.methods.find(f=lambda x: len(x.args) == 1 and x.args[0].name == classes["packet.packetbuffer"]))
+            methods = list(cf.methods.find(returns="V", args="L" + classes["packet.packetbuffer"] + ";"))
 
             if len(methods) == 2:
                 method = methods[1]
@@ -225,6 +225,11 @@ class PacketInstructionsTopping(Topping):
         else:
             method = cf.methods.find_one(name=methodname, args=args)
 
+        if method.access_flags.acc_abstract:
+            # Abstract method call -- just log that, since we can't view it
+            return [Operation(instruction.pos, "interfacecall",
+                              type="abstract", target=operands[0].c,
+                              method=name + desc, field=obj, args=arguments)]
 
         # Decode the instructions
         operations = []
@@ -396,9 +401,11 @@ class PacketInstructionsTopping(Topping):
                                     # check its code -- so just note that it's a call
                                     operations.append(Operation(instruction.pos,
                                                         "interfacecall",
+                                                        type="interface",
                                                         target=operands[0].c,
                                                         method=name + desc,
-                                                        field=obj))
+                                                        field=obj,
+                                                        args=arguments))
                                 break
 
             # Conditional statements and loops
@@ -588,25 +595,31 @@ class PacketInstructionsTopping(Topping):
                     )
 
                 if "store" in instruction.mnemonic:
-                    if instruction.mnemonic[1] == 'a':
-                        # Array store: Doesn't seem to be used when writing
-                        # packets; let's ignore it.
-                        raise Exception("Unhandled array store instruction: " + str(instruction))
-
-                    # Keep track of what is being stored, for clarity
-                    if "_" in instruction.mnemonic:
-                        # Tstore_<index>
-                        arg = instruction.mnemonic[-1]
-                    else:
-                        arg = operands.pop().value
-                    
                     type = _PIT.INSTRUCTION_TYPES[instruction.mnemonic[0]]
 
-                    var = arg_names[arg] if arg < len(arg_names) else "var%s" % arg
-                    operations.append(Operation(instruction.pos, "store",
+                    if instruction.mnemonic[1] == 'a':
+                        # Array store
+                        value = operands.pop()
+                        index = operands.pop()
+                        array = operands.pop()
+                        operations.append(Operation(instruction.pos, "arraystore",
                                                 type=type,
-                                                var=var,
-                                                value=operands.pop()))
+                                                index=index,
+                                                var=array,
+                                                value=value))
+                    else:
+                        # Keep track of what is being stored, for clarity
+                        if "_" in instruction.mnemonic:
+                            # Tstore_<index>
+                            arg = instruction.mnemonic[-1]
+                        else:
+                            arg = operands.pop().value
+
+                        var = arg_names[arg] if arg < len(arg_names) else "var%s" % arg
+                        operations.append(Operation(instruction.pos, "store",
+                                                    type=type,
+                                                    var=var,
+                                                    value=operands.pop()))
 
         return operations
 
