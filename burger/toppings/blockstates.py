@@ -7,6 +7,8 @@ from jawa.constants import *
 from jawa.cf import ClassFile
 from jawa.util.descriptor import method_descriptor, field_descriptor
 
+import traceback
+
 try:
     from cStringIO import StringIO
 except ImportError:
@@ -136,7 +138,6 @@ class BlockStateTopping(Topping):
                 elif verbose:
                     print "Unknown property type %s with signature %s" % (type, signature)
 
-        print property_types
         fields_by_class = {}
         ignore_scary_lambda_marker = object()
         def find_field(cls, field_name):
@@ -191,12 +192,7 @@ class BlockStateTopping(Topping):
                     type = field_descriptor(const.name_and_type.descriptor.value).name
                     name = const.name_and_type.name.value
                     if not target.startswith("java/"):
-                        
-                        try:
-                            stack.append(find_field(target, name))
-                        except:
-                            print 'Failed to handle', target, name, 'for', cls
-                            raise
+                        stack.append(find_field(target, name))
                     else:
                         stack.append(object())
                 elif ins.mnemonic in ("ldc", "ldc_w", "ldc2_w"):
@@ -384,15 +380,12 @@ class BlockStateTopping(Topping):
                     property["field"] = field
 
                     property["data"] = property_handlers[field["type"]](property)
-                except Exception as e:
-                    print cls + "." + field_name, property
-                    import traceback
-                    traceback.print_exc()
-                    #print e
-
-        #print fields_by_class
+                except:
+                    if verbose:
+                        print "Failed to handle property %s (declared %s.%s)" % (property, cls, field_name)
+                        traceback.print_exc()
+                    property["data"] = None
 
         for block in aggregate["blocks"]["block"].itervalues():
             proprties = properties_by_class[block["class"]]
             block["states"] = [prop["data"] for prop in proprties]
-
