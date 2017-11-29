@@ -117,7 +117,14 @@ class BlockStateTopping(Topping):
             return properties
 
         for block in aggregate["blocks"]["block"].itervalues():
-            process_class(block["class"])
+            cls = block["class"]
+            try:
+                process_class(cls)
+            except:
+                if verbose:
+                    print "Failed to process properties for %s (for %s)" % (cls, block["text_id"])
+                    traceback.print_exc()
+                properties_by_class[cls] = []
 
         assert len(_property_types) == 4
         property_types = {}
