@@ -22,7 +22,8 @@ class BlockStateTopping(Topping):
     DEPENDS = [
         "blocks",
         "version.data",
-        "identify.blockstatecontainer"
+        "identify.blockstatecontainer",
+        "identify.sounds.list"
     ]
 
     @staticmethod
@@ -150,6 +151,9 @@ class BlockStateTopping(Topping):
                     return fields_by_class[cls][field_name]
                 else:
                     return fields_by_class[cls]
+            elif cls == aggregate["classes"]["sounds.list"]:
+                # Another scary case.  We don't want to parse all of the sound events.
+                return object()
 
             cf = ClassFile(StringIO(jar.read(cls + ".class")))
 
@@ -281,17 +285,100 @@ class BlockStateTopping(Topping):
             else:
                 return fields_by_class[cls]
 
+        # Property handlers.
+
+        def handle_boolean_property(prop):
+            args = prop["field"]["args"]
+            assert len(args) == 1
+            assert isinstance(args[0], basestring)
+            return {
+                "type": "bool",
+                "name": args[0],
+                "num_values": 2
+            }
+
+        def handle_int_property(prop):
+            args = prop["field"]["args"]
+            assert len(args) == 3
+            assert isinstance(args[0], basestring)
+            assert isinstance(args[1], int)
+            assert isinstance(args[2], int)
+            return {
+                "type": "int",
+                "name": args[0],
+                "num_values": args[2] - args[1] + 1,
+                "min": args[1],
+                "max": args[2]
+            }
+
+        def handle_enum_property(prop):
+            args = prop["field"]["args"]
+            assert len(args) in (2, 3)
+            assert isinstance(args[0], basestring)
+            assert isinstance(args[1], basestring)
+            assert args[1].endswith(".class") # Should be a class
+            class_name = args[1][:-len(".class")]
+            ret = {
+                "type": "enum",
+                "name": args[0],
+                "enum_class": class_name,
+            }
+            if len(args) == 2:
+                values = [c["enum_name"] for c
+                          in find_field(class_name, None).itervalues()
+                          if isinstance(c, dict) and c["is_enum"]]
+            elif isinstance(args[2], list):
+                values = args[2]
+            else:
+                # Predicate (used for rails) or regular Collection (unused)
+                if verbose:
+                    print "Unhandled args for %s" % args
+                values = []
+            ret["values"] = values
+            ret["num_values"] = len(values)
+            return ret
+
+        def handle_direction_property(prop):
+            args = prop["field"]["args"]
+            assert len(args) == 2
+            assert isinstance(args[0], basestring)
+            ret = {
+                "type": "direction",
+                "name": args[0]
+            }
+            if isinstance(args[1], list):
+                if isinstance(args[1][0], str):
+                    # A Plane's facings
+                    values = args[1]
+                else:
+                    # Fields
+                    values = [c["enum_name"] for c in args[1]]
+            else:
+                # Predicate (used for hoppers) or regular Collection (unused)
+                if verbose:
+                    print "Unhandled args for %s" % args
+                values = []
+            ret["values"] = values
+            ret["num_values"] = len(values)
+            return ret
+
+        property_handlers = {
+            'bool': handle_boolean_property,
+            'int': handle_int_property,
+            'enum': handle_enum_property,
+            'direction': handle_direction_property
+        }
+
         for cls, properties in properties_by_class.iteritems():
-            #print cls, properties
-            # TODO: Optimize this - less class loading!
             for property in properties:
                 field_name = property["field_name"]
                 try:
                     field = find_field(cls, field_name)
                     if "array_index" in property:
                         field = field[property["array_index"]]
-                    #print field
                     property["field"] = field
+
+                    property["data"] = property_handlers[field["type"]](property)
                 except Exception as e:
                     print cls + "." + field_name, property
                     import traceback
@@ -301,5 +388,6 @@ class BlockStateTopping(Topping):
         #print fields_by_class
 
         for block in aggregate["blocks"]["block"].itervalues():
-            block["states"] = [it["field"] for it in properties_by_class[block["class"]]]
+            proprties = properties_by_class[block["class"]]
+            block["states"] = [prop["data"] for prop in proprties]
 
