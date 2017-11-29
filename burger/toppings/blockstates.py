@@ -136,29 +136,65 @@ class BlockStateTopping(Topping):
                     print "Unknown property type %s with signature %s" % (type, signature)
 
         print property_types
+        fields_by_class = {}
+        ignore_scary_lambda_marker = object()
         def find_field(cls, field_name):
+            """
+            cls: name of the class
+            field_name: name of the field to find.  If None, returns all fields
+            """
+            if cls in fields_by_class:
+                if fields_by_class[cls] == ignore_scary_lambda_marker:
+                    return object()
+                elif field_name is not None:
+                    return fields_by_class[cls][field_name]
+                else:
+                    return fields_by_class[cls]
+
             cf = ClassFile(StringIO(jar.read(cls + ".class")))
-            if not cf.fields.find_one(field_name):
-                return find_field(cf.super_.name.value, field_name)
+
+            if cf.attributes.find_one("BootstrapMethods"):
+                # AAAH LAMBDAS
+                fields_by_class[cls] = ignore_scary_lambda_marker
+                return object()
+
+            fields_by_class[cls] = {}
+            super_name = cf.super_.name.value
+            if not super_name.startswith("java/lang"):
+                # Add fields from superclass
+                fields_by_class[cls].update(find_field(super_name, None))
 
             init = cf.methods.find_one("<clinit>")
+            if not init:
+                if field_name is not None:
+                    return fields_by_class[cls][field_name]
+                else:
+                    return fields_by_class[cls]
+
             stack = []
             for ins in init.code.disassemble():
                 if ins.mnemonic == "putstatic":
                     const = cf.constants.get(ins.operands[0].value)
+                    name = const.name_and_type.name.value
                     value = stack.pop()
-                    if const.name_and_type.name.value == field_name:
-                        return value
+
+                    if isinstance(value, dict):
+                        value["declared_in"] = cls
+                    fields_by_class[cls][name] = value
                 elif ins.mnemonic == "getstatic":
                     const = cf.constants.get(ins.operands[0].value)
                     target = const.class_.name.value
                     type = field_descriptor(const.name_and_type.descriptor.value).name
                     name = const.name_and_type.name.value
-                    cls2 = const.class_.name.value
-                    if type in property_types:
-                        stack.append(find_field(cls2, name))
+                    if not target.startswith("java/"):
+                        
+                        try:
+                            stack.append(find_field(target, name))
+                        except:
+                            print 'Failed to handle', target, name, 'for', cls
+                            raise
                     else:
-                        stack.append(find_field(target, name))
+                        stack.append(object())
                 elif ins.mnemonic in ("ldc", "ldc_w", "ldc2_w"):
                     const = cf.constants.get(ins.operands[0].value)
 
@@ -192,6 +228,10 @@ class BlockStateTopping(Topping):
                     args.reverse()
 
                     if ins.mnemonic == "invokestatic":
+                        if const.class_.name.value.startswith("com/google/"):
+                            # Call to e.g. Maps.newHashMap, beyond what we
+                            # care about
+                            break
                         obj = None
                     else:
                         obj = stack.pop()
@@ -211,7 +251,7 @@ class BlockStateTopping(Topping):
                         else:
                             obj["args"] = args
                     elif desc.returns.name != "void":
-                        if obj and obj["class"] == plane:
+                        if isinstance(obj, dict) and obj["class"] == plane:
                             # One special case, where EnumFacing.Plane is used
                             # to get a list of directions
                             assert obj["enum_name"] in ("HORIZONTAL", "VERTICAL")
@@ -230,8 +270,16 @@ class BlockStateTopping(Topping):
                         "is_enum": tcf.super_.name.value == "java/lang/Enum"
                     }
                     stack.append(obj)
-                else:
-                    print "Unhandled:", cls, ins
+                elif ins.mnemonic == "return":
+                    break
+                elif ins.mnemonic == "if_icmpge":
+                    # Code in stairs that loops over state combinations for hitboxes
+                    break
+
+            if field_name is not None:
+                return fields_by_class[cls][field_name]
+            else:
+                return fields_by_class[cls]
 
         for cls, properties in properties_by_class.iteritems():
             #print cls, properties
@@ -242,12 +290,16 @@ class BlockStateTopping(Topping):
                     field = find_field(cls, field_name)
                     if "array_index" in property:
                         field = field[property["array_index"]]
-                    print field
-                    property["value"] = field
+                    #print field
+                    property["field"] = field
                 except Exception as e:
-                    print cls, property
-                    print e
+                    print cls + "." + field_name, property
+                    import traceback
+                    traceback.print_exc()
+                    #print e
+
+        #print fields_by_class
 
         for block in aggregate["blocks"]["block"].itervalues():
-            block["states"] = [it["value"] for it in properties_by_class[block["class"]]]
+            block["states"] = [it["field"] for it in properties_by_class[block["class"]]]
 
