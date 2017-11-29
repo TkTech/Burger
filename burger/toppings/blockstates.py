@@ -241,9 +241,7 @@ class BlockStateTopping(Topping):
                         obj = stack.pop()
 
                     if desc.returns.name in property_types:
-                        name = args[0]
                         prop = {
-                            "name": name,
                             "class": desc.returns.name,
                             "type": property_types[desc.returns.name],
                             "args": args
@@ -286,43 +284,53 @@ class BlockStateTopping(Topping):
                 return fields_by_class[cls]
 
         # Property handlers.
+        def base_handle_property(prop):
+            field = prop["field"]
+            args = field["args"]
+            assert len(args) >= 1
+            assert isinstance(args[0], basestring)
+            ret = {
+                "type": field["type"],
+                "name": args[0],
+                "field_name": prop["field_name"]
+            }
+            if "array_index" in prop:
+                ret["array_index"] = prop["array_index"]
+            else:
+                # Unfortunately we don't have a declared_in field for arrays at this time
+                ret["declared_in"] = field["declared_in"]
+            return ret
 
         def handle_boolean_property(prop):
-            args = prop["field"]["args"]
-            assert len(args) == 1
-            assert isinstance(args[0], basestring)
-            return {
-                "type": "bool",
-                "name": args[0],
-                "num_values": 2
-            }
+            ret = base_handle_property(prop)
+
+            assert len(prop["field"]["args"]) == 1
+            ret["num_values"] = 2
+            return ret
 
         def handle_int_property(prop):
+            ret = base_handle_property(prop)
+
             args = prop["field"]["args"]
             assert len(args) == 3
-            assert isinstance(args[0], basestring)
             assert isinstance(args[1], int)
             assert isinstance(args[2], int)
-            return {
-                "type": "int",
-                "name": args[0],
-                "num_values": args[2] - args[1] + 1,
-                "min": args[1],
-                "max": args[2]
-            }
+
+            ret["num_values"] = args[2] - args[1] + 1
+            ret["min"] = args[1]
+            ret["max"] = args[2]
+            return ret
 
         def handle_enum_property(prop):
+            ret = base_handle_property(prop)
+
             args = prop["field"]["args"]
             assert len(args) in (2, 3)
-            assert isinstance(args[0], basestring)
             assert isinstance(args[1], basestring)
             assert args[1].endswith(".class") # Should be a class
             class_name = args[1][:-len(".class")]
-            ret = {
-                "type": "enum",
-                "name": args[0],
-                "enum_class": class_name,
-            }
+
+            ret["enum_class"] = class_name
             if len(args) == 2:
                 values = [c["enum_name"] for c
                           in find_field(class_name, None).itervalues()
@@ -339,13 +347,10 @@ class BlockStateTopping(Topping):
             return ret
 
         def handle_direction_property(prop):
+            ret = base_handle_property(prop)
+
             args = prop["field"]["args"]
             assert len(args) == 2
-            assert isinstance(args[0], basestring)
-            ret = {
-                "type": "direction",
-                "name": args[0]
-            }
             if isinstance(args[1], list):
                 if isinstance(args[1][0], str):
                     # A Plane's facings
