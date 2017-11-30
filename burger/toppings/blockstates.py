@@ -14,6 +14,14 @@ try:
 except ImportError:
     from StringIO import StringIO
 
+# EnumFacing.Plane.  Needed because this is also a predicate, which is used
+# to get certain facings
+class Plane:
+    def __init__(self, directions):
+        self.directions = directions
+HORIZONTAL = Plane(["NORTH", "EAST", "SOUTH", "WEST"])
+VERTICAL = Plane(["UP", "DOWN"])
+PLANES = { "HORIZONTAL": HORIZONTAL, "VERTICAL": VERTICAL }
 class BlockStateTopping(Topping):
     """Gets tile entity (block entity) types."""
 
@@ -112,6 +120,8 @@ class BlockStateTopping(Topping):
                     stack.append(stack[-1])
                 elif ins.mnemonic == "invokespecial":
                     break
+                elif verbose:
+                    print "%s contains unimplemented ins %s" % (name, ins)
 
             properties_by_class[name] = properties
             return properties
@@ -145,8 +155,29 @@ class BlockStateTopping(Topping):
                 elif verbose:
                     print "Unknown property type %s with signature %s" % (type, signature)
 
+        is_enum_cache = {}
+        def is_enum(cls):
+            """
+            Checks if the given class is an enum.
+            This needs to be recursive due to inner classes for enums.
+            """
+            if cls in is_enum_cache:
+                return is_enum_cache[cls]
+
+            cf = ClassFile(StringIO(jar.read(cls + ".class")))
+            super = cf.super_.name.value
+            if super == "java/lang/Enum":
+                is_enum_cache[cls] = True
+            elif super == "java/lang/Object":
+                is_enum_cache[cls] = False
+            else:
+                is_enum_cache[cls] = is_enum(super)
+
+            return is_enum_cache[cls]
+
         fields_by_class = {}
         ignore_scary_lambda_marker = object()
+
         def find_field(cls, field_name):
             """
             cls: name of the class
@@ -192,6 +223,14 @@ class BlockStateTopping(Topping):
 
                     if isinstance(value, dict):
                         value["declared_in"] = cls
+                        if value["class"] == plane:
+                            # Convert to an instance of Plane
+                            # Now is the easiest time to do this, and for
+                            # Plane itself it doesn't matter since it's never
+                            # used on the stack
+                            assert "enum_name" in value
+                            assert value["enum_name"] in PLANES
+                            value = PLANES[value["enum_name"]]
                     fields_by_class[cls][name] = value
                 elif ins.mnemonic == "getstatic":
                     const = cf.constants.get(ins.operands[0].value)
@@ -256,23 +295,18 @@ class BlockStateTopping(Topping):
                         else:
                             obj["args"] = args
                     elif desc.returns.name != "void":
-                        if isinstance(obj, dict) and obj["class"] == plane:
+                        if isinstance(obj, Plane):
                             # One special case, where EnumFacing.Plane is used
                             # to get a list of directions
-                            assert obj["enum_name"] in ("HORIZONTAL", "VERTICAL")
-                            if obj["enum_name"] == "HORIZONTAL":
-                                stack.append(["NORTH", "EAST", "SOUTH", "WEST"])
-                            else:
-                                stack.append(["UP", "DOWN"])
+                            stack.append(obj.directions)
                         else:
                             stack.append(object())
                 elif ins.mnemonic == "new":
                     const = cf.constants.get(ins.operands[0].value)
                     type_name = const.name.value
-                    tcf = ClassFile(StringIO(jar.read(type_name + ".class")))
                     obj = {
                         "class": type_name,
-                        "is_enum": tcf.super_.name.value == "java/lang/Enum"
+                        "is_enum": is_enum(type_name)
                     }
                     stack.append(obj)
                 elif ins.mnemonic == "return":
@@ -339,7 +373,7 @@ class BlockStateTopping(Topping):
                           in find_field(class_name, None).itervalues()
                           if isinstance(c, dict) and c["is_enum"]]
             elif isinstance(args[2], list):
-                values = args[2]
+                values = [c["enum_name"] for c in args[2]]
             else:
                 # Predicate (used for rails) or regular Collection (unused)
                 if verbose:
