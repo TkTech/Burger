@@ -225,7 +225,11 @@ class BlockStateTopping(Topping):
                     value = stack.pop()
 
                     if isinstance(value, dict):
-                        value["declared_in"] = cls
+                        if "declared_in" not in value:
+                            # If there's already a declared_in, this is a field
+                            # loaded with getstatic, and we don't wnat to change
+                            # the true location of it
+                            value["declared_in"] = cls
                         if value["class"] == plane:
                             # Convert to an instance of Plane
                             # Now is the easiest time to do this, and for
@@ -515,16 +519,23 @@ class BlockStateTopping(Topping):
                     # Fun times... guess what the predicate does,
                     # based off of the block
                     if block["text_id"] == "hopper":
-                        values = [v for v in data["values"] if v != "UP"]
+                        predicate = lambda v: v != "UP"
                     elif block["text_id"] in ("powered_rail", "activator_rail", "golden_rail", "detector_rail"):
-                        values = [v for v in data["values"] if v not in ("NORTH_EAST", "NORTH_WEST", "SOUTH_EAST", "SOUTH_WEST")]
+                        predicate = lambda v: v not in ("NORTH_EAST", "NORTH_WEST", "SOUTH_EAST", "SOUTH_WEST")
+                    elif prop["field"]["declared_in"] == aggregate["blocks"]["block"]["torch"]["class"]:
+                        # Pre-flattening
+                        predicate = lambda v: v != "DOWN"
+                    elif block["text_id"] == "leaves" or block["text_id"] == "log":
+                        predicate = lambda v: v in ("OAK", "BIRCH", "SPRUCE", "JUNGLE")
+                    elif block["text_id"] == "leaves2" or block["text_id"] == "log2":
+                        predicate = lambda v: v in ("DARK_OAK", "ACACIA")
                     else:
                         if verbose:
                             print "Unhandled predicate for prop %s for %s" % (prop, block["text_id"])
-                        values = []
+                        predicate = lambda v: False
 
-                    data["values"] = values
-                    data["num_values"] = len(values)
+                    data["values"] = [v for v in data["values"] if predicate(v)]
+                    data["num_values"] = len(data["values"])
                 else:
                     data = prop["data"]
 
