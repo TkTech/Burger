@@ -120,8 +120,10 @@ class BlockStateTopping(Topping):
                     stack.append(stack[-1])
                 elif ins.mnemonic == "invokespecial":
                     break
+                elif ins.mnemonic == "aload_0":
+                    stack.append(object())
                 elif verbose:
-                    print "%s contains unimplemented ins %s" % (name, ins)
+                    print "%s createBlockState contains unimplemented ins %s" % (name, ins)
 
             properties_by_class[name] = properties
             return properties
@@ -215,6 +217,7 @@ class BlockStateTopping(Topping):
                     return fields_by_class[cls]
 
             stack = []
+            locals = {}
             for ins in init.code.disassemble():
                 if ins.mnemonic == "putstatic":
                     const = cf.constants.get(ins.operands[0].value)
@@ -256,14 +259,25 @@ class BlockStateTopping(Topping):
                     stack.append(float(ins.mnemonic[-1]))
                 elif ins.mnemonic.endswith("ipush"):
                     stack.append(ins.operands[0].value)
+                elif ins.mnemonic == "aconst_null":
+                    stack.append(None)
                 elif ins.mnemonic == "anewarray":
                     length = stack.pop()
                     stack.append([None] * length)
+                elif ins.mnemonic == "aaload":
+                    index = stack.pop()
+                    array = stack.pop()
+                    prop = array[index].copy()
+                    prop["array_index"] = index
+                    stack.append(prop)
                 elif ins.mnemonic == "aastore":
                     value = stack.pop()
                     index = stack.pop()
                     array = stack.pop()
                     array[index] = value
+                elif ins.mnemonic == "arraylength":
+                    array = stack.pop()
+                    stack.append(len(array))
                 elif ins.mnemonic == "dup":
                     stack.append(stack[-1])
                 elif ins.mnemonic.startswith("invoke"):
@@ -292,15 +306,41 @@ class BlockStateTopping(Topping):
                     elif const.name_and_type.name.value == "<init>":
                         if obj["is_enum"]:
                             obj["enum_name"] = args[0]
+                            obj["enum_ordinal"] = args[1]
                         else:
                             obj["args"] = args
+                    elif const.name_and_type.name.value == "values":
+                        # Enum values
+                        fields = find_field(const.class_.name.value, None)
+                        stack.append([fld for fld in fields
+                                      if isinstance(fld, dict) and fld["is_enum"]])
                     elif desc.returns.name != "void":
                         if isinstance(obj, Plane):
                             # One special case, where EnumFacing.Plane is used
                             # to get a list of directions
                             stack.append(obj.directions)
+                        elif (isinstance(obj, dict) and obj["is_enum"] and
+                                desc.returns.name == "int"):
+                            # Assume it's the enum ordinal, even if it really
+                            # isn't
+                            stack.append(obj["enum_ordinal"])
                         else:
-                            stack.append(object())
+                            o = object()
+                            stack.append(o)
+                elif "store" in ins.mnemonic and ins.mnemonic[1] != 'a':
+                    # Store other than array store
+                    if "_" in ins.mnemonic:
+                        index = ins.mnemonic[-1]
+                    else:
+                        index = ins.operands[0].value
+                    locals[index] = stack.pop()
+                elif "load" in ins.mnemonic and ins.mnemonic[1] != 'a':
+                    # Load other than array load
+                    if "_" in ins.mnemonic:
+                        index = ins.mnemonic[-1]
+                    else:
+                        index = ins.operands[0].value
+                    stack.append(locals[index])
                 elif ins.mnemonic == "new":
                     const = cf.constants.get(ins.operands[0].value)
                     type_name = const.name.value
@@ -314,6 +354,8 @@ class BlockStateTopping(Topping):
                 elif ins.mnemonic == "if_icmpge":
                     # Code in stairs that loops over state combinations for hitboxes
                     break
+                elif verbose:
+                    print "%s initializer contains unimplemented ins %s" % (cls, ins)
 
             if field_name is not None:
                 return fields_by_class[cls][field_name]
@@ -387,14 +429,20 @@ class BlockStateTopping(Topping):
             ret = base_handle_property(prop)
 
             args = prop["field"]["args"]
-            assert len(args) == 2
-            if isinstance(args[1], list):
+            assert len(args) in (1, 2)
+            if len(args) == 1:
+                # No restrictions
+                values = ["DOWN", "UP", "NORTH", "SOUTH", "EAST", "WEST"]
+            elif isinstance(args[1], list):
                 if isinstance(args[1][0], str):
                     # A Plane's facings
                     values = args[1]
                 else:
                     # Fields
                     values = [c["enum_name"] for c in args[1]]
+            elif isinstance(args[1], Plane):
+                # Plane used as a predicate
+                values = args[1].directions
             else:
                 # Predicate (used for hoppers) or regular Collection (unused)
                 if verbose:
@@ -413,6 +461,9 @@ class BlockStateTopping(Topping):
 
         for cls, properties in properties_by_class.iteritems():
             for property in properties:
+                if not isinstance(property, dict):
+                    print "skipping", property
+                    continue
                 field_name = property["field_name"]
                 try:
                     field = find_field(cls, field_name)
@@ -429,4 +480,4 @@ class BlockStateTopping(Topping):
 
         for block in aggregate["blocks"]["block"].itervalues():
             proprties = properties_by_class[block["class"]]
-            block["states"] = [prop["data"] for prop in proprties]
+            block["states"] = [prop["data"] for prop in proprties if isinstance(prop, dict)]
