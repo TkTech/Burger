@@ -77,6 +77,7 @@ class BlockStateTopping(Topping):
                 return properties
 
             properties = None
+            if_pos = None
             stack = []
             for ins in method.code.disassemble():
                 # This could _almost_ just be checking for getstatic, but
@@ -92,10 +93,8 @@ class BlockStateTopping(Topping):
                 elif ins.mnemonic.endswith("ipush"):
                     stack.append(ins.operands[0].value)
                 elif ins.mnemonic == "anewarray":
-                    len = stack.pop()
-                    val = [None] * len
-                    if not properties:
-                        properties = val
+                    length = stack.pop()
+                    val = [None] * length
                     stack.append(val)
                 elif ins.mnemonic == "getstatic":
                     const = cf.constants.get(ins.operands[0].value)
@@ -119,7 +118,49 @@ class BlockStateTopping(Topping):
                 elif ins.mnemonic == "dup":
                     stack.append(stack[-1])
                 elif ins.mnemonic == "invokespecial":
-                    break
+                    const = cf.constants.get(ins.operands[0].value)
+                    assert const.name_and_type.name.value == "<init>"
+                    desc = method_descriptor(const.name_and_type.descriptor.value)
+                    assert len(desc.args) == 2
+
+                    # Normally this constructor call would return nothing, but
+                    # in this case we'd rather remove the object it's called on
+                    # and keep the properties array (its parameter)
+                    arg = stack.pop()
+                    stack.pop() # Block
+                    stack.pop() # Invocation target
+                    stack.append(arg)
+                elif ins.mnemonic == "invokevirtual":
+                    # Two possibilities (both only present pre-flattening):
+                    # 1. It's isDouble() for a slab.  Two different sets of
+                    #    properties in that case.
+                    # 2. It's getTypeProperty() for flowers.  Only one
+                    #    set of properties, but other hacking is needed.
+                    # We can differentiate these cases based off of the return
+                    # type.
+                    const = cf.constants.get(ins.operands[0].value)
+                    desc = method_descriptor(const.name_and_type.descriptor.value)
+
+                    stack.pop()
+
+                    if desc.returns.name == "boolean":
+                        properties = [None, None]
+                    else:
+                        # Assume that the return type is the base interface
+                        # for properties
+                        stack.append(None)
+                elif ins.mnemonic == "ifeq":
+                    assert if_pos is None
+                    if_pos = ins.pos + ins.operands[0].value
+                elif ins.mnemonic == "areturn":
+                    if if_pos == None:
+                        assert properties == None
+                        properties = stack.pop()
+                    else:
+                        assert isinstance(properties, list)
+                        index = 0 if ins.pos < if_pos else 1
+                        assert properties[index] == None
+                        properties[index] = stack.pop()
                 elif ins.mnemonic == "aload_0":
                     stack.append(object())
                 elif verbose:
@@ -487,29 +528,71 @@ class BlockStateTopping(Topping):
             'direction': handle_direction_property
         }
 
+        def process_property(property):
+            field_name = property["field_name"]
+            try:
+                field = find_field(cls, field_name)
+                if "array_index" in property:
+                    field = field[property["array_index"]]
+                property["field"] = field
+
+                property["data"] = property_handlers[field["type"]](property)
+            except:
+                if verbose:
+                    print "Failed to handle property %s (declared %s.%s)" % (property, cls, field_name)
+                    traceback.print_exc()
+                property["data"] = None
+
         for cls, properties in properties_by_class.iteritems():
             for property in properties:
-                if not isinstance(property, dict):
-                    print "skipping", property
-                    continue
-                field_name = property["field_name"]
-                try:
-                    field = find_field(cls, field_name)
-                    if "array_index" in property:
-                        field = field[property["array_index"]]
-                    property["field"] = field
-
-                    property["data"] = property_handlers[field["type"]](property)
-                except:
-                    if verbose:
-                        print "Failed to handle property %s (declared %s.%s)" % (property, cls, field_name)
-                        traceback.print_exc()
-                    property["data"] = None
+                if isinstance(property, dict):
+                    process_property(property)
+                elif isinstance(property, list):
+                    # Slabs
+                    for real_property in property:
+                        process_property(real_property)
+                elif property == None:
+                    # Manual handling
+                    pass
+                elif verbose:
+                    print "Skipping odd property %s (declared in %s)" % (property, cls)
 
         for block in aggregate["blocks"]["block"].itervalues():
+            block["num_states"] = 1
             properties = properties_by_class[block["class"]]
+            if len(properties) != 0 and isinstance(properties[0], list) and "slab" in block["text_id"]:
+                # Convert the double-list of properties for slabs to just 1
+                if "double" in block["text_id"]:
+                    properties = properties[1]
+                else:
+                    properties = properties[1]
             block["states"] = []
             for prop in properties:
+                if prop == None:
+                    # Manually handle a few properties
+                    if block["text_id"] == "yellow_flower":
+                        prop = { "data": {
+                            "type": "enum",
+                            "name": "type",
+                            # no field_name
+                            # no enum_class
+                            "values": ["DANDELION"],
+                            "num_values": 1
+                        }}
+                    elif block["text_id"] == "red_flower":
+                        prop = { "data": {
+                            "type": "enum",
+                            "name": "type",
+                            # no field_name
+                            # no enum_class
+                            "values": ["POPPY", "BLUE_ORCHID", "ALLIUM", "HOUSTONIA", "RED_TULIP", "ORANGE_TULIP", "WHITE_TULIP", "PINK_TULIP", "OXEYE_DAISY"],
+                            "num_values": 9
+                        }}
+                    else:
+                        if verbose:
+                            print "Skipping missing prop for %s" % block["text_id"]
+                        continue
+
                 if not isinstance(prop, dict):
                     if verbose:
                         print "Skipping bad prop %s for %s" % (prop, block["text_id"])
@@ -540,3 +623,8 @@ class BlockStateTopping(Topping):
                     data = prop["data"]
 
                 block["states"].append(data)
+                block["num_states"] *= data["num_values"]
+
+            if not is_flattened:
+                # Each block is allocated 16 states for metadata pre-flattening
+                block["num_states"] = 16
