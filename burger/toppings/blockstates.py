@@ -416,10 +416,23 @@ class BlockStateTopping(Topping):
                           if isinstance(c, dict) and c["is_enum"]]
             elif isinstance(args[2], list):
                 values = [c["enum_name"] for c in args[2]]
+            elif isinstance(args[2], dict):
+                # Possibly a predicate (used for powered and activator rails)
+                cf = ClassFile(StringIO(jar.read(args[2]["class"] + ".class")))
+                interfaces = list(cf.interfaces)
+                if len(interfaces) == 1 and interfaces[0].name.value == "com/google/common/base/Predicate":
+                    ret["predicate"] = args[2]["class"]
+                    # Will be trimmed later
+                    values = [c["enum_name"] for c
+                          in find_field(class_name, None).itervalues()
+                          if isinstance(c, dict) and c["is_enum"]]
+                elif verbose:
+                    print "Unhandled args for %s" % prop
+                    values = []
             else:
-                # Predicate (used for rails) or regular Collection (unused)
+                # Regular Collection (unused)
                 if verbose:
-                    print "Unhandled args for %s" % args
+                    print "Unhandled args for %s" % prop
                 values = []
             ret["values"] = values
             ret["num_values"] = len(values)
@@ -443,10 +456,21 @@ class BlockStateTopping(Topping):
             elif isinstance(args[1], Plane):
                 # Plane used as a predicate
                 values = args[1].directions
+            elif isinstance(args[1], dict):
+                # Possibly a predicate (used for hoppers)
+                cf = ClassFile(StringIO(jar.read(args[1]["class"] + ".class")))
+                interfaces = list(cf.interfaces)
+                if len(interfaces) == 1 and interfaces[0].name.value == "com/google/common/base/Predicate":
+                    ret["predicate"] = args[1]["class"]
+                    # Will be filled in later
+                    values = ["DOWN", "UP", "NORTH", "SOUTH", "EAST", "WEST"]
+                elif verbose:
+                    print "Unhandled args for %s" % prop
+                    values = []
             else:
-                # Predicate (used for hoppers) or regular Collection (unused)
+                # Regular Collection (unused)
                 if verbose:
-                    print "Unhandled args for %s" % args
+                    print "Unhandled args for %s" % prop
                 values = []
             ret["values"] = values
             ret["num_values"] = len(values)
@@ -479,5 +503,29 @@ class BlockStateTopping(Topping):
                     property["data"] = None
 
         for block in aggregate["blocks"]["block"].itervalues():
-            proprties = properties_by_class[block["class"]]
-            block["states"] = [prop["data"] for prop in proprties if isinstance(prop, dict)]
+            properties = properties_by_class[block["class"]]
+            block["states"] = []
+            for prop in properties:
+                if not isinstance(prop, dict):
+                    if verbose:
+                        print "Skipping bad prop %s for %s" % (prop, block["text_id"])
+                    continue
+                if "predicate" in prop["data"]:
+                    data = prop["data"].copy()
+                    # Fun times... guess what the predicate does,
+                    # based off of the block
+                    if block["text_id"] == "hopper":
+                        values = [v for v in data["values"] if v != "UP"]
+                    elif block["text_id"] in ("powered_rail", "activator_rail", "golden_rail", "detector_rail"):
+                        values = [v for v in data["values"] if v not in ("NORTH_EAST", "NORTH_WEST", "SOUTH_EAST", "SOUTH_WEST")]
+                    else:
+                        if verbose:
+                            print "Unhandled predicate for prop %s for %s" % (prop, block["text_id"])
+                        values = []
+
+                    data["values"] = values
+                    data["num_values"] = len(values)
+                else:
+                    data = prop["data"]
+
+                block["states"].append(data)
