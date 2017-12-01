@@ -557,10 +557,12 @@ class BlockStateTopping(Topping):
                 elif verbose:
                     print "Skipping odd property %s (declared in %s)" % (property, cls)
 
-        for block in aggregate["blocks"]["block"].itervalues():
+        state_id = 0
+        for block_id in aggregate["blocks"]["ordered_blocks"]:
+            block = aggregate["blocks"]["block"][block_id]
             block["num_states"] = 1
             properties = properties_by_class[block["class"]]
-            if len(properties) != 0 and isinstance(properties[0], list) and "slab" in block["text_id"]:
+            if len(properties) != 0 and isinstance(properties[0], list) and "slab" in block_id:
                 # Convert the double-list of properties for slabs to just 1
                 if "double" in block["text_id"]:
                     properties = properties[1]
@@ -570,7 +572,7 @@ class BlockStateTopping(Topping):
             for prop in properties:
                 if prop == None:
                     # Manually handle a few properties
-                    if block["text_id"] == "yellow_flower":
+                    if block_id == "yellow_flower":
                         prop = { "data": {
                             "type": "enum",
                             "name": "type",
@@ -579,7 +581,7 @@ class BlockStateTopping(Topping):
                             "values": ["DANDELION"],
                             "num_values": 1
                         }}
-                    elif block["text_id"] == "red_flower":
+                    elif block_id == "red_flower":
                         prop = { "data": {
                             "type": "enum",
                             "name": "type",
@@ -590,31 +592,31 @@ class BlockStateTopping(Topping):
                         }}
                     else:
                         if verbose:
-                            print "Skipping missing prop for %s" % block["text_id"]
+                            print "Skipping missing prop for %s" % block_id
                         continue
 
                 if not isinstance(prop, dict):
                     if verbose:
-                        print "Skipping bad prop %s for %s" % (prop, block["text_id"])
+                        print "Skipping bad prop %s for %s" % (prop, block_id)
                     continue
                 if "predicate" in prop["data"]:
                     data = prop["data"].copy()
                     # Fun times... guess what the predicate does,
                     # based off of the block
-                    if block["text_id"] == "hopper":
+                    if block_id == "hopper":
                         predicate = lambda v: v != "UP"
-                    elif block["text_id"] in ("powered_rail", "activator_rail", "golden_rail", "detector_rail"):
+                    elif block_id in ("powered_rail", "activator_rail", "golden_rail", "detector_rail"):
                         predicate = lambda v: v not in ("NORTH_EAST", "NORTH_WEST", "SOUTH_EAST", "SOUTH_WEST")
                     elif prop["field"]["declared_in"] == aggregate["blocks"]["block"]["torch"]["class"]:
                         # Pre-flattening
                         predicate = lambda v: v != "DOWN"
-                    elif block["text_id"] == "leaves" or block["text_id"] == "log":
+                    elif block_id == "leaves" or block_id == "log":
                         predicate = lambda v: v in ("OAK", "BIRCH", "SPRUCE", "JUNGLE")
-                    elif block["text_id"] == "leaves2" or block["text_id"] == "log2":
+                    elif block_id == "leaves2" or block_id == "log2":
                         predicate = lambda v: v in ("DARK_OAK", "ACACIA")
                     else:
                         if verbose:
-                            print "Unhandled predicate for prop %s for %s" % (prop, block["text_id"])
+                            print "Unhandled predicate for prop %s for %s" % (prop, block_id)
                         predicate = lambda v: False
 
                     data["values"] = [v for v in data["values"] if predicate(v)]
@@ -628,3 +630,6 @@ class BlockStateTopping(Topping):
             if not is_flattened:
                 # Each block is allocated 16 states for metadata pre-flattening
                 block["num_states"] = 16
+            block["min_state_id"] = state_id
+            state_id += block["num_states"]
+            block["max_state_id"] = state_id - 1

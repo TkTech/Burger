@@ -68,6 +68,7 @@ class BlocksTopping(Topping):
         blocks = aggregate.setdefault("blocks", {})
         block = blocks.setdefault("block", {})
         block_fields = blocks.setdefault("block_fields", {})
+        ordered_blocks = blocks.setdefault("ordered_blocks", [])
         tmp = []
 
         stack = []
@@ -247,6 +248,7 @@ class BlocksTopping(Topping):
                 else:
                     final["hardness"] = blk["calls"][hardness_setter][0]
 
+            ordered_blocks.append(final["text_id"])
             block[final["text_id"]] = final
 
         # Go through the block list and add the field info.
