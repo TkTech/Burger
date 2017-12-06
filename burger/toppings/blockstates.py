@@ -464,8 +464,7 @@ class BlockStateTopping(Topping):
             elif isinstance(args[2], dict):
                 # Possibly a predicate (used for powered and activator rails)
                 cf = ClassFile(StringIO(jar.read(args[2]["class"] + ".class")))
-                interfaces = list(cf.interfaces)
-                if len(interfaces) == 1 and interfaces[0].name.value == "com/google/common/base/Predicate":
+                if len(cf.interfaces) == 1 and cf.interfaces[0].name.value == "com/google/common/base/Predicate":
                     ret["predicate"] = args[2]["class"]
                     # Will be trimmed later
                     values = [c["enum_name"] for c
@@ -504,8 +503,7 @@ class BlockStateTopping(Topping):
             elif isinstance(args[1], dict):
                 # Possibly a predicate (used for hoppers)
                 cf = ClassFile(StringIO(jar.read(args[1]["class"] + ".class")))
-                interfaces = list(cf.interfaces)
-                if len(interfaces) == 1 and interfaces[0].name.value == "com/google/common/base/Predicate":
+                if len(cf.interfaces) == 1 and cf.interfaces[0].name.value == "com/google/common/base/Predicate":
                     ret["predicate"] = args[1]["class"]
                     # Will be filled in later
                     values = ["DOWN", "UP", "NORTH", "SOUTH", "EAST", "WEST"]
@@ -595,7 +593,7 @@ class BlockStateTopping(Topping):
                             print "Skipping missing prop for %s" % block_id
                         continue
 
-                if not isinstance(prop, dict):
+                if not isinstance(prop, dict) or not isinstance(prop["data"], dict):
                     if verbose:
                         print "Skipping bad prop %s for %s" % (prop, block_id)
                     continue

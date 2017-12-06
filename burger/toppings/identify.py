@@ -27,6 +27,8 @@ from .topping import Topping
 from jawa.constants import ConstantString
 from jawa.cf import ClassFile
 
+import traceback
+
 try:
     from cStringIO import StringIO
 except ImportError:
@@ -92,8 +94,8 @@ def identify(class_file):
             # We want the interface for chat components, but it has no
             # string constants, so we need to use the abstract class and then
             # get its first implemented interface.
-            const = next(class_file.interfaces, None)
-            assert const
+            assert len(class_file.interfaces) == 1
+            const = class_file.interfaces[0]
             return 'chatcomponent', const.name.value
         if 'ambient.cave' in value:
             # We _may_ have found the SoundEvent class, but there are several
@@ -176,8 +178,12 @@ class IdentifyTopping(Topping):
             if not path.endswith(".class"):
                 continue
 
-            cf = ClassFile(StringIO(jar.read(path)))
-            result = identify(cf)
+            try:
+                cf = ClassFile(StringIO(jar.read(path)))
+                result = identify(cf)
+            except:
+                traceback.print_exc()
+                result = None
             if result:
                 if result[0] in classes:
                     raise Exception(
