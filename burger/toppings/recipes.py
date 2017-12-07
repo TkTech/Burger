@@ -46,7 +46,8 @@ class RecipesTopping(Topping):
         "identify.block.list",
         "identify.item.list",
         "blocks",
-        "items"
+        "items",
+        "tags"
     ]
 
     @staticmethod
@@ -84,6 +85,17 @@ class RecipesTopping(Topping):
                     return [parse_item(entry) for entry in blob]
                 else:
                     raise Exception("A list of items is not allowed in this context")
+            elif "tag" in blob:
+                if allow_lists:
+                    res = []
+                    tag = blob["tag"]
+                    if tag.startswith("minecraft:"):
+                        tag = tag[len("minecraft:"):]
+                    for id in aggregate["tags"]["items"][tag]["values"]:
+                        res.append(parse_item({"item": id}))
+                    return res
+                else:
+                    raise Exception("A tag is not allowed in this context")
             # There's some wierd stuff regarding 0 or 32767 here; I'm not worrying about it though
             # Probably 0 is the default for results, and 32767 means "any" for ingredients
             assert "item" in blob
