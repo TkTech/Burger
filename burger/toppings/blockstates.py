@@ -86,7 +86,7 @@ class BlockStateTopping(Topping):
                     stack.append(int(ins.mnemonic[-1]))
                 elif ins.mnemonic.endswith("ipush"):
                     stack.append(ins.operands[0].value)
-                elif ins.mnemonic == "anewarray":
+                elif ins.mnemonic in ("anewarray", "newarray"):
                     length = stack.pop()
                     val = [None] * length
                     stack.append(val)
@@ -213,7 +213,6 @@ class BlockStateTopping(Topping):
             return is_enum_cache[cls]
 
         fields_by_class = {}
-        ignore_scary_lambda_marker = object()
 
         def find_field(cls, field_name):
             """
@@ -221,9 +220,7 @@ class BlockStateTopping(Topping):
             field_name: name of the field to find.  If None, returns all fields
             """
             if cls in fields_by_class:
-                if fields_by_class[cls] == ignore_scary_lambda_marker:
-                    return object()
-                elif field_name is not None:
+                if field_name is not None:
                     return fields_by_class[cls][field_name]
                 else:
                     return fields_by_class[cls]
@@ -232,11 +229,6 @@ class BlockStateTopping(Topping):
                 return object()
 
             cf = classloader.load(cls + ".class")
-
-            if cf.attributes.find_one("BootstrapMethods"):
-                # AAAH LAMBDAS
-                fields_by_class[cls] = ignore_scary_lambda_marker
-                return object()
 
             fields_by_class[cls] = {}
             super_name = cf.super_.name.value
@@ -300,16 +292,16 @@ class BlockStateTopping(Topping):
                     stack.append(ins.operands[0].value)
                 elif ins.mnemonic == "aconst_null":
                     stack.append(None)
-                elif ins.mnemonic == "anewarray":
+                elif ins.mnemonic in ("anewarray", "newarray"):
                     length = stack.pop()
                     stack.append([None] * length)
-                elif ins.mnemonic == "aaload":
+                elif ins.mnemonic in ("aaload", "iaload"):
                     index = stack.pop()
                     array = stack.pop()
                     prop = array[index].copy()
                     prop["array_index"] = index
                     stack.append(prop)
-                elif ins.mnemonic == "aastore":
+                elif ins.mnemonic in ("aastore", "iastore"):
                     value = stack.pop()
                     index = stack.pop()
                     array = stack.pop()
@@ -319,6 +311,10 @@ class BlockStateTopping(Topping):
                     stack.append(len(array))
                 elif ins.mnemonic == "dup":
                     stack.append(stack[-1])
+                elif ins.mnemonic == "invokedynamic":
+                    # TODO: Pop the right number of arguments
+                    # Actually counting that would be hard, so just assume none
+                    stack.append(object())
                 elif ins.mnemonic.startswith("invoke"):
                     const = cf.constants.get(ins.operands[0].value)
                     desc = method_descriptor(const.name_and_type.descriptor.value)
@@ -388,6 +384,9 @@ class BlockStateTopping(Topping):
                         "is_enum": is_enum(type_name)
                     }
                     stack.append(obj)
+                elif ins.mnemonic == "checkcast":
+                    # We don't have type information, so no checking or casting
+                    pass
                 elif ins.mnemonic == "return":
                     break
                 elif ins.mnemonic == "if_icmpge":
