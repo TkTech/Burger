@@ -21,8 +21,9 @@ class TagsTopping(Topping):
         for path in classloader.path_map:
             if not path.startswith(prefix) or not path.endswith(suffix):
                 continue
-            type, name = path[len(prefix):-len(suffix)].split("/", 2)
+            key = path[len(prefix):-len(suffix)]
+            type, name = key.split("/", 2)
             data = json.loads(classloader.path_map[path].read(path))
-            section = tags.setdefault(type, {})
             data["type"] = type
-            section[name] = data
+            data["name"] = name
+            tags[key] = data

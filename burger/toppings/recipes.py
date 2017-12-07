@@ -91,7 +91,7 @@ class RecipesTopping(Topping):
                     tag = blob["tag"]
                     if tag.startswith("minecraft:"):
                         tag = tag[len("minecraft:"):]
-                    for id in aggregate["tags"]["items"][tag]["values"]:
+                    for id in aggregate["tags"]["items/" + tag]["values"]:
                         res.append(parse_item({"item": id}))
                     return res
                 else:
