@@ -25,12 +25,6 @@ THE SOFTWARE.
 from .topping import Topping
 
 from jawa.constants import *
-from jawa.cf import ClassFile
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 
 class EntityTopping(Topping):
     """Gets most entity types."""
@@ -44,9 +38,9 @@ class EntityTopping(Topping):
     ]
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
+    def act(aggregate, classloader, verbose=False):
         superclass = aggregate["classes"]["entity.list"]
-        cf = ClassFile(StringIO(jar.read(superclass + ".class")))
+        cf = classloader.load(superclass + ".class")
 
         # Find the static constructor
         entities = aggregate.setdefault("entities", {})
@@ -63,7 +57,7 @@ class EntityTopping(Topping):
             minecart_types = minecart_info.setdefault("types", {})
             minecart_types_by_field = minecart_info.setdefault("types_by_field", {})
 
-            minecart_cf = ClassFile(StringIO(jar.read(classname + ".class")))
+            minecart_cf = classloader.load(classname + ".class")
             init_method = minecart_cf.methods.find_one("<clinit>")
 
             already_has_minecart_name = False
@@ -219,7 +213,7 @@ class EntityTopping(Topping):
                         stack = []
 
         for e in entity.itervalues():
-            cf = ClassFile(StringIO(jar.read(e["class"] + ".class")))
+            cf = classloader.load(e["class"] + ".class")
             size = EntityTopping.size(cf)
             if size:
                 e["width"], e["height"], texture = size

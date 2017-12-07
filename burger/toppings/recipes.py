@@ -26,12 +26,6 @@ from .topping import Topping
 
 from jawa.util.descriptor import method_descriptor
 from jawa.constants import *
-from jawa.cf import ClassFile
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 
 try:
     import json
@@ -56,13 +50,13 @@ class RecipesTopping(Topping):
     ]
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
-        if "assets/minecraft/recipes/stick.json" in jar.namelist():
-            recipe_list = RecipesTopping.find_from_json(aggregate, jar, "assets/minecraft/recipes/", verbose)
-        elif "data/minecraft/recipes/stick.json" in jar.namelist():
-            recipe_list = RecipesTopping.find_from_json(aggregate, jar, "data/minecraft/recipes/", verbose)
+    def act(aggregate, classloader, verbose=False):
+        if "assets/minecraft/recipes/stick.json" in classloader.path_map:
+            recipe_list = RecipesTopping.find_from_json(aggregate, classloader, "assets/minecraft/recipes/", verbose)
+        elif "data/minecraft/recipes/stick.json" in classloader.path_map:
+            recipe_list = RecipesTopping.find_from_json(aggregate, classloader, "data/minecraft/recipes/", verbose)
         else:
-            recipe_list = RecipesTopping.find_from_jar(aggregate, jar, verbose)
+            recipe_list = RecipesTopping.find_from_jar(aggregate, classloader, verbose)
 
         recipes = aggregate.setdefault("recipes", {})
 
@@ -73,7 +67,7 @@ class RecipesTopping(Topping):
             recipes_for_item.append(recipe)
 
     @staticmethod
-    def find_from_json(aggregate, jar, prefix, verbose):
+    def find_from_json(aggregate, classloader, prefix, verbose):
         if verbose:
             print "Extracting recipes from JSON"
 
@@ -124,11 +118,11 @@ class RecipesTopping(Topping):
 
             return result
 
-        for name in jar.namelist():
+        for name in classloader.path_map.keys():
             if name.startswith(prefix) and name.endswith(".json"):
+                recipe_id = "minecraft:" + name[len(prefix):-len(".json")]
                 try:
-                    data = json.loads(jar.read(name))
-                    recipe_id = "minecraft:" + name[len(prefix):-len(".json")]
+                    data = json.loads(classloader.path_map[name].read(name))
 
                     assert "type" in data
 
@@ -215,13 +209,13 @@ class RecipesTopping(Topping):
         return recipes
 
     @staticmethod
-    def find_from_jar(aggregate, jar, verbose):
+    def find_from_jar(aggregate, classloader, verbose):
         superclass = aggregate["classes"]["recipe.superclass"]
 
         if verbose:
             print "Extracting recipes from", superclass
 
-        cf = ClassFile(StringIO(jar.read(superclass + ".class")))
+        cf = classloader.load(superclass + ".class")
 
         # Find the constructor
         method = cf.methods.find_one(
@@ -314,7 +308,7 @@ class RecipesTopping(Topping):
                 item['count'] = stack[1]
             return item
 
-        def find_recipes(jar, cf, method, target_class, setter_names):
+        def find_recipes(classloader, cf, method, target_class, setter_names):
             # Go through all instructions.
             itr = iter(method.code.disassemble())
             recipes = []
@@ -431,4 +425,4 @@ class RecipesTopping(Topping):
                 pass
             return recipes
 
-        return find_recipes(jar, cf, method, target_class, setter_names)
+        return find_recipes(classloader, cf, method, target_class, setter_names)

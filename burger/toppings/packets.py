@@ -25,12 +25,6 @@ THE SOFTWARE.
 from .topping import Topping
 
 from jawa.constants import *
-from jawa.cf import ClassFile
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 
 class PacketsTopping(Topping):
     """Provides minimal information on all network packets."""
@@ -47,9 +41,9 @@ class PacketsTopping(Topping):
     ]
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
+    def act(aggregate, classloader, verbose=False):
         connectionstate = aggregate["classes"]["packet.connectionstate"]
-        cf = ClassFile(StringIO(jar.read(connectionstate + ".class")))
+        cf = classloader.load(connectionstate + ".class")
 
         # Find the static constructor
         method = cf.methods.find_one(name="<clinit>")
@@ -98,7 +92,7 @@ class PacketsTopping(Topping):
             directions_by_field = {}
             NUM_DIRECTIONS = 2
 
-            direction_class_file = ClassFile(StringIO(jar.read(direction_class + ".class")))
+            direction_class_file = classloader.load(direction_class + ".class")
             direction_init_method = direction_class_file.methods.find_one("<clinit>")
             for ins in direction_init_method.code.disassemble():
                 if ins.mnemonic == "new":
@@ -171,7 +165,7 @@ class PacketsTopping(Topping):
 
         for state_name in states:
             state = states[state_name] #TODO: Can I just iterate over the values directly?
-            cf = ClassFile(StringIO(jar.read(state["class"] + ".class")))
+            cf = classloader.load(state["class"] + ".class")
             method = cf.methods.find_one("<init>")
             init_state()
             for ins in method.code.disassemble():

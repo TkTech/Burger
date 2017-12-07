@@ -30,12 +30,6 @@ from types import LambdaType
 
 from jawa.util.descriptor import method_descriptor
 from jawa.constants import *
-from jawa.cf import ClassFile
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 
 from .topping import Topping
 
@@ -189,12 +183,12 @@ class PacketInstructionsTopping(Topping):
     ]
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
+    def act(aggregate, classloader, verbose=False):
         """Finds all packets and decompiles them"""
         for key, packet in aggregate["packets"]["packet"].iteritems():
             try:
                 packet.update(_PIT.format(
-                    _PIT.operations(jar, packet["class"], aggregate["classes"])
+                    _PIT.operations(classloader, packet["class"], aggregate["classes"])
                 ))
             except Exception as e:
                 if verbose:
@@ -203,12 +197,12 @@ class PacketInstructionsTopping(Topping):
                     traceback.print_exc()
 
     @staticmethod
-    def operations(jar, classname, classes, args=None,
+    def operations(classloader, classname, classes, args=None,
                    methodname=None, arg_names=("this", "packetbuffer")):
         """Gets the instructions of the specified method"""
 
         # Find the writing method
-        cf = ClassFile(StringIO(jar.read(classname)))
+        cf = classloader.load(classname)
 
         if methodname is None and args is None:
             methods = list(cf.methods.find(returns="V", args="L" + classes["packet.packetbuffer"] + ";"))
@@ -217,7 +211,7 @@ class PacketInstructionsTopping(Topping):
                 method = methods[1]
             else:
                 if cf.super_.name.value != "java/lang/Object":
-                    return _PIT.operations(jar, cf.super_.name.value + ".class", classes)
+                    return _PIT.operations(classloader, cf.super_.name.value + ".class", classes)
                 else:
                     raise Exception("Failed to find method in class or superclass")
         elif methodname is None:
@@ -393,7 +387,7 @@ class PacketInstructionsTopping(Topping):
                                     # method that writes to the buffer, so we need to
                                     # check it.
                                     operations += _PIT.sub_operations(
-                                        jar, cf, classes, instruction, operands[0],
+                                        classloader, cf, classes, instruction, operands[0],
                                         [obj] + arguments if obj != "static" else arguments
                                     )
                                 else:
@@ -645,7 +639,7 @@ class PacketInstructionsTopping(Topping):
         return sorted(operations, key=lambda op: op.position)
 
     @staticmethod
-    def sub_operations(jar, cf, classes, instruction,
+    def sub_operations(classloader, cf, classes, instruction,
                        operand, arg_names=[""]):
         """Gets the instructions of a different class"""
         invoked_class = operand.c + ".class"
@@ -659,7 +653,7 @@ class PacketInstructionsTopping(Topping):
             cache = _PIT.CACHE[cache_key]
             operations = [op.clone() for op in cache]
         else:
-            operations = _PIT.operations(jar, invoked_class, classes,
+            operations = _PIT.operations(classloader, invoked_class, classes,
                                          args, name, arg_names)
 
         position = 0

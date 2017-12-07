@@ -34,37 +34,38 @@ class LanguageTopping(Topping):
     DEPENDS = []
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
+    def act(aggregate, classloader, verbose=False):
         aggregate["language"] = {}
         LanguageTopping.load_language(
             aggregate,
-            jar,
+            classloader,
             "lang/stats_US.lang",
             verbose
         )
         LanguageTopping.load_language(
             aggregate,
-            jar,
+            classloader,
             "lang/en_US.lang",
             verbose
         )
         LanguageTopping.load_language(
             aggregate,
-            jar,
+            classloader,
             "assets/minecraft/lang/en_US.lang",
             verbose
         )
         LanguageTopping.load_language(
             aggregate,
-            jar,
+            classloader,
             "assets/minecraft/lang/en_us.lang",
             verbose
         )
 
     @staticmethod
-    def load_language(aggregate, jar, path, verbose=False):
+    def load_language(aggregate, classloader, path, verbose=False):
         try:
-            contents = jar.read(path)
+            # Hacky
+            contents = classloader.path_map[path].read(path)
         except:
             if verbose:
                 print "Can't find file %s in jar" % path

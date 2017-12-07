@@ -27,12 +27,6 @@ from copy import copy
 from .topping import Topping
 
 from jawa.constants import *
-from jawa.cf import ClassFile
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 
 class ObjectTopping(Topping):
     """Gets most vehicle/object types."""
@@ -49,7 +43,7 @@ class ObjectTopping(Topping):
     ]
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
+    def act(aggregate, classloader, verbose=False):
         if "entity.trackerentry" not in aggregate["classes"] or "nethandler.client" not in aggregate["classes"]:
             return
 
@@ -58,7 +52,7 @@ class ObjectTopping(Topping):
         # Find the spawn object packet ID using EntityTrackerEntry.createSpawnPacket
         # (which handles other spawn packets too, but the first item in it is correct)
         entitytrackerentry = aggregate["classes"]["entity.trackerentry"]
-        entitytrackerentry_cf = ClassFile(StringIO(jar.read(entitytrackerentry + ".class")))
+        entitytrackerentry_cf = classloader.load(entitytrackerentry + ".class")
 
         createspawnpacket_method = entitytrackerentry_cf.methods.find_one(args="",
                 f=lambda x: x.access_flags.acc_private and not x.access_flags.acc_static and not x.returns.name == "void")
@@ -95,7 +89,7 @@ class ObjectTopping(Topping):
 
         # Now find the spawn object packet handler and use it to figure out IDs
         nethandler = aggregate["classes"]["nethandler.client"]
-        nethandler_cf = ClassFile(StringIO(jar.read(nethandler + ".class")))
+        nethandler_cf = classloader.load(nethandler + ".class")
         method = nethandler_cf.methods.find_one(args="L" + packet_class_name + ";")
 
         potential_id = 0
@@ -123,7 +117,7 @@ class ObjectTopping(Topping):
                 o["entity"] = copy(classes[o["class"]])
                 del o["entity"]["class"]
             else:
-                cf = ClassFile(StringIO(jar.read(o["class"] + ".class")))
+                cf = classloader.load(o["class"] + ".class")
                 size = EntityTopping.size(cf)
                 if size:
                     o["entity"] = {"width": size[0], "height": size[1]}

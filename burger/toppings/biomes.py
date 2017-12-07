@@ -28,12 +28,6 @@ import types
 from jawa.util.descriptor import method_descriptor
 
 from jawa.constants import *
-from jawa.cf import ClassFile
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 
 class BiomeTopping(Topping):
     """Gets most biome types."""
@@ -48,23 +42,23 @@ class BiomeTopping(Topping):
     ]
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
+    def act(aggregate, classloader, verbose=False):
         if "biome.superclass" not in aggregate["classes"]:
             return
         if "biome.list" in aggregate["classes"]:
-            BiomeTopping.process_19(aggregate, jar, verbose)
+            BiomeTopping.process_19(aggregate, classloader, verbose)
         else:
-            BiomeTopping.process_18(aggregate, jar, verbose)
+            BiomeTopping.process_18(aggregate, classloader, verbose)
 
     @staticmethod
-    def process_18(aggregate, jar, verbose):
+    def process_18(aggregate, classloader, verbose):
         """Processes biomes for Minecraft 1.8"""
         biomes_base = aggregate.setdefault("biomes", {})
         biomes = biomes_base.setdefault("biome", {})
         biome_fields = biomes_base.setdefault("biome_fields", {})
 
         superclass = aggregate["classes"]["biome.superclass"]
-        cf = ClassFile(StringIO(jar.read(superclass + ".class")))
+        cf = classloader.load(superclass + ".class")
         
         mutate_method_desc = None
         mutate_method_name = None
@@ -192,14 +186,14 @@ class BiomeTopping(Topping):
         store_biome_if_valid(tmp)
 
     @staticmethod
-    def process_19(aggregate, jar, verbose):
+    def process_19(aggregate, classloader, verbose):
         """Processes biomes for Minecraft 1.9"""
         biomes_base = aggregate.setdefault("biomes", {})
         biomes = biomes_base.setdefault("biome", {})
         biome_fields = biomes_base.setdefault("biome_fields", {})
 
         superclass = aggregate["classes"]["biome.superclass"]
-        cf = ClassFile(StringIO(jar.read(superclass + ".class")))
+        cf = classloader.load(superclass + ".class")
 
         method = cf.methods.find_one(returns="V", args="", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
         heights_by_field = {}
@@ -289,7 +283,7 @@ class BiomeTopping(Topping):
 
         # Go through the block list and add the field info.
         list = aggregate["classes"]["biome.list"]
-        lcf = ClassFile(StringIO(jar.read(list + ".class")))
+        lcf = classloader.load(list + ".class")
         
         # Find the static block, and load the fields for each.
         method = lcf.methods.find_one(name="<clinit>")

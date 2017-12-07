@@ -24,13 +24,7 @@ THE SOFTWARE.
 from .topping import Topping
 
 from jawa.constants import *
-from jawa.cf import ClassFile
 from jawa.util.descriptor import method_descriptor
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 
 class BlocksTopping(Topping):
     """Gets most available block types."""
@@ -47,9 +41,9 @@ class BlocksTopping(Topping):
     ]
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
+    def act(aggregate, classloader, verbose=False):
         superclass = aggregate["classes"]["block.superclass"]
-        cf = ClassFile(StringIO(jar.read(superclass + ".class")))
+        cf = classloader.load(superclass + ".class")
 
         individual_textures = True #aggregate["version"]["protocol"] >= 52 # assume >1.5 http://wiki.vg/Protocol_History#1.5.x since don't read packets TODO
 
@@ -253,7 +247,7 @@ class BlocksTopping(Topping):
 
         # Go through the block list and add the field info.
         list = aggregate["classes"]["block.list"]
-        lcf = ClassFile(StringIO(jar.read(list + ".class")))
+        lcf = classloader.load(list + ".class")
 
         # Find the static block, and load the fields for each.
         method = lcf.methods.find_one(name="<clinit>")

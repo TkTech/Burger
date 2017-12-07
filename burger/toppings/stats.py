@@ -37,7 +37,7 @@ class StatsTopping(Topping):
     ]
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
+    def act(aggregate, classloader, verbose=False):
         stats = aggregate.setdefault("stats", {})
         if "stat" in aggregate["language"]:
             stat_lang = aggregate["language"]["stat"]

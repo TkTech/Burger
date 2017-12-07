@@ -25,19 +25,13 @@ THE SOFTWARE.
 from .topping import Topping
 
 from jawa.constants import ConstantString
-from jawa.cf import ClassFile
 
 import traceback
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 
 
 def identify(class_file):
     """
-    The first pass across the JAR will identify all possible classes it
+    The first pass across the jar will identify all possible classes it
     can, maping them by the 'type' it implements.
 
     We have limited information available to us on this pass. We can only
@@ -172,17 +166,21 @@ class IdentifyTopping(Topping):
     DEPENDS = []
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
+    def act(aggregate, classloader, verbose=False):
         classes = aggregate.setdefault("classes", {})
-        for path in jar.namelist():
+        for path in classloader.path_map.keys():
             if not path.endswith(".class"):
                 continue
 
             try:
-                cf = ClassFile(StringIO(jar.read(path)))
+                cf = classloader.load(path)
                 result = identify(cf)
+            except KeyboardInterrupt:
+                raise
             except:
-                traceback.print_exc()
+                if verbose:
+                    print "Failed to parse %s" % path
+                    traceback.print_exc()
                 result = None
             if result:
                 if result[0] in classes:
@@ -199,4 +197,4 @@ class IdentifyTopping(Topping):
                     # searching, so stop early for performance
                     break
         if verbose:
-            print("identify classes:", classes)
+            print "identify classes:", classes

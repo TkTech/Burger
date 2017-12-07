@@ -25,12 +25,6 @@ THE SOFTWARE.
 from .topping import Topping
 
 from jawa.constants import *
-from jawa.cf import ClassFile
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 
 class ItemsTopping(Topping):
     """Provides some information on most available items."""
@@ -49,7 +43,7 @@ class ItemsTopping(Topping):
     ]
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
+    def act(aggregate, classloader, verbose=False):
         superclass = aggregate["classes"]["item.superclass"]
         blockclass = aggregate["classes"]["block.superclass"]
         blocklist = aggregate["classes"]["block.list"]
@@ -73,7 +67,7 @@ class ItemsTopping(Topping):
             if "display_name" in block:
                 current_item["display_name"] = block["display_name"]
 
-        cf = ClassFile(StringIO(jar.read(superclass + ".class")))
+        cf = classloader.load(superclass + ".class")
 
         # Find the registration method
         method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
@@ -123,7 +117,7 @@ class ItemsTopping(Topping):
                 const = cf.constants.get(ins.operands[0].value)
                 class_name = const.name.value
 
-                class_file = ClassFile(StringIO(jar.read(class_name + ".class")))
+                class_file = classloader.load(class_name + ".class")
                 if class_file.super_.name.value == "java/lang/Object":
                     # A function created for an item shouldn't be counted - we
                     # only want items, not Functions.
@@ -246,7 +240,7 @@ class ItemsTopping(Topping):
 
         # Go through the item list and add the field info.
         list = aggregate["classes"]["item.list"]
-        lcf = ClassFile(StringIO(jar.read(list + ".class")))
+        lcf = classloader.load(list + ".class")
 
         # Find the static block, and load the fields for each.
         method = lcf.methods.find_one(name="<clinit>")

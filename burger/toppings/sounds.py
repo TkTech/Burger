@@ -33,12 +33,6 @@ import traceback
 from .topping import Topping
 
 from jawa.constants import *
-from jawa.cf import ClassFile
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 
 VERSION_META = "https://s3.amazonaws.com/Minecraft.Download/versions/%(version)s/%(version)s.json"
 RESOURCES_SITE = "http://resources.download.minecraft.net/%(short_hash)s/%(hash)s"
@@ -96,7 +90,7 @@ class SoundTopping(Topping):
     ]
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
+    def act(aggregate, classloader, verbose=False):
         sounds = aggregate.setdefault('sounds', {})
         try:
             version_meta = get_version_meta(aggregate["version"]["name"])
@@ -125,7 +119,7 @@ class SoundTopping(Topping):
             return
 
         soundevent = aggregate["classes"]["sounds.event"]
-        cf = ClassFile(StringIO(jar.read(soundevent + ".class")))
+        cf = classloader.load(soundevent + ".class")
 
         # Find the static sound registration method
         method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
@@ -173,7 +167,7 @@ class SoundTopping(Topping):
 
         # Get fields now
         soundlist = aggregate["classes"]["sounds.list"]
-        lcf = ClassFile(StringIO(jar.read(soundlist + ".class")))
+        lcf = classloader.load(soundlist + ".class")
 
         method = lcf.methods.find_one(name="<clinit>")
         for ins in method.code.disassemble():

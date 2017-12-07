@@ -4,15 +4,9 @@
 from .topping import Topping
 
 from jawa.constants import *
-from jawa.cf import ClassFile
 from jawa.util.descriptor import method_descriptor, field_descriptor
 
 import traceback
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 
 # EnumFacing.Plane.  Needed because this is also a predicate, which is used
 # to get certain facings
@@ -37,7 +31,7 @@ class BlockStateTopping(Topping):
     ]
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
+    def act(aggregate, classloader, verbose=False):
         if "blockstatecontainer" not in aggregate["classes"]:
             if verbose:
                 print "blockstatecontainer not found; skipping blockstates"
@@ -47,7 +41,7 @@ class BlockStateTopping(Topping):
         is_flattened = ("data" in aggregate["version"] and aggregate["version"]["data"] > 1449)
 
         blockstatecontainer = aggregate["classes"]["blockstatecontainer"]
-        block_cf = ClassFile(StringIO(jar.read(aggregate["classes"]["block.superclass"] + ".class")))
+        block_cf = classloader.load(aggregate["classes"]["block.superclass"] + ".class")
         plane = aggregate["classes"]["enumfacing.plane"]
 
         base_method = block_cf.methods.find_one(returns="L" + blockstatecontainer + ";", f=lambda m: m.access_flags.acc_protected)
@@ -68,7 +62,7 @@ class BlockStateTopping(Topping):
                 # Caching - avoid reading the same class multiple times
                 return properties_by_class[name]
 
-            cf = ClassFile(StringIO(jar.read(name + ".class")))
+            cf = classloader.load(name + ".class")
             method = cf.methods.find_one(f=matches)
 
             if not method:
@@ -182,7 +176,7 @@ class BlockStateTopping(Topping):
         assert len(_property_types) == 4
         property_types = {}
         for type in _property_types:
-            cf = ClassFile(StringIO(jar.read(type + ".class")))
+            cf = classloader.load(type + ".class")
             if cf.super_.name.value in _property_types:
                 property_types[type] = "direction"
             else:
@@ -207,7 +201,7 @@ class BlockStateTopping(Topping):
             if cls in is_enum_cache:
                 return is_enum_cache[cls]
 
-            cf = ClassFile(StringIO(jar.read(cls + ".class")))
+            cf = classloader.load(cls + ".class")
             super = cf.super_.name.value
             if super == "java/lang/Enum":
                 is_enum_cache[cls] = True
@@ -237,7 +231,7 @@ class BlockStateTopping(Topping):
                 # Another scary case.  We don't want to parse all of the sound events.
                 return object()
 
-            cf = ClassFile(StringIO(jar.read(cls + ".class")))
+            cf = classloader.load(cls + ".class")
 
             if cf.attributes.find_one("BootstrapMethods"):
                 # AAAH LAMBDAS
@@ -463,7 +457,7 @@ class BlockStateTopping(Topping):
                 values = [c["enum_name"] for c in args[2]]
             elif isinstance(args[2], dict):
                 # Possibly a predicate (used for powered and activator rails)
-                cf = ClassFile(StringIO(jar.read(args[2]["class"] + ".class")))
+                cf = classloader.load(args[2]["class"] + ".class")
                 if len(cf.interfaces) == 1 and cf.interfaces[0].name.value == "com/google/common/base/Predicate":
                     ret["predicate"] = args[2]["class"]
                     # Will be trimmed later
@@ -502,7 +496,7 @@ class BlockStateTopping(Topping):
                 values = args[1].directions
             elif isinstance(args[1], dict):
                 # Possibly a predicate (used for hoppers)
-                cf = ClassFile(StringIO(jar.read(args[1]["class"] + ".class")))
+                cf = classloader.load(args[1]["class"] + ".class")
                 if len(cf.interfaces) == 1 and cf.interfaces[0].name.value == "com/google/common/base/Predicate":
                     ret["predicate"] = args[1]["class"]
                     # Will be filled in later

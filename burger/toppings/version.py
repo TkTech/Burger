@@ -23,12 +23,6 @@ THE SOFTWARE.
 from .topping import Topping
 
 from jawa.constants import *
-from jawa.cf import ClassFile
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 
 class VersionTopping(Topping):
     """Provides the protocol version."""
@@ -45,16 +39,16 @@ class VersionTopping(Topping):
     ]
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
-        VersionTopping.get_protocol_version(aggregate, jar, verbose)
-        VersionTopping.get_data_version(aggregate, jar, verbose)
+    def act(aggregate, classloader, verbose=False):
+        VersionTopping.get_protocol_version(aggregate, classloader, verbose)
+        VersionTopping.get_data_version(aggregate, classloader, verbose)
 
     @staticmethod
-    def get_protocol_version(aggregate, jar, verbose):
+    def get_protocol_version(aggregate, classloader, verbose):
         versions = aggregate.setdefault("version", {})
         if "nethandler.server" in aggregate["classes"]:
             nethandler = aggregate["classes"]["nethandler.server"] + ".class"
-            cf = ClassFile(StringIO(jar.read(nethandler)))
+            cf = classloader.load(nethandler)
             version = None
             looking_for_version_name = False
             for method in cf.methods:
@@ -84,10 +78,10 @@ class VersionTopping(Topping):
             print "Unable to determine protocol version"
 
     @staticmethod
-    def get_data_version(aggregate, jar, verbose):
+    def get_data_version(aggregate, classloader, verbose):
         if "anvilchunkloader" in aggregate["classes"]:
             anvilchunkloader = aggregate["classes"]["anvilchunkloader"] + ".class"
-            cf = ClassFile(StringIO(jar.read(anvilchunkloader)))
+            cf = classloader.load(anvilchunkloader)
 
             for method in cf.methods:
                 next_ins_is_version = False

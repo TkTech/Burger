@@ -4,12 +4,6 @@
 from .topping import Topping
 
 from jawa.constants import ConstantClass, ConstantString
-from jawa.cf import ClassFile
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 
 
 class TileEntityTopping(Topping):
@@ -28,7 +22,7 @@ class TileEntityTopping(Topping):
     ]
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
+    def act(aggregate, classloader, verbose=False):
         te = aggregate.setdefault("tileentity", {})
 
         if "tileentity.superclass" not in aggregate["classes"]:
@@ -37,7 +31,7 @@ class TileEntityTopping(Topping):
             return
 
         superclass = aggregate["classes"]["tileentity.superclass"]
-        cf = ClassFile(StringIO(jar.read(superclass + ".class")))
+        cf = classloader.load(superclass + ".class")
         method = cf.methods.find_one("<clinit>")
 
         tileentities = te.setdefault("tileentities", {})
@@ -60,7 +54,7 @@ class TileEntityTopping(Topping):
         if "tileentity.blockentitytag" in aggregate["classes"]:
             # Block entity tag matches block names to tile entities.
             tag = aggregate["classes"]["tileentity.blockentitytag"] + ".class"
-            tag_cf = ClassFile(StringIO(jar.read(tag)))
+            tag_cf = classloader.load(tag)
             method = tag_cf.methods.find_one("<clinit>")
 
             stack = []
@@ -118,7 +112,7 @@ class TileEntityTopping(Topping):
                         packet["state"] != "PLAY"):
                     continue
 
-                packet_cf = ClassFile(StringIO(jar.read(packet["class"])))
+                packet_cf = classloader.load(packet["class"])
                 # Check if the packet has the expected fields in the class file
                 # for the update tile entity packet
                 if (len(packet_cf.fields) >= 3 and
@@ -136,7 +130,7 @@ class TileEntityTopping(Topping):
 
             te["update_packet"] = updatepacket
             nethandler = aggregate["classes"]["nethandler.client"] + ".class"
-            nethandler_cf = ClassFile(StringIO(jar.read(nethandler)))
+            nethandler_cf = classloader.load(nethandler)
 
             updatepacket_name = updatepacket["class"].replace(".class", "")
 

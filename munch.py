@@ -33,7 +33,7 @@ except ImportError:
 
 from collections import deque
 
-from zipfile import ZipFile
+from jawa.util.classloader import ClassLoader
 
 from burger.website import Website
 from burger.roundedfloats import transform_floats
@@ -225,23 +225,22 @@ if __name__ == "__main__":
     summary = []
 
     for path in jarlist:
-        jar = ZipFile(path, "r")
-        num_classes = 0
-        for name in jar.namelist():
-            if name.endswith(".class"):
-                num_classes = num_classes + 1
+        classloader = ClassLoader(max_cache=0)
+        classloader.add_path(path)
+        names = classloader.path_map.keys()
+        num_classes = sum(1 for name in names if name.endswith(".class"))
 
         aggregate = {
             "source": {
                 "file": path,
                 "classes": num_classes,
-                "other": len(jar.namelist()),
+                "other": len(names),
                 "size": os.path.getsize(path)
             }
         }
 
         for topping in to_be_run:
-            topping.act(aggregate, jar, verbose)
+            topping.act(aggregate, classloader, verbose)
 
         summary.append(aggregate)
 

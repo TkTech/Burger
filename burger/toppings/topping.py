@@ -28,6 +28,6 @@ class Topping(object):
     DEPENDS = None
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
+    def act(aggregate, classloader, verbose=False):
         raise NotImplementedError()
 
