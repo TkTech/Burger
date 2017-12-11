@@ -54,18 +54,19 @@ class ItemsTopping(Topping):
 
             block_name = aggregate["blocks"]["block_fields"][field_info["name"]]
             if block_name not in aggregate["blocks"]["block"]:
+                print verbose
                 if verbose:
                     print "No information available for item-block for %s/%s" % (field_info["name"], block_name)
                 return
             block = aggregate["blocks"]["block"][block_name]
 
             if "numeric_id" in block:
-                current_item["numeric_id"] = block["numeric_id"]
-            current_item["text_id"] = block["text_id"]
+                item["numeric_id"] = block["numeric_id"]
+            item["text_id"] = block["text_id"]
             if "name" in block:
-                current_item["name"] = block["name"]
+                item["name"] = block["name"]
             if "display_name" in block:
-                current_item["display_name"] = block["display_name"]
+                item["display_name"] = block["display_name"]
 
         cf = classloader.load(superclass + ".class")
 
@@ -208,8 +209,24 @@ class ItemsTopping(Topping):
 
         for item in tmp:
             if not "text_id" in item:
-                print "Dropping nameless item:", item
-                continue
+                init_one_block = "<init>(L" + blockclass + ";)V"
+                init_two_blocks = "<init>(L" + blockclass + ";L" + blockclass + ";)V"
+                if init_one_block in item["calls"]:
+                    item["register_method"] = "itemblock"
+                    add_block_info_to_item(item["calls"][init_one_block][0], item)
+                elif init_two_blocks in item["calls"]:
+                    # Skulls use this
+                    item["register_method"] = "itemblock2"
+                    add_block_info_to_item(item["calls"][init_two_blocks][0], item)
+                else:
+                    if verbose:
+                        print "Dropping nameless item, couldn't identify ctor for a block:", item
+                    continue
+
+                if not "text_id" in item:
+                    if verbose:
+                        print "Even after item block handling, no name:", item
+                    continue
 
             final = {}
 
