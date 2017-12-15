@@ -186,15 +186,19 @@ class PacketInstructionsTopping(Topping):
     def act(aggregate, classloader, verbose=False):
         """Finds all packets and decompiles them"""
         for key, packet in aggregate["packets"]["packet"].iteritems():
+            operations = None
             try:
-                packet.update(_PIT.format(
-                    _PIT.operations(classloader, packet["class"], aggregate["classes"])
-                ))
+                operations = _PIT.operations(classloader, packet["class"], aggregate["classes"])
+                packet.update(_PIT.format(operations))
             except Exception as e:
                 if verbose:
                     print "Error: Failed to parse instructions",
                     print "of packet %s (%s): %s" % (key, packet["class"], e)
                     traceback.print_exc()
+                    if operations:
+                        import json
+                        print json.dumps(operations, default=lambda o:o.__dict__, indent=4)
+                    print ""
 
     @staticmethod
     def operations(classloader, classname, classes, args=None,
@@ -229,8 +233,8 @@ class PacketInstructionsTopping(Topping):
         operations = []
         stack = []
         skip_until = -1
-        shortif_pos = -1
-        shortif_cond = ''
+        shortif_pos = None
+        shortif_cond = None
 
         for instruction in method.code.disassemble():
             if skip_until != -1:
@@ -260,6 +264,8 @@ class PacketInstructionsTopping(Topping):
                     "first": stack.pop(),
                     "sec": stack.pop()
                 }, category))
+                shortif_cond = None
+                shortif_pos = None
 
             # Method calls
             if opcode >= 0xb6 and opcode <= 0xb9:
@@ -436,6 +442,22 @@ class PacketInstructionsTopping(Topping):
                 operations.append(Operation(instruction.pos, "if",
                                             condition=condition))
                 operations.append(Operation(operands[0].target, "endif"))
+                if shortif_pos is not None:
+                    # Clearly not a ternary-if if we have another nested if
+                    # (assuming that it's not a nested ternary, which we
+                    # already don't handle for other reasons)
+                    # If we don't do this, then the following code can have
+                    # problems:
+                    # if (a) {
+                    #     if (b) {
+                    #         // ...
+                    #     }
+                    # } else if (c) {
+                    #     // ...
+                    # }
+                    # as there would be a goto instruction to skip the
+                    # `else if (c)` portion that would be parsed as a shortif
+                    shortif_pos = None
                 shortif_cond = condition
 
             elif opcode == 0xaa:                        # tableswitch
