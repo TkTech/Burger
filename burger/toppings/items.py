@@ -54,7 +54,6 @@ class ItemsTopping(Topping):
 
             block_name = aggregate["blocks"]["block_fields"][field_info["name"]]
             if block_name not in aggregate["blocks"]["block"]:
-                print verbose
                 if verbose:
                     print "No information available for item-block for %s/%s" % (field_info["name"], block_name)
                 return
