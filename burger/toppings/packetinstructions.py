@@ -245,6 +245,15 @@ class PacketInstructionsTopping(Topping):
 
             # Shortcut if
             if instruction.pos == shortif_pos:
+                # Check to make sure that this actually is a ternary if
+                assert len(operations) >= 3
+                assert operations[-1].operation == "endif"
+                assert operations[-2].operation == "else"
+                assert operations[-3].operation == "if"
+                # Now get rid of the unneeded if's
+                operations.pop()
+                operations.pop()
+                operations.pop()
                 category = stack[-1].category
                 stack.append(Operand("((%(cond)s) ? %(sec)s : %(first)s)" % {
                     "cond": shortif_cond,
