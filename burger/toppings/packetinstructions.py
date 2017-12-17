@@ -304,12 +304,12 @@ class PacketInstructionsTopping(Topping):
                                                 type="long[]",
                                                 field=arguments[0]))
                     stack.append(obj)
-                elif num_arguments == 1 and descriptor.args[0].name == "java/lang/String":
+                elif num_arguments == 1 and descriptor.args[0].name == "java/lang/String" and len(name) == 1:
                     operations.append(Operation(instruction.pos, "write",
                                                 type="string",
                                                 field=arguments[0]))
                     stack.append(obj)
-                elif num_arguments == 1 and descriptor.args[0].name == "java/util/UUID":
+                elif num_arguments == 1 and descriptor.args[0].name == "java/util/UUID" and len(name) == 1:
                     operations.append(Operation(instruction.pos, "write",
                                                 type="uuid",
                                                 field=arguments[0]))
@@ -350,6 +350,12 @@ class PacketInstructionsTopping(Topping):
                                                 type="identifier",
                                                 field=arguments[0]))
                     stack.append(obj)
+                elif name == "<init>":
+                    # Constructor call.  Should have the instance right
+                    # on the stack as well (due to constructors returning void).
+                    # Add the arguments to that object.
+                    assert stack[-1] is obj
+                    obj.value += "(" + _PIT.join(arguments) + ")";
                 else:
 
                     if descriptor.returns.name != "void":
