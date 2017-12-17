@@ -37,8 +37,7 @@ class PacketInstructionsTopping(Topping):
     """Provides the instructions used to construct network packets."""
 
     PROVIDES = [
-        "packets.instructions",
-        "packets.sizes"
+        "packets.instructions"
     ]
 
     DEPENDS = [
@@ -63,17 +62,6 @@ class PacketInstructionsTopping(Topping):
         "writeLong": "long",
         "writeShort": "short",
         "writeUTF": "string8"
-    }
-
-    SIZES = {
-        "boolean": 1,
-        "byte": 1,
-        "char": 1,
-        "double": 8,
-        "float": 4,
-        "int": 4,
-        "long": 8,
-        "short": 2
     }
 
     CONDITIONS = [
@@ -703,19 +691,11 @@ class PacketInstructionsTopping(Topping):
         head = []
         stack = [head]
         aggregate = {"instructions": head}
-        size = 0
 
         block_start = ("if", "loop", "switch", "else")
         block_end = ("endif", "endloop", "endswitch", "else")
 
         for operation in _PIT.ordered_operations(operations):
-            if operation.operation == "write":
-                if size is not None:
-                    if len(stack) == 1 and operation.type in _PIT.SIZES:
-                        size += _PIT.SIZES[operation.type]
-                    else:
-                        size = None
-
             obj = operation.__dict__.copy()
             obj.pop("position")
             for field in ("field", "condition"):
@@ -736,9 +716,6 @@ class PacketInstructionsTopping(Topping):
                     head = new_head
             else:
                 head.append(obj)
-
-        if size is not None:
-            aggregate["size"] = size
 
         return aggregate
 
