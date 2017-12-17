@@ -29,7 +29,7 @@ from jawa.constants import ConstantString
 import traceback
 
 
-def identify(class_file):
+def identify(classloader, class_file):
     """
     The first pass across the jar will identify all possible classes it
     can, maping them by the 'type' it implements.
@@ -132,6 +132,25 @@ def identify(class_file):
             if len(list(fields)) == 2:
                 return 'identifier', class_file.this.name.value
 
+        if value == 'PooledMutableBlockPosition modified after it was released.':
+            # Keep on going up the class hierarchy until we find a logger,
+            # which is declared in the main BlockPos class
+            # We can't hardcode a specific number of classes to go up, as
+            # in some versions PooledMutableBlockPos extends BlockPos directly,
+            # but in others have PooledMutableBlockPos extend MutableBlockPos.
+            # Also, this is the _only_ string constant available to us.
+            # Finally, note that PooledMutableBlockPos was introduced in 1.9.
+            # This technique will not work in 1.8.
+            cf = class_file
+            logger_type = "Lorg/apache/logging/log4j/Logger;"
+            while not cf.fields.find_one(type_=logger_type):
+                if cf.super_.name.value == "java/lang/Object":
+                    cf = None
+                    break
+                cf = classloader.load(cf.super_.name.value)
+            if cf:
+                return 'position', cf.this.name.value
+
 
 class IdentifyTopping(Topping):
     """Finds important superclasses needed by other toppings."""
@@ -142,6 +161,7 @@ class IdentifyTopping(Topping):
         "identify.biome.superclass",
         "identify.block.list",
         "identify.block.superclass",
+        "identify.blockstatecontainer",
         "identify.chatcomponent",
         "identify.entity.list",
         "identify.entity.trackerentry",
@@ -154,13 +174,13 @@ class IdentifyTopping(Topping):
         "identify.nethandler.server",
         "identify.packet.connectionstate",
         "identify.packet.packetbuffer",
+        "identify.position",
         "identify.recipe.superclass",
+        "identify.resourcelocation",
         "identify.sounds.event",
         "identify.sounds.list",
         "identify.tileentity.superclass",
-        "identify.tileentity.blockentitytag",
-        "identify.resourcelocation",
-        "identify.blockstatecontainer"
+        "identify.tileentity.blockentitytag"
     ]
 
     DEPENDS = []
@@ -174,7 +194,7 @@ class IdentifyTopping(Topping):
 
             try:
                 cf = classloader.load(path)
-                result = identify(cf)
+                result = identify(classloader, cf)
             except KeyboardInterrupt:
                 raise
             except:
