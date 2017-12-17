@@ -592,7 +592,7 @@ class PacketInstructionsTopping(Topping):
                         category = 1
 
                     stack.append(Operand(
-                        StringFormatter.format(format, *operands),
+                        format.format(*operands),
                         category)
                     )
 
@@ -855,46 +855,5 @@ class Operand:
 
     def __repr__(self):
         return "%s [%s]" % (self.value, self.category)
-
-
-class StringFormatter:
-    """
-    Provides a subset of the features of string.format.
-
-    This class provides a fallback for python versions before 2.6 to use a
-    subset of the string.format functionality. This functionality is limited
-    to the following format:
-
-    {id[.field][:x]}
-
-    """
-
-    NATIVE = sys.version_info >= (2, 6)
-
-    PATTERN = re.compile("{(\d+)(\.(\w+))?(:(\w))?}")
-
-    @staticmethod
-    def format(string, *args):
-        if StringFormatter.NATIVE:
-            return string.format(*args)
-        else:
-            return StringFormatter(string, args).parse()
-
-    def __init__(self, string, values):
-        self.string = string
-        self.values = values
-
-    def parse(self):
-        return re.sub(self.PATTERN, self.match, self.string)
-
-    def match(self, match):
-        value = self.values[int(match.group(1))]
-        if match.group(3) is not None:
-            value = getattr(value, match.group(3))
-        if match.group(5) == "x":
-            value = hex(value)[2:]
-
-        return str(value)
-
 
 _PIT = PacketInstructionsTopping
