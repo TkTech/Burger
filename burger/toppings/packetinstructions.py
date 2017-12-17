@@ -338,7 +338,8 @@ class PacketInstructionsTopping(Topping):
                         arguments = []
                     for i in range(num_arguments):
                         stack.pop()
-                    obj = "static" if opcode == 0xb8 else stack.pop()
+                    is_static = (opcode == 0xb8)
+                    obj = operands[0].classname if is_static else stack.pop()
                     if descriptor.returns.name != "void":
                         stack.append(Operand(
                             "%s.%s(%s)" % (
@@ -371,7 +372,7 @@ class PacketInstructionsTopping(Topping):
                                     # writes that list.
                                     operations.append(Operation(instruction.pos,
                                                     "write", type="metadata",
-                                                    field=obj if obj != "static" else arguments[0]))
+                                                    field=obj if not is_static else arguments[0]))
                                     break
                                 if opcode != 0xb9:
                                     # If calling a sub method that takes a packetbuffer
@@ -380,7 +381,7 @@ class PacketInstructionsTopping(Topping):
                                     # check it.
                                     operations += _PIT.sub_operations(
                                         classloader, cf, classes, instruction, operands[0],
-                                        [obj] + arguments if obj != "static" else arguments
+                                        [obj] + arguments if not is_static else arguments
                                     )
                                 else:
                                     # However, for interface method calls, we can't
