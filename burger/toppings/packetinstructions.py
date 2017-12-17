@@ -126,7 +126,7 @@ class PacketInstructionsTopping(Topping):
         0x02: (0, "{0}", lambda op: op - 3),        # iconst_<i>
         0x15: (0, "{1}"),                           # iload
         0x1a: (0, "{1}", lambda op: op - 0x1a),     # iload_<n>
-        0xc1: (1, "({0} instanceof {1.class})"),    # instanceof
+        0xc1: (1, "({0} instanceof {1.classname})"),    # instanceof
         0x8a: (1, "((double){0})", 2),              # l2d
         0x89: (1, "((float){0})"),                  # l2f
         0x88: (1, "((int){0})"),                    # l2i
