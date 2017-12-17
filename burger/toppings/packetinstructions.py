@@ -212,8 +212,8 @@ class PacketInstructionsTopping(Topping):
         if method.access_flags.acc_abstract:
             # Abstract method call -- just log that, since we can't view it
             return [Operation(instruction.pos, "interfacecall",
-                              type="abstract", target=operands[0].c,
-                              method=name + desc, field=obj, args=arguments)]
+                              type="abstract", target=operands[0].c, name=name,
+                              method=name + desc, field=obj, args=_PIT.join(arguments))]
 
         # Decode the instructions
         operations = []
@@ -292,7 +292,7 @@ class PacketInstructionsTopping(Topping):
                                                 field=field))
                 elif num_arguments == 1 and descriptor.args[0].name == "java/lang/String":
                     operations.append(Operation(instruction.pos, "write",
-                                                type="string16",
+                                                type="string",
                                                 field=stack.pop()))
                 elif num_arguments == 1 and descriptor.args[0].name == "java/util/UUID":
                     operations.append(Operation(instruction.pos, "write",
@@ -390,9 +390,10 @@ class PacketInstructionsTopping(Topping):
                                                         "interfacecall",
                                                         type="interface",
                                                         target=operands[0].c,
+                                                        name=name,
                                                         method=name + desc,
                                                         field=obj,
-                                                        args=arguments))
+                                                        args=_PIT.join(arguments)))
                                 break
 
             # Conditional statements and loops
