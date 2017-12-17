@@ -315,6 +315,10 @@ class PacketInstructionsTopping(Topping):
                             operations.append(Operation(instruction.pos, "write",
                                                         type="uuid",
                                                         field=field))
+                        elif arg_type == "java/util/Date":
+                            operations.append(Operation(instruction.pos, "write",
+                                                        type="long",
+                                                        field="%s.getTime()" % field))
                         elif arg_type == "int":
                             operations.append(Operation(instruction.pos, "write",
                                                         type="varint",
