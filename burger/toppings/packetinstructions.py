@@ -454,13 +454,14 @@ class PacketInstructionsTopping(Topping):
                 operations.append(Operation(default, "endswitch"))
 
             elif opcode == 0xab:                        # lookupswitch
-                operations.append(Operation(instruction.pos, "switch",
-                                            field=stack.pop()))
-                for opr in range(1, len(operands)):
-                    target = operands[opr].find_target(1)
-                    operations.append(Operation(target, "case",
-                                                value=operands[opr].value[0]))
-                operations.append(Operation(operands[0].target, "endswitch"))
+                raise Exception("lookupswitch is not supported")
+                # operations.append(Operation(instruction.pos, "switch",
+                #                             field=stack.pop()))
+                # for opr in range(1, len(operands)):
+                #     target = operands[opr].find_target(1)
+                #     operations.append(Operation(target, "case",
+                #                                 value=operands[opr].value[0]))
+                # operations.append(Operation(operands[0].target, "endswitch"))
 
             elif opcode == 0xa7:                        # goto
                 target = operands[0].target
@@ -741,8 +742,11 @@ class Operation:
 class InstructionField:
     """Represents a operand in a instruction"""
     def __init__(self, operand, instruction, constants):
+        assert instruction.mnemonic != "lookupswitch"
+        # Note: this will fail if operand is not actually an instance of
+        # Operand, which is the case for lookupswitch, hence the earlier assert
         self.value = operand.value
-        self.optype = operand.op_type
+        assert isinstance(operand.value, int)
         self.constants = constants
         self.instruction = instruction
         self.handlers = {
@@ -768,65 +772,44 @@ class InstructionField:
         else:
             raise AttributeError
 
-    def __getitem__(self, key):
-        return self.value[key]
-
     def find_class(self):
         """Finds the class defining the method called in instruction"""
-        return self.find_constant({ConstantFieldRef.TAG: lambda c: c.class_.index,
-                                   ConstantMethodRef.TAG: lambda c: c.class_.index,
-                                   ConstantInterfaceMethodRef.TAG: lambda c: c.class_.index})
+        const = self.constants[self.value]
+        if isinstance(const, ConstantClass):
+            return const.name.value
+        else:
+            return const.class_.name.value
 
     def find_name(self):
         """Finds the name of a method called in the suplied instruction"""
-        return self.find_constant({ConstantNameAndType.TAG: lambda c: c.name.index})
+        # At least, allegedly.  In practice this seems to actually be used for
+        # a zillion other things, and usually not the name, for the ldc instruction
+        const = self.constants[self.value]
+        if isinstance(const, ConstantClass):
+            return const.name.value
+        elif isinstance(const, ConstantString):
+            return '"' + const.string.value + '"'
+        elif isinstance(const, (ConstantInteger, ConstantFloat, ConstantLong, ConstantDouble, ConstantUTF8)):
+            return str(const.value)
+        else:
+            return self.constants[self.value].name_and_type.name.value
 
     def find_classname(self):
         """Finds the name of a class used for casting"""
-        return self.find_name().split("/")[-1]
+        return self.find_class().split("/")[-1]
 
     def find_descriptor(self):
         """Finds types used in an instruction"""
-        return self.find_constant({
-            ConstantNameAndType.TAG: lambda c: c.descriptor.index
-        })
+        return self.constants[self.value].name_and_type.descriptor.value
 
-    def find_constant(self, custom_follow={}, index=None):
-        """Walks the constant tree to a name or descriptor"""
-        # TODO: Is this really a logical way of doing it?
-        # It seems messy...
-        if index is None:
-            index = self.value
-        const = self.constants[index]
-        tag = const.TAG
-        follow = {
-            #ConstantLong.TAG: lambda c: c.value,
-            ConstantClass.TAG: lambda c: c.name.index,
-            ConstantFieldRef.TAG: lambda c: c.name_and_type.index,
-            ConstantMethodRef.TAG: lambda c: c.name_and_type.index,
-            ConstantInterfaceMethodRef.TAG: lambda c: c.name_and_type.index,
-            ConstantString.TAG: lambda c: c.string.index
-        }
-        format = "\"%s\"" if isinstance(const, ConstantString) else "%s"
-        follow.update(custom_follow)
-        if tag in follow:
-            return format % self.find_constant(follow, follow[tag](const))
-        elif isinstance(const, (ConstantInteger, ConstantFloat, ConstantLong, ConstantDouble, ConstantUTF8)):
-            return format % const.value
-        raise Exception("Can't find the value of constant " + str(const))
-
-    def find_target(self, index=0):
+    def find_target(self):
         """Finds the target of a goto or if instruction"""
-        if isinstance(self.value, tuple):
-            value = self.value[index]
-        else:
-            value = self.value
-
-        return value + self.instruction.pos
+        return self.value + self.instruction.pos
 
     def find_type(self):
         """Finds a type used by an instruction"""
-        descriptor = self.find_constant()
+        # This may be broken, as current code does not use it
+        descriptor = self.constants[self.value].name_and_type.descriptor.value
         descriptor = field_descriptor(descriptor)
         return descriptor[:descriptor.find("[")]
 
