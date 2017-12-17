@@ -28,7 +28,7 @@ import traceback
 
 from types import LambdaType
 
-from jawa.util.descriptor import method_descriptor
+from jawa.util.descriptor import method_descriptor, parse_descriptor
 from jawa.constants import *
 
 from .topping import Topping
@@ -96,7 +96,7 @@ class PacketInstructionsTopping(Topping):
         0x01: (0, "null"),                          # aconst_null
         0x25: (0, "{1}"),                           # aload
         0x2a: (0, "{1}", lambda op: op - 0x2a),     # aload_<n>
-        0xbd: (1, "new {1.class}[{0}]"),            # anewarray
+        0xbd: (1, "new {1.classname}[{0}]"),        # anewarray
         0xbe: (1, "{0}.length"),                    # arraylength
         0xbf: (1, "throw {0}"),                     # athrow
         0x10: (0, "0x{0.value:x}"),                 # bipush
@@ -115,7 +115,7 @@ class PacketInstructionsTopping(Topping):
         0x17: (0, "{1}"),                           # fload
         0x22: (0, "{1}", lambda op: op - 0x22),     # fload_<n>
         0xb4: (1, "{0}.{1.name}"),                  # getfield
-        0xb2: (0, "{0.class}.{0.name}"),            # getstatic
+        0xb2: (0, "{0.classname}.{0.name}"),        # getstatic
         0x91: (1, "((byte){0})"),                   # i2b
         0x92: (1, "((chat){0})"),                   # i2c
         0x87: (1, "((double){0})", 2),              # i2d
@@ -126,7 +126,7 @@ class PacketInstructionsTopping(Topping):
         0x02: (0, "{0}", lambda op: op - 3),        # iconst_<i>
         0x15: (0, "{1}"),                           # iload
         0x1a: (0, "{1}", lambda op: op - 0x1a),     # iload_<n>
-        0xc1: (1, "({0} instanceof {1.classname})"),    # instanceof
+        0xc1: (1, "({0} instanceof {1.classname})"),# instanceof
         0x8a: (1, "((double){0})", 2),              # l2d
         0x89: (1, "((float){0})"),                  # l2f
         0x88: (1, "((int){0})"),                    # l2i
@@ -137,7 +137,7 @@ class PacketInstructionsTopping(Topping):
         0x16: (0, "{1}", 2),                        # lload
         0x1e: (0, "{1}", lambda op: op - 0x1e, 2),  # lload_<n>
         0xc2: (0),                                  # monitorenter
-        0xbb: (0, "new {0.class}"),                 # new
+        0xbb: (0, "new {0.classname}"),             # new
         0xbc: (1, "new {1.atype}[{0}]"),            # newarray
         0x00: (0),                                  # nop
         0x57: (1),                                  # pop
@@ -751,7 +751,6 @@ class InstructionField:
         self.instruction = instruction
         self.handlers = {
             "name": self.find_name,
-            "class": self.find_class,
             "c": self.find_class,
             "classname": self.find_classname,
             "descriptor": self.find_descriptor,
@@ -773,7 +772,7 @@ class InstructionField:
             raise AttributeError
 
     def find_class(self):
-        """Finds the class defining the method called in instruction"""
+        """Finds the internal name of a class, uses slashes for packages."""
         const = self.constants[self.value]
         if isinstance(const, ConstantClass):
             return const.name.value
@@ -795,8 +794,15 @@ class InstructionField:
             return self.constants[self.value].name_and_type.name.value
 
     def find_classname(self):
-        """Finds the name of a class used for casting"""
-        return self.find_class().split("/")[-1]
+        """Finds the name of a class as intended for display"""
+        name = self.find_class().replace("/", ".")
+        if name.startswith("["):
+            # Fix arrays, which might be in the form of [Lcom/example/Foo;
+            desc = parse_descriptor(name)[0]
+            name = desc.name + "[]" * desc.dimensions
+        if name.startswith("java.lang.") or name.startswith("java.util."):
+            name = name[10:]
+        return name
 
     def find_descriptor(self):
         """Finds types used in an instruction"""
