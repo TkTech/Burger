@@ -103,7 +103,7 @@ class PacketInstructionsTopping(Topping):
         0xc0: (1, "(({1.classname}){0})"),          # checkcast
         0x90: (1, "((double){0})", 2),              # d2f
         0x8e: (1, "((int){0})"),                    # d2i
-        0x8f: (1, "((long){0}", 2),                 # d2l
+        0x8f: (1, "((long){0})", 2),                # d2l
         0x31: (2, "{0}[{1}]", 2),                   # daload
         0x0e: (0, "{0}.0", lambda op: op - 14),     # dconst_<d>
         0x18: (0, "{1}", 2),                        # dload
@@ -261,85 +261,97 @@ class PacketInstructionsTopping(Topping):
                 descriptor = method_descriptor(desc)
                 num_arguments = len(descriptor.args)
 
+                if num_arguments > 0:
+                    arguments = stack[-len(descriptor.args):]
+                else:
+                    arguments = []
+                for i in range(num_arguments):
+                    stack.pop()
+
+                is_static = (opcode == 0xb8)
+                obj = operands[0].classname if is_static else stack.pop()
+
+                # Checking len(name) == 1 is used to see if it's a Minecraft
+                # method (due to obfuscation).  Netty methods have real
+                # (and thus longer) names.
                 if name in _PIT.TYPES:
                     operations.append(Operation(instruction.pos, "write",
                                                 type=_PIT.TYPES[name],
-                                                field=stack.pop()))
+                                                field=arguments[0]))
+                    stack.append(obj)
                 elif num_arguments == 1 and descriptor.args[0].name == "byte" and descriptor.args[0].dimensions == 1 and len(name) == 1:
                     # Write byte array - this method prefixes the length.
-                    field = stack.pop()
                     operations.append(Operation(instruction.pos, "write",
                                                 type="varint",
-                                                field="%s.length" % field))
+                                                field="%s.length" % arguments[0]))
                     operations.append(Operation(instruction.pos, "write",
                                                 type="byte[]",
-                                                field=field))
+                                                field=arguments[0]))
+                    stack.append(obj)
                 elif num_arguments == 1 and descriptor.args[0].name == "int" and descriptor.args[0].dimensions == 1 and len(name) == 1:
-                    field = stack.pop()
                     operations.append(Operation(instruction.pos, "write",
                                                 type="varint",
-                                                field="%s.length" % field))
+                                                field="%s.length" % arguments[0]))
                     operations.append(Operation(instruction.pos, "write",
                                                 type="varint[]",
-                                                field=field))
+                                                field=arguments[0]))
+                    stack.append(obj)
                 elif num_arguments == 1 and descriptor.args[0].name == "long" and descriptor.args[0].dimensions == 1 and len(name) == 1:
-                    field = stack.pop()
                     operations.append(Operation(instruction.pos, "write",
                                                 type="varint",
-                                                field="%s.length" % field))
+                                                field="%s.length" % arguments[0]))
                     operations.append(Operation(instruction.pos, "write",
                                                 type="long[]",
-                                                field=field))
+                                                field=arguments[0]))
+                    stack.append(obj)
                 elif num_arguments == 1 and descriptor.args[0].name == "java/lang/String":
                     operations.append(Operation(instruction.pos, "write",
                                                 type="string",
-                                                field=stack.pop()))
+                                                field=arguments[0]))
+                    stack.append(obj)
                 elif num_arguments == 1 and descriptor.args[0].name == "java/util/UUID":
                     operations.append(Operation(instruction.pos, "write",
                                                 type="uuid",
-                                                field=stack.pop()))
+                                                field=arguments[0]))
+                    stack.append(obj)
                 elif num_arguments == 1 and descriptor.args[0].name == "int" and len(name) == 1:
-                    # We need to check the return type to distinguish it from
-                    # other methods, including the normal netty writeint method
-                    # that writes 4 full bytes.  The netty method returns a
-                    # ByteBuf, but varint returns void.
                     operations.append(Operation(instruction.pos, "write",
                                                 type="varint",
-                                                field=stack.pop()))
+                                                field=arguments[0]))
+                    stack.append(obj)
                 elif num_arguments == 1 and descriptor.args[0].name == "long" and len(name) == 1:
                     operations.append(Operation(instruction.pos, "write",
                                                 type="varlong",
-                                                field=stack.pop()))
+                                                field=arguments[0]))
+                    stack.append(obj)
                 elif num_arguments == 1 and descriptor.args[0].name == "java/lang/Enum":
                     # If we were using the read method instead of the write method, then we could get the class for this enum...
                     operations.append(Operation(instruction.pos, "write",
                                                 type="enum",
-                                                field=stack.pop()))
+                                                field=arguments[0]))
+                    stack.append(obj)
                 elif num_arguments == 1 and descriptor.args[0].name == classes["nbtcompound"]:
                     operations.append(Operation(instruction.pos, "write",
                                                 type="nbtcompound",
-                                                field=stack.pop()))
+                                                field=arguments[0]))
+                    stack.append(obj)
                 elif num_arguments == 1 and descriptor.args[0].name == classes["itemstack"]:
                     operations.append(Operation(instruction.pos, "write",
                                                 type="itemstack",
-                                                field=stack.pop()))
+                                                field=arguments[0]))
+                    stack.append(obj)
                 elif num_arguments == 1 and descriptor.args[0].name == classes["chatcomponent"]:
                     operations.append(Operation(instruction.pos, "write",
                                                 type="chatcomponent",
-                                                field=stack.pop()))
+                                                field=arguments[0]))
+                    stack.append(obj)
                 elif num_arguments == 1 and descriptor.args[0].name == classes["identifier"]:
                     operations.append(Operation(instruction.pos, "write",
                                                 type="identifier",
-                                                field=stack.pop()))
+                                                field=arguments[0]))
+                    stack.append(obj)
                 else:
-                    if num_arguments > 0:
-                        arguments = stack[-len(descriptor.args):]
-                    else:
-                        arguments = []
-                    for i in range(num_arguments):
-                        stack.pop()
-                    is_static = (opcode == 0xb8)
-                    obj = operands[0].classname if is_static else stack.pop()
+
                     if descriptor.returns.name != "void":
                         stack.append(Operand(
                             "%s.%s(%s)" % (
@@ -489,7 +501,7 @@ class PacketInstructionsTopping(Topping):
             elif opcode >= 0x74 and opcode <= 0x77: # Tneg
                 category = stack[-1].category
                 stack.append(Operand("(- %s)" % (stack.pop), category))
-            elif opcode >= 0x60 and opcode <= 0x83:
+            elif opcode >= 0x64 and opcode <= 0x83:
                 lookup_opcode = opcode
                 while not lookup_opcode in _PIT.MATH:
                     lookup_opcode -= 1
