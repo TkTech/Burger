@@ -55,13 +55,11 @@ class PacketInstructionsTopping(Topping):
         "writeByte": "byte",
         "writeBytes": "byte[]",
         "writeChar": "char",
-        "writeChars": "string16",
         "writeDouble": "double",
         "writeFloat": "float",
         "writeInt": "int",
         "writeLong": "long",
-        "writeShort": "short",
-        "writeUTF": "string8"
+        "writeShort": "short"
     }
 
     CONDITIONS = [
@@ -266,15 +264,6 @@ class PacketInstructionsTopping(Topping):
                 if name in _PIT.TYPES:
                     operations.append(Operation(instruction.pos, "write",
                                                 type=_PIT.TYPES[name],
-                                                field=stack.pop()))
-                elif name == "writeBytes":
-                    # Directly write to the buffer (no length info)
-                    if len(desc.args) == 3:
-                        # Method that takes indexes within the arrays - we don't really care about the indexes.
-                        stack.pop()
-                        stack.pop()
-                    operations.append(Operation(instruction.pos, "write",
-                                                type="byte[]",
                                                 field=stack.pop()))
                 elif num_arguments == 1 and descriptor.args[0].name == "byte" and descriptor.args[0].dimensions == 1 and len(name) == 1:
                     # Write byte array - this method prefixes the length.
