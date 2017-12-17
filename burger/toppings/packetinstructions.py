@@ -271,84 +271,87 @@ class PacketInstructionsTopping(Topping):
                 is_static = (opcode == 0xb8)
                 obj = operands[0].classname if is_static else stack.pop()
 
-                # Checking len(name) == 1 is used to see if it's a Minecraft
-                # method (due to obfuscation).  Netty methods have real
-                # (and thus longer) names.
                 if name in _PIT.TYPES:
+                    # Builtin netty buffer methods
+                    assert num_arguments == 1
                     operations.append(Operation(instruction.pos, "write",
                                                 type=_PIT.TYPES[name],
                                                 field=arguments[0]))
                     stack.append(obj)
-                elif num_arguments == 1 and descriptor.args[0].name == "byte" and descriptor.args[0].dimensions == 1 and len(name) == 1:
-                    # Write byte array - this method prefixes the length.
-                    operations.append(Operation(instruction.pos, "write",
-                                                type="varint",
-                                                field="%s.length" % arguments[0]))
-                    operations.append(Operation(instruction.pos, "write",
-                                                type="byte[]",
-                                                field=arguments[0]))
-                    stack.append(obj)
-                elif num_arguments == 1 and descriptor.args[0].name == "int" and descriptor.args[0].dimensions == 1 and len(name) == 1:
-                    operations.append(Operation(instruction.pos, "write",
-                                                type="varint",
-                                                field="%s.length" % arguments[0]))
-                    operations.append(Operation(instruction.pos, "write",
-                                                type="varint[]",
-                                                field=arguments[0]))
-                    stack.append(obj)
-                elif num_arguments == 1 and descriptor.args[0].name == "long" and descriptor.args[0].dimensions == 1 and len(name) == 1:
-                    operations.append(Operation(instruction.pos, "write",
-                                                type="varint",
-                                                field="%s.length" % arguments[0]))
-                    operations.append(Operation(instruction.pos, "write",
-                                                type="long[]",
-                                                field=arguments[0]))
-                    stack.append(obj)
-                elif num_arguments == 1 and descriptor.args[0].name == "java/lang/String" and len(name) == 1:
-                    operations.append(Operation(instruction.pos, "write",
-                                                type="string",
-                                                field=arguments[0]))
-                    stack.append(obj)
-                elif num_arguments == 1 and descriptor.args[0].name == "java/util/UUID" and len(name) == 1:
-                    operations.append(Operation(instruction.pos, "write",
-                                                type="uuid",
-                                                field=arguments[0]))
-                    stack.append(obj)
-                elif num_arguments == 1 and descriptor.args[0].name == "int" and len(name) == 1:
-                    operations.append(Operation(instruction.pos, "write",
-                                                type="varint",
-                                                field=arguments[0]))
-                    stack.append(obj)
-                elif num_arguments == 1 and descriptor.args[0].name == "long" and len(name) == 1:
-                    operations.append(Operation(instruction.pos, "write",
-                                                type="varlong",
-                                                field=arguments[0]))
-                    stack.append(obj)
-                elif num_arguments == 1 and descriptor.args[0].name == "java/lang/Enum":
-                    # If we were using the read method instead of the write method, then we could get the class for this enum...
-                    operations.append(Operation(instruction.pos, "write",
-                                                type="enum",
-                                                field=arguments[0]))
-                    stack.append(obj)
-                elif num_arguments == 1 and descriptor.args[0].name == classes["nbtcompound"]:
-                    operations.append(Operation(instruction.pos, "write",
-                                                type="nbtcompound",
-                                                field=arguments[0]))
-                    stack.append(obj)
-                elif num_arguments == 1 and descriptor.args[0].name == classes["itemstack"]:
-                    operations.append(Operation(instruction.pos, "write",
-                                                type="itemstack",
-                                                field=arguments[0]))
-                    stack.append(obj)
-                elif num_arguments == 1 and descriptor.args[0].name == classes["chatcomponent"]:
-                    operations.append(Operation(instruction.pos, "write",
-                                                type="chatcomponent",
-                                                field=arguments[0]))
-                    stack.append(obj)
-                elif num_arguments == 1 and descriptor.args[0].name == classes["identifier"]:
-                    operations.append(Operation(instruction.pos, "write",
-                                                type="identifier",
-                                                field=arguments[0]))
+                elif len(name) == 1 and isinstance(obj, Operand) and obj.value == "packetbuffer":
+                    # Checking len(name) == 1 is used to see if it's a Minecraft
+                    # method (due to obfuscation).  Netty methods have real
+                    # (and thus longer) names.
+                    assert num_arguments == 1
+                    arg_type = descriptor.args[0].name
+                    field = arguments[0]
+
+                    if descriptor.args[0].dimensions == 1:
+                        # Array methods, which prefix a length
+                        operations.append(Operation(instruction.pos, "write",
+                                                    type="varint",
+                                                    field="%s.length" % field))
+                        if arg_type == "byte":
+                            operations.append(Operation(instruction.pos, "write",
+                                                        type="byte[]",
+                                                        field=field))
+                        elif arg_type == "int":
+                            operations.append(Operation(instruction.pos, "write",
+                                                        type="varint[]",
+                                                        field=field))
+                        elif arg_type == "long":
+                            operations.append(Operation(instruction.pos, "write",
+                                                        type="long[]",
+                                                        field=field))
+                        else:
+                            raise Exception("Unexpected array type: " + arg_type)
+                    else:
+                        assert descriptor.args[0].dimensions == 0
+                        if arg_type == "java/lang/String":
+                            operations.append(Operation(instruction.pos, "write",
+                                                        type="string",
+                                                        field=field))
+                        elif arg_type == "java/util/UUID":
+                            operations.append(Operation(instruction.pos, "write",
+                                                        type="uuid",
+                                                        field=field))
+                        elif arg_type == "int":
+                            operations.append(Operation(instruction.pos, "write",
+                                                        type="varint",
+                                                        field=field))
+                        elif arg_type == "long":
+                            operations.append(Operation(instruction.pos, "write",
+                                                        type="varlong",
+                                                        field=field))
+                        elif arg_type == "java/lang/Enum":
+                            # If we were using the read method instead of the write method, then we could get the class for this enum...
+                            operations.append(Operation(instruction.pos, "write",
+                                                        type="enum",
+                                                        field=field))
+                        elif arg_type == classes["nbtcompound"]:
+                            operations.append(Operation(instruction.pos, "write",
+                                                        type="nbtcompound",
+                                                        field=field))
+                        elif arg_type == classes["itemstack"]:
+                            operations.append(Operation(instruction.pos, "write",
+                                                        type="itemstack",
+                                                        field=field))
+                        elif arg_type == classes["chatcomponent"]:
+                            operations.append(Operation(instruction.pos, "write",
+                                                        type="chatcomponent",
+                                                        field=field))
+                        elif arg_type == classes["identifier"]:
+                            operations.append(Operation(instruction.pos, "write",
+                                                        type="identifier",
+                                                        field=field))
+                        elif arg_type == classes["position"]:
+                            operations.append(Operation(instruction.pos,
+                                                        "write", type="position",
+                                                        field=field))
+                        else:
+                            raise Exception("Unexpected type: " + arg_type)
+                    # Return the buffer back to the stack.
+                    assert descriptor.returns.name == classes["packet.packetbuffer"]
                     stack.append(obj)
                 elif name == "<init>":
                     # Constructor call.  Should have the instance right
@@ -366,14 +369,6 @@ class PacketInstructionsTopping(Topping):
                             2 if descriptor.returns.name in ("long", "double") else 1)
                         )
 
-                    if isinstance(obj, Operand) and obj.value == "packetbuffer":
-                        # Right now there isn't a good way to identify the
-                        # class for positions, so we assume that any calls to
-                        # a packetbuffer method that we haven't yet handled is
-                        # actually writing a position.
-                        operations.append(Operation(instruction.pos,
-                                                    "write", type="position",
-                                                    field=arguments[0]))
                     else:
                         for arg in descriptor.args:
                             if arg.name == classes["packet.packetbuffer"]:
