@@ -71,19 +71,6 @@ class PacketInstructionsTopping(Topping):
         ">"
     ]
 
-    MATH = {
-        0x60: "+",
-        0x7e: "&",
-        0x6e: "/",
-        0x68: "*",
-        0x80: "|",
-        0x70: "%",
-        0x78: "<<",
-        0x7a: ">>",
-        0x64: "-",
-        0x82: "^"
-    }
-
     CACHE = {}
 
     # Simple instructions are registered below
@@ -464,21 +451,6 @@ class PacketInstructionsTopping(Topping):
                 elif target > instruction.pos:
                     skip_until = target
 
-            # Math
-            elif opcode >= 0x74 and opcode <= 0x77: # Tneg
-                category = stack[-1].category
-                stack.append(Operand("(- %s)" % (stack.pop), category))
-            elif opcode >= 0x64 and opcode <= 0x83:
-                lookup_opcode = opcode
-                while not lookup_opcode in _PIT.MATH:
-                    lookup_opcode -= 1
-                category = stack[-1].category
-                value2 = stack.pop()
-                stack.append(StackOperand(
-                    "(%s %s %s)" % (
-                        stack.pop(), _PIT.MATH[lookup_opcode], value2
-                    ), category
-                ))
             elif opcode == 0x84:                        # iinc
                 operations.append(Operation(instruction.pos, "increment",
                                             field="var%s" % operands[0],
@@ -856,6 +828,42 @@ _PIT.register_ins("aaload", 2, "{stack[0]}[{stack[1]}]")
 _PIT.register_ins("baload", 2, "{stack[0]}[{stack[1]}]")
 _PIT.register_ins("caload", 2, "{stack[0]}[{stack[1]}]")
 _PIT.register_ins("saload", 2, "{stack[0]}[{stack[1]}]")
+_PIT.register_ins("iadd", 2, "({stack[0]} + {stack[1]})")
+_PIT.register_ins("ladd", 2, "({stack[0]} + {stack[1]})", category=2)
+_PIT.register_ins("fadd", 2, "({stack[0]} + {stack[1]})")
+_PIT.register_ins("dadd", 2, "({stack[0]} + {stack[1]})", category=2)
+_PIT.register_ins("isub", 2, "({stack[0]} - {stack[1]})")
+_PIT.register_ins("lsub", 2, "({stack[0]} - {stack[1]})", category=2)
+_PIT.register_ins("fsub", 2, "({stack[0]} - {stack[1]})")
+_PIT.register_ins("dsub", 2, "({stack[0]} - {stack[1]})", category=2)
+_PIT.register_ins("imul", 2, "({stack[0]} * {stack[1]})")
+_PIT.register_ins("lmul", 2, "({stack[0]} * {stack[1]})", category=2)
+_PIT.register_ins("fmul", 2, "({stack[0]} * {stack[1]})")
+_PIT.register_ins("dmul", 2, "({stack[0]} * {stack[1]})", category=2)
+_PIT.register_ins("idiv", 2, "({stack[0]} / {stack[1]})")
+_PIT.register_ins("ldiv", 2, "({stack[0]} / {stack[1]})", category=2)
+_PIT.register_ins("fdiv", 2, "({stack[0]} / {stack[1]})")
+_PIT.register_ins("ddiv", 2, "({stack[0]} / {stack[1]})", category=2)
+_PIT.register_ins("irem", 2, "({stack[0]} % {stack[1]})")
+_PIT.register_ins("lrem", 2, "({stack[0]} % {stack[1]})", category=2)
+_PIT.register_ins("frem", 2, "({stack[0]} % {stack[1]})")
+_PIT.register_ins("drem", 2, "({stack[0]} % {stack[1]})", category=2)
+_PIT.register_ins("ineg", 1, "(-{stack[0]})")
+_PIT.register_ins("lneg", 1, "(-{stack[0]})", category=2)
+_PIT.register_ins("fneg", 1, "(-{stack[0]})")
+_PIT.register_ins("dneg", 1, "(-{stack[0]})", category=2)
+_PIT.register_ins("ishl", 2, "({stack[0]} << {stack[1]})")
+_PIT.register_ins("lshl", 2, "({stack[0]} << {stack[1]})", category=2)
+_PIT.register_ins("ishr", 2, "({stack[0]} >>> {stack[1]})")
+_PIT.register_ins("lshr", 2, "({stack[0]} >>> {stack[1]})", category=2)
+_PIT.register_ins("iushr", 2, "({stack[0]} >> {stack[1]})")
+_PIT.register_ins("lushr", 2, "({stack[0]} >> {stack[1]})", category=2)
+_PIT.register_ins("iand", 2, "({stack[0]} & {stack[1]})")
+_PIT.register_ins("land", 2, "({stack[0]} & {stack[1]})", category=2)
+_PIT.register_ins("ior", 2, "({stack[0]} | {stack[1]})")
+_PIT.register_ins("lor", 2, "({stack[0]} | {stack[1]})", category=2)
+_PIT.register_ins("ixor", 2, "({stack[0]} ^ {stack[1]})")
+_PIT.register_ins("lxor", 2, "({stack[0]} ^ {stack[1]})", category=2)
 _PIT.register_ins(["i2l", "f2l", "d2l"], 1, "((long){stack[0]})", category=2)
 _PIT.register_ins(["i2f", "l2f", "d2f"], 1, "((float){stack[0]})")
 _PIT.register_ins(["i2d", "l2d", "f2d"], 1, "((double){stack[0]})", category=2)
