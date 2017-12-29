@@ -62,15 +62,6 @@ class PacketInstructionsTopping(Topping):
         "writeShort": "short"
     }
 
-    CONDITIONS = [
-        "!=",
-        "==",
-        ">=",
-        "<",
-        "<=",
-        ">"
-    ]
-
     CACHE = {}
 
     # Simple instructions are registered below
@@ -178,7 +169,7 @@ class PacketInstructionsTopping(Topping):
                 else:
                     continue
 
-            opcode = instruction.opcode
+            mnemonic = instruction.mnemonic
             operands = [InstructionField(operand, instruction, cf.constants)
                         for operand in instruction.operands]
 
@@ -203,7 +194,7 @@ class PacketInstructionsTopping(Topping):
                 shortif_pos = None
 
             # Method calls
-            if opcode >= 0xb6 and opcode <= 0xb9:
+            if mnemonic in ("invokevirtual", "invokespecial", "invokestatic", "invokeinterface"):
                 name = operands[0].name
                 desc = operands[0].descriptor
 
@@ -217,7 +208,7 @@ class PacketInstructionsTopping(Topping):
                 for i in range(num_arguments):
                     stack.pop()
 
-                is_static = (opcode == 0xb8)
+                is_static = (mnemonic == "invokestatic")
                 obj = operands[0].classname if is_static else stack.pop()
 
                 if name in _PIT.TYPES:
@@ -340,7 +331,7 @@ class PacketInstructionsTopping(Topping):
                                                     "write", type="metadata",
                                                     field=obj if not is_static else arguments[0]))
                                     break
-                                if opcode != 0xb9:
+                                if mnemonic != "invokeinterface":
                                     # If calling a sub method that takes a packetbuffer
                                     # as a parameter, it's possible that it's a sub
                                     # method that writes to the buffer, so we need to
@@ -363,27 +354,41 @@ class PacketInstructionsTopping(Topping):
                                 break
 
             # Conditional statements and loops
-            elif opcode in [0xc7, 0xc6] or opcode >= 0x99 and opcode <= 0xa6:
-                if opcode == 0xc7:
-                    condition = "%s == null" % stack.pop()
-                elif opcode == 0xc6:
-                    condition = "%s != null" % stack.pop()
+            elif mnemonic.startswith("if"):
+                if "icmp" in mnemonic or "acmp" in mnemonic:
+                    value2 = stack.pop()
+                    value1 = stack.pop()
+                elif "null" in mnemonic:
+                    value1 = stack.pop()
+                    value2 = "null"
                 else:
-                    if opcode <= 0x9e:                  # if
-                        comperation = opcode - 0x99
-                        fields = [0, stack.pop()]
-                    elif opcode <= 0xa4:                # if_icmp
-                        comperation = opcode - 0x9f
-                        fields = [stack.pop(), stack.pop()]
-                    else:                               # if_acmp
-                        comperation = opcode - 0xa5
-                        fields = [stack.pop(), stack.pop()]
-                    if comperation == 0 and fields[0] == 0:
-                        condition = fields[1]
-                    else:
-                        condition = "%s %s %s" % (
-                            fields[1], _PIT.CONDITIONS[comperation], fields[0]
-                        )
+                    value1 = stack.pop()
+                    value2 = 0
+
+                # All conditions are reversed: if the condition in the mnemonic
+                # passes, then we'd jump; thus, to execute the following code,
+                # the condition must _not_ pass
+                if mnemonic in ("ifeq", "if_icmpeq", "if_acmpeq", "ifnull"):
+                    comparison = "!="
+                elif mnemonic in ("ifne", "if_icmpne", "if_acmpne", "ifnonnull"):
+                    comparison = "=="
+                elif mnemonic in ("iflt", "if_icmplt"):
+                    comparison = ">="
+                elif mnemonic in ("ifge", "if_icmpge"):
+                    comparison = "<"
+                elif mnemonic in ("ifgt", "if_icmpgt"):
+                    comparison = "<="
+                elif mnemonic in ("ifle", "if_icmple"):
+                    comparison = ">"
+                else:
+                    raise Exception("Unknown if mnemonic %s (0x%x)" % (mnemonic, instruction.opcode))
+
+                if comparison == "!=" and value2 == 0:
+                    # if (something != 0) -> if (something)
+                    condition = value1
+                else:
+                    condition = "%s %s %s" % (value1, comparison, value2)
+
                 operations.append(Operation(instruction.pos, "if",
                                             condition=condition))
                 operations.append(Operation(operands[0].target, "endif"))
@@ -405,7 +410,7 @@ class PacketInstructionsTopping(Topping):
                     shortif_pos = None
                 shortif_cond = condition
 
-            elif opcode == 0xaa:                        # tableswitch
+            elif mnemonic == "tableswitch":
                 operations.append(Operation(instruction.pos, "switch",
                                             field=stack.pop()))
 
@@ -421,7 +426,7 @@ class PacketInstructionsTopping(Topping):
                 # in the normal code.
                 operations.append(Operation(default, "endswitch"))
 
-            elif opcode == 0xab:                        # lookupswitch
+            elif mnemonic == "lookupswitch":
                 raise Exception("lookupswitch is not supported")
                 # operations.append(Operation(instruction.pos, "switch",
                 #                             field=stack.pop()))
@@ -431,7 +436,7 @@ class PacketInstructionsTopping(Topping):
                 #                                 value=operands[opr].value[0]))
                 # operations.append(Operation(operands[0].target, "endswitch"))
 
-            elif opcode == 0xa7:                        # goto
+            elif mnemonic == "goto":
                 target = operands[0].target
                 endif = _PIT.find_next(operations, instruction.pos, "endif")
                 case = _PIT.find_next(operations, instruction.pos, "case")
@@ -451,43 +456,43 @@ class PacketInstructionsTopping(Topping):
                 elif target > instruction.pos:
                     skip_until = target
 
-            elif opcode == 0x84:                        # iinc
+            elif mnemonic == "iinc":
                 operations.append(Operation(instruction.pos, "increment",
                                             field="var%s" % operands[0],
                                             amount=operands[1]))
 
-            # Other manually handled opcodes
-            elif opcode == 0xc5:                        # multianewarray
+            # Other manually handled instructions
+            elif mnemonic == "multianewarray":
                 operand = ""
                 for i in range(operands[1].value):
                     operand = "[%s]%s" % (stack.pop(), operand)
                 stack.append(StackOperand(
                     "new %s%s" % (operands[0].type, operand)))
-            elif opcode == 0x57:                        # pop
+            elif mnemonic == "pop":
                 stack.pop()
-            elif opcode == 0x58:                        # pop2
+            elif mnemonic == "pop2":
                 if stack.pop().category != 2:
                     stack.pop()
-            elif opcode == 0x5f:                        # swap
-                stack += [stack.pop(), stack.pop()]
-            elif opcode == 0x59:                        # dup
+            elif mnemonic == "swap":
+                stack[-2], stack[-1] = stack[-1], stack[-2]
+            elif mnemonic == "dup":
                 stack.append(stack[-1])
-            elif opcode == 0x5a:                        # dup_x1
+            elif mnemonic == "dup_x1":
                 stack.insert(-2, stack[-1])
-            elif opcode == 0x5b:                        # dup_x2
+            elif mnemonic == "dup_x2":
                 stack.insert(-2 if stack[-2].category == 2 else -3, stack[-1])
-            elif opcode == 0x5c:                        # dup2
+            elif mnemonic == "dup2":
                 if stack[-1].category == 2:
                     stack.append(stack[-1])
                 else:
                     stack += stack[-2:]
-            elif opcode == 0x5d:                        # dup2_x1
+            elif mnemonic == "dup2_x1":
                 if stack[-1].category == 2:
                     stack.insert(-2, stack[-1])
                 else:
                     stack.insert(-3, stack[-2])
                     stack.insert(-3, stack[-1])
-            elif opcode == 0x5e:                        # dup2_x2
+            elif mnemonic == "dup2_x2":
                 if stack[-1].category == 2:
                     stack.insert(
                         -2 if stack[-2].category == 2 else -3, stack[-1]
@@ -499,7 +504,7 @@ class PacketInstructionsTopping(Topping):
                     stack.insert(
                         -3 if stack[-3].category == 2 else -4, stack[-1]
                     )
-            elif opcode == 0xb1:                        # return
+            elif mnemonic == "return":
                 # Don't attempt to lookup the instruction in the handler
                 pass
 
@@ -532,10 +537,10 @@ class PacketInstructionsTopping(Topping):
 
             # Default handlers
             else:
-                if instruction.mnemonic not in _PIT.OPCODES:
-                    raise Exception("Unhandled instruction opcode %s (0x%x)" % (instruction.mnemonic, opcode))
+                if mnemonic not in _PIT.OPCODES:
+                    raise Exception("Unhandled instruction opcode %s (0x%x)" % (mnemonic, instruction.opcode))
 
-                handler = _PIT.OPCODES[instruction.mnemonic]
+                handler = _PIT.OPCODES[mnemonic]
 
                 ins_stack = []
                 assert len(stack) >= handler["stack_count"]
@@ -558,7 +563,7 @@ class PacketInstructionsTopping(Topping):
                     formatted = handler["template"].format(**ctx)
                 except Exception as ex:
                     raise Exception("Failed to format info for %s (0x%x) with template %s and ctx %s: %s" %
-                        (instruction.mnemonic, opcode, handler["template"], ctx, ex))
+                        (mnemonic, instruction.opcode, handler["template"], ctx, ex))
 
                 stack.append(StackOperand(formatted, handler["category"]))
 
