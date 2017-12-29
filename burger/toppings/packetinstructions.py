@@ -87,67 +87,67 @@ class PacketInstructionsTopping(Topping):
     CACHE = {}
 
     OPCODES = {
-        0x30: (2, "{0}[{1}]"),                      # Taload
-        0x4f: (3),                                  # Tastore
-        0x94: (2, "compare({0}, {1})"),             # Tcmp<op>
-        0xac: (1),                                  # Treturn
+        0x00: (0),                                  # nop
+        0x01: (0, "null"),                          # aconst_null
+        0x02: (0, "{0}", lambda op: op - 3),        # iconst_<i>
+        0x09: (0, "{0}", lambda op: op - 9),        # lconst_<l>
+        0x0b: (0, "{0}", lambda op: op - 11),       # fconst_<f>
+        0x0e: (0, "{0}.0", lambda op: op - 14),     # dconst_<d>
+        0x10: (0, "0x{0.value:x}"),                 # bipush
+        0x11: (0, "{0}"),                           # sipush
+        0x12: (0, "{0.name}"),                      # ldc
+        0x14: (0, "{0.name}", 2),                   # ldc2_w
+        0x15: (0, "{1}"),                           # iload
+        0x16: (0, "{1}", 2),                        # lload
+        0x17: (0, "{1}"),                           # fload
+        0x18: (0, "{1}", 2),                        # dload
+        0x1a: (0, "{1}", lambda op: op - 0x1a),     # iload_<n>
+        0x1e: (0, "{1}", lambda op: op - 0x1e, 2),  # lload_<n>
+        0x22: (0, "{1}", lambda op: op - 0x22),     # fload_<n>
+        0x25: (0, "{1}"),                           # aload
+        0x26: (0, "{1}", lambda op: op - 0x26, 2),  # dload_<n>
+        0x2a: (0, "{1}", lambda op: op - 0x2a),     # aload_<n>
+        0x2e: (2, "{0}[{1}]"),                      # iaload
+        0x2f: (2, "{0}[{1}]", 2),                   # laload
+        0x31: (2, "{0}[{1}]", 2),                   # daload
+        0x35: (2, "{0}[{1}]", 2),                   # saload
         0x36: (1),                                  # Tstore
         0x43: (1),                                  # Tstore_<n>
-        0x01: (0, "null"),                          # aconst_null
-        0x25: (0, "{1}"),                           # aload
-        0x2a: (0, "{1}", lambda op: op - 0x2a),     # aload_<n>
+        0x4f: (3),                                  # Tastore
+        0x57: (1),                                  # pop
+        0x85: (1, "((long){0})", 2),                # i2l
+        0x86: (1, "((float){0})"),                  # i2f
+        0x87: (1, "((double){0})", 2),              # i2d
+        0x88: (1, "((int){0})"),                    # l2i
+        0x89: (1, "((float){0})"),                  # l2f
+        0x8a: (1, "((double){0})", 2),              # l2d
+        0x8b: (1, "((int){0})"),                    # f2i
+        0x8c: (1, "((long){0})", 2),                # f2l
+        0x8d: (1, "((double){0})", 2),              # f2d
+        0x8e: (1, "((int){0})"),                    # d2i
+        0x8f: (1, "((long){0})", 2),                # d2l
+        0x90: (1, "((double){0})", 2),              # d2f
+        0x91: (1, "((byte){0})"),                   # i2b
+        0x92: (1, "((chat){0})"),                   # i2c
+        0x93: (1, "((short){0})"),                  # i2s
+        0x94: (2, "compare({0}, {1})"),             # Tcmp<op>
+        0xa9: (0),                                  # ret
+        0xac: (1),                                  # Treturn
+        0xb1: (0),                                  # return
+        0xb2: (0, "{0.classname}.{0.name}"),        # getstatic
+        0xb3: (1),                                  # putstatic
+        0xb4: (1, "{0}.{1.name}"),                  # getfield
+        0xb5: (2),                                  # putfield
+        0xbb: (0, "new {0.classname}"),             # new
+        0xbc: (1, "new {1.atype}[{0}]"),            # newarray
         0xbd: (1, "new {1.classname}[{0}]"),        # anewarray
         0xbe: (1, "{0}.length"),                    # arraylength
         0xbf: (1, "throw {0}"),                     # athrow
-        0x10: (0, "0x{0.value:x}"),                 # bipush
         0xc0: (1, "(({1.classname}){0})"),          # checkcast
-        0x90: (1, "((double){0})", 2),              # d2f
-        0x8e: (1, "((int){0})"),                    # d2i
-        0x8f: (1, "((long){0})", 2),                # d2l
-        0x31: (2, "{0}[{1}]", 2),                   # daload
-        0x0e: (0, "{0}.0", lambda op: op - 14),     # dconst_<d>
-        0x18: (0, "{1}", 2),                        # dload
-        0x26: (0, "{1}", lambda op: op - 0x26, 2),  # dload_<n>
-        0x8d: (1, "((double){0})", 2),              # f2d
-        0x8b: (1, "((int){0})"),                    # f2i
-        0x8c: (1, "((long){0})", 2),                # f2l
-        0x0b: (0, "{0}", lambda op: op - 11),       # fconst_<f>
-        0x17: (0, "{1}"),                           # fload
-        0x22: (0, "{1}", lambda op: op - 0x22),     # fload_<n>
-        0xb4: (1, "{0}.{1.name}"),                  # getfield
-        0xb2: (0, "{0.classname}.{0.name}"),        # getstatic
-        0x91: (1, "((byte){0})"),                   # i2b
-        0x92: (1, "((chat){0})"),                   # i2c
-        0x87: (1, "((double){0})", 2),              # i2d
-        0x86: (1, "((float){0})"),                  # i2f
-        0x85: (1, "((long){0})", 2),                # i2l
-        0x93: (1, "((short){0})"),                  # i2s
-        0x2e: (2, "{0}[{1}]"),                      # iaload
-        0x02: (0, "{0}", lambda op: op - 3),        # iconst_<i>
-        0x15: (0, "{1}"),                           # iload
-        0x1a: (0, "{1}", lambda op: op - 0x1a),     # iload_<n>
         0xc1: (1, "({0} instanceof {1.classname})"),# instanceof
-        0x8a: (1, "((double){0})", 2),              # l2d
-        0x89: (1, "((float){0})"),                  # l2f
-        0x88: (1, "((int){0})"),                    # l2i
-        0x2f: (2, "{0}[{1}]", 2),                   # laload
-        0x09: (0, "{0}", lambda op: op - 9),        # lconst_<l>
-        0x12: (0, "{0.name}"),                      # ldc
-        0x14: (0, "{0.name}", 2),                   # ldc2_w
-        0x16: (0, "{1}", 2),                        # lload
-        0x1e: (0, "{1}", lambda op: op - 0x1e, 2),  # lload_<n>
         0xc2: (0),                                  # monitorenter
-        0xbb: (0, "new {0.classname}"),             # new
-        0xbc: (1, "new {1.atype}[{0}]"),            # newarray
-        0x00: (0),                                  # nop
-        0x57: (1),                                  # pop
-        0xb5: (2),                                  # putfield
-        0xb3: (1),                                  # putstatic
-        0xa9: (0),                                  # ret
-        0xb1: (0),                                  # return
-        0x35: (2, "{0}[{1}]", 2),                   # saload
-        0x11: (0, "{0}"),                           # sipush
         0xc4: (0),                                  # wide
+        0x30: (2, "{0}[{1}]"),                      # Taload
 
     }
 
@@ -245,7 +245,7 @@ class PacketInstructionsTopping(Topping):
                 operations.pop()
                 operations.pop()
                 category = stack[-1].category
-                stack.append(Operand("((%(cond)s) ? %(sec)s : %(first)s)" % {
+                stack.append(StackOperand("((%(cond)s) ? %(sec)s : %(first)s)" % {
                     "cond": shortif_cond,
                     "first": stack.pop(),
                     "sec": stack.pop()
@@ -278,7 +278,7 @@ class PacketInstructionsTopping(Topping):
                                                 type=_PIT.TYPES[name],
                                                 field=arguments[0]))
                     stack.append(obj)
-                elif len(name) == 1 and isinstance(obj, Operand) and obj.value == "packetbuffer":
+                elif len(name) == 1 and isinstance(obj, StackOperand) and obj.value == "packetbuffer":
                     # Checking len(name) == 1 is used to see if it's a Minecraft
                     # method (due to obfuscation).  Netty methods have real
                     # (and thus longer) names.
@@ -366,7 +366,7 @@ class PacketInstructionsTopping(Topping):
                 else:
 
                     if descriptor.returns.name != "void":
-                        stack.append(Operand(
+                        stack.append(StackOperand(
                             "%s.%s(%s)" % (
                                 obj, name, _PIT.join(arguments)
                             ),
@@ -512,7 +512,7 @@ class PacketInstructionsTopping(Topping):
                     lookup_opcode -= 1
                 category = stack[-1].category
                 value2 = stack.pop()
-                stack.append(Operand(
+                stack.append(StackOperand(
                     "(%s %s %s)" % (
                         stack.pop(), _PIT.MATH[lookup_opcode], value2
                     ), category
@@ -527,7 +527,7 @@ class PacketInstructionsTopping(Topping):
                 operand = ""
                 for i in range(operands[1].value):
                     operand = "[%s]%s" % (stack.pop(), operand)
-                stack.append(Operand(
+                stack.append(StackOperand(
                     "new %s%s" % (operands[0].type, operand)))
             elif opcode == 0x58:                        # pop2
                 if stack.pop().category != 2:
@@ -611,7 +611,7 @@ class PacketInstructionsTopping(Topping):
                     else:
                         category = 1
 
-                    stack.append(Operand(
+                    stack.append(StackOperand(
                         format.format(*operands),
                         category)
                     )
@@ -852,8 +852,13 @@ class InstructionField:
         ][self.value - 4]
 
 
-class Operand:
-    """Represents an operand on the runtime operand stack"""
+class StackOperand:
+    """
+    Represents an operand on the runtime operand stack
+    value is the actual value
+    category is the JVM category/type, see
+    https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-2.html#jvms-2.11.1-320
+    """
     def __init__(self, value, category=1):
         self.value = value
         self.category = category
