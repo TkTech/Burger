@@ -86,58 +86,32 @@ class PacketInstructionsTopping(Topping):
 
     CACHE = {}
 
-    OPCODES = {
-        0x01: (0, "null"),                          # aconst_null
-        0x02: (0, "{0}", lambda op: op - 3),        # iconst_<i>
-        0x09: (0, "{0}", lambda op: op - 9),        # lconst_<l>
-        0x0b: (0, "{0}", lambda op: op - 11),       # fconst_<f>
-        0x0e: (0, "{0}.0", lambda op: op - 14),     # dconst_<d>
-        0x10: (0, "0x{0.value:x}"),                 # bipush
-        0x11: (0, "{0}"),                           # sipush
-        0x12: (0, "{0.name}"),                      # ldc
-        0x14: (0, "{0.name}", 2),                   # ldc2_w
-        0x15: (0, "{1}"),                           # iload
-        0x16: (0, "{1}", 2),                        # lload
-        0x17: (0, "{1}"),                           # fload
-        0x18: (0, "{1}", 2),                        # dload
-        0x1a: (0, "{1}", lambda op: op - 0x1a),     # iload_<n>
-        0x1e: (0, "{1}", lambda op: op - 0x1e, 2),  # lload_<n>
-        0x22: (0, "{1}", lambda op: op - 0x22),     # fload_<n>
-        0x25: (0, "{1}"),                           # aload
-        0x26: (0, "{1}", lambda op: op - 0x26, 2),  # dload_<n>
-        0x2a: (0, "{1}", lambda op: op - 0x2a),     # aload_<n>
-        0x2e: (2, "{0}[{1}]"),                      # iaload
-        0x2f: (2, "{0}[{1}]", 2),                   # laload
-        0x30: (2, "{0}[{1}]"),                      # Taload
-        0x31: (2, "{0}[{1}]", 2),                   # daload
-        0x35: (2, "{0}[{1}]"),                      # saload
-        0x85: (1, "((long){0})", 2),                # i2l
-        0x86: (1, "((float){0})"),                  # i2f
-        0x87: (1, "((double){0})", 2),              # i2d
-        0x88: (1, "((int){0})"),                    # l2i
-        0x89: (1, "((float){0})"),                  # l2f
-        0x8a: (1, "((double){0})", 2),              # l2d
-        0x8b: (1, "((int){0})"),                    # f2i
-        0x8c: (1, "((long){0})", 2),                # f2l
-        0x8d: (1, "((double){0})", 2),              # f2d
-        0x8e: (1, "((int){0})"),                    # d2i
-        0x8f: (1, "((long){0})", 2),                # d2l
-        0x90: (1, "((double){0})", 2),              # d2f
-        0x91: (1, "((byte){0})"),                   # i2b
-        0x92: (1, "((chat){0})"),                   # i2c
-        0x93: (1, "((short){0})"),                  # i2s
-        0x94: (2, "compare({0}, {1})"),             # Tcmp<op>
-        0xb2: (0, "{0.classname}.{0.name}"),        # getstatic
-        0xb4: (1, "{0}.{1.name}"),                  # getfield
-        0xbb: (0, "new {0.classname}"),             # new
-        0xbc: (1, "new {1.atype}[{0}]"),            # newarray
-        0xbd: (1, "new {1.classname}[{0}]"),        # anewarray
-        0xbe: (1, "{0}.length"),                    # arraylength
-        0xbf: (1, "throw {0}"),                     # athrow
-        0xc0: (1, "(({1.classname}){0})"),          # checkcast
-        0xc1: (1, "({0} instanceof {1.classname})"),# instanceof
+    # Simple instructions are registered below
+    OPCODES = {}
 
-    }
+    @classmethod
+    def register_ins(cls, opcodes, stack_count, template, extra_method=None, category=1):
+        """
+        Registers an instruction handler.  This should be used for instructions
+        that pop some one or more things from the stack and then push a new
+        value onto it.
+
+        opcodes: A single opcode or a list of opcodes for that handler
+        stack_count: The number of things to pop from the stack
+        template: A format string; uses stack and operands (and extra if given)
+        extra_method: Used to get a bit of additional information.  Param is ins
+        category: JVM category for the resulting StackOperand
+        """
+        if isinstance(opcodes, basestring):
+            opcodes = [opcodes]
+        data = {
+            "stack_count": stack_count,
+            "template": template,
+            "extra_method": extra_method,
+            "category": category
+        }
+        for opcode in opcodes:
+            cls.OPCODES[opcode] = data
 
     # Prefix types used in instructions
     INSTRUCTION_TYPES = {
@@ -557,9 +531,6 @@ class PacketInstructionsTopping(Topping):
                 # Don't attempt to lookup the instruction in the handler
                 pass
 
-            # Unhandled opcodes
-            elif opcode in [0xc8, 0xa8, 0xc9]:
-                raise Exception("unhandled opcode 0x%x" % opcode)
             elif "store" in instruction.mnemonic:
                 type = _PIT.INSTRUCTION_TYPES[instruction.mnemonic[0]]
 
@@ -589,51 +560,35 @@ class PacketInstructionsTopping(Topping):
 
             # Default handlers
             else:
-                lookup_opcode = opcode
-                while not lookup_opcode in _PIT.OPCODES:
-                    lookup_opcode -= 1
+                if instruction.mnemonic not in _PIT.OPCODES:
+                    raise Exception("Unhandled instruction opcode %s (0x%x)" % (instruction.mnemonic, opcode))
 
-                handler = _PIT.OPCODES[lookup_opcode]
-                index = 0
+                handler = _PIT.OPCODES[instruction.mnemonic]
 
-                if isinstance(handler, int):
-                    handler = [handler]
+                ins_stack = []
+                assert len(stack) >= handler["stack_count"]
 
-                assert len(stack) >= handler[index]
+                for _ in range(handler["stack_count"]):
+                    ins_stack.insert(0, stack.pop())
 
-                for i in range(handler[index]):
-                    operands.insert(0, stack.pop())
+                ctx = {
+                    "operands": operands,
+                    "stack": ins_stack,
+                    "ins": instruction,
+                    "arg_names": arg_names
+                }
 
-                index += 1
+                if handler["extra_method"]:
+                    ctx["extra"] = handler["extra_method"](ctx)
 
-                if len(handler) > index:
-                    format = handler[index]
-                    index += 1
+                category = handler["category"]
+                try:
+                    formatted = handler["template"].format(**ctx)
+                except Exception as ex:
+                    raise Exception("Failed to format info for %s (0x%x) with template %s and ctx %s: %s" %
+                        (instruction.mnemonic, opcode, handler["template"], ctx, ex))
 
-                    if (len(handler) > index and
-                            isinstance(handler[index], LambdaType)):
-                        value = handler[index](opcode)
-                        operands.append(value)
-                        operands.append(arg_names[value]
-                                        if value < len(arg_names)
-                                        else "var%s" % value)
-                        index += 1
-                    elif len(operands) >= 1:
-                        value = operands[0].value
-                        operands.append(arg_names[value]
-                                        if value < len(arg_names)
-                                        else "var%s" % value)
-
-                    if (len(handler) > index and
-                            isinstance(handler[index], int)):
-                        category = handler[index]
-                    else:
-                        category = 1
-
-                    stack.append(StackOperand(
-                        format.format(*operands),
-                        category)
-                    )
+                stack.append(StackOperand(formatted, handler["category"]))
 
         return operations
 
@@ -862,3 +817,63 @@ class StackOperand:
         return "%s [%s]" % (self.value, self.category)
 
 _PIT = PacketInstructionsTopping
+
+# Register instructions now
+def arg_name(arg_index=lambda ctx: ctx["operands"][0].value):
+    """
+    Returns a lambda that gets the name of the argument at the given index.
+    The index defaults to the first operand's value.
+    """
+    return lambda ctx: (ctx["arg_names"][arg_index(ctx)]
+                            if arg_index(ctx) < len(ctx["arg_names"])
+                            else "var%s" % arg_index(ctx))
+
+_PIT.register_ins("aconst_null", 0, "null")
+_PIT.register_ins("iconst_m1", 0, "-1")
+_PIT.register_ins(["iconst_" + str(i) for i in range(6)], 0, "{extra}", lambda ctx: int(ctx["ins"].mnemonic[-1]))
+_PIT.register_ins(["lconst_0", "lconst_1"], 0, "{extra}", lambda ctx: int(ctx["ins"].mnemonic[-1], 2))
+_PIT.register_ins(["fconst_0", "fconst_1", "fconst_2"], 0, "{extra}.0f", lambda ctx: int(ctx["ins"].mnemonic[-1]))
+_PIT.register_ins(["dconst_0", "dconst_1"], 0, "{extra}.0", lambda ctx: int(ctx["ins"].mnemonic[-1], 2))
+_PIT.register_ins("bipush", 0, "0x{operands[0].value:x}")
+_PIT.register_ins("sipush", 0, "0x{operands[0].value:x}")
+_PIT.register_ins(["ldc", "ldc_w"], 0, "{operands[0].name}")
+_PIT.register_ins("ldc2_w", 0, "{operands[0].name}", category=2)
+_PIT.register_ins("iload", 0, "{extra}", arg_name())
+_PIT.register_ins("lload", 0, "{extra}", arg_name(), 2)
+_PIT.register_ins("fload", 0, "{extra}", arg_name())
+_PIT.register_ins("dload", 0, "{extra}", arg_name(), 2)
+_PIT.register_ins("aload", 0, "{extra}", arg_name())
+_PIT.register_ins(["iload_" + str(i) for i in range(4)], 0, "{extra}", arg_name(lambda ctx: int(ctx["ins"].mnemonic[-1])))
+_PIT.register_ins(["lload_" + str(i) for i in range(4)], 0, "{extra}", arg_name(lambda ctx: int(ctx["ins"].mnemonic[-1])), 2)
+_PIT.register_ins(["fload_" + str(i) for i in range(4)], 0, "{extra}", arg_name(lambda ctx: int(ctx["ins"].mnemonic[-1])))
+_PIT.register_ins(["dload_" + str(i) for i in range(4)], 0, "{extra}", arg_name(lambda ctx: int(ctx["ins"].mnemonic[-1])), 2)
+_PIT.register_ins(["aload_" + str(i) for i in range(4)], 0, "{extra}", arg_name(lambda ctx: int(ctx["ins"].mnemonic[-1])))
+_PIT.register_ins("iaload", 2, "{stack[0]}[{stack[1]}]")
+_PIT.register_ins("laload", 2, "{stack[0]}[{stack[1]}]", category=2)
+_PIT.register_ins("faload", 2, "{stack[0]}[{stack[1]}]")
+_PIT.register_ins("daload", 2, "{stack[0]}[{stack[1]}]", category=2)
+_PIT.register_ins("aaload", 2, "{stack[0]}[{stack[1]}]")
+_PIT.register_ins("baload", 2, "{stack[0]}[{stack[1]}]")
+_PIT.register_ins("caload", 2, "{stack[0]}[{stack[1]}]")
+_PIT.register_ins("saload", 2, "{stack[0]}[{stack[1]}]")
+_PIT.register_ins(["i2l", "f2l", "d2l"], 1, "((long){stack[0]})", category=2)
+_PIT.register_ins(["i2f", "l2f", "d2f"], 1, "((float){stack[0]})")
+_PIT.register_ins(["i2d", "l2d", "f2d"], 1, "((double){stack[0]})", category=2)
+_PIT.register_ins(["l2i", "f2i", "d2i"], 1, "((int){stack[0]})")
+_PIT.register_ins("i2b", 1, "((byte){stack[0]})")
+_PIT.register_ins("i2c", 1, "((char){stack[0]})")
+_PIT.register_ins("i2s", 1, "((short){stack[0]})")
+_PIT.register_ins("lcmp", 2, "compare({stack[0]}, {stack[1]})", category=2)
+_PIT.register_ins("fcmpg", 2, "compare({stack[0]}, {stack[1]} /*, NaN -> 1 */)")
+_PIT.register_ins("fcmpl", 2, "compare({stack[0]}, {stack[1]} /*, NaN -> -1 */)")
+_PIT.register_ins("dcmpg", 2, "compare({stack[0]}, {stack[1]} /*, NaN -> 1 */)", category=2)
+_PIT.register_ins("dcmpl", 2, "compare({stack[0]}, {stack[1]} /*, NaN -> -1 */)", category=2)
+_PIT.register_ins("getstatic", 0, "{operands[0].classname}.{operands[0].name}") # Doesn't handle category
+_PIT.register_ins("getfield", 1, "{stack[0]}.{operands[0].name}") # Doesn't handle category
+_PIT.register_ins("new", 0, "new {operands[0].classname}")
+_PIT.register_ins("newarray", 1, "new {operands[0].atype}[{stack[0]}]")
+_PIT.register_ins("anewarray", 1, "new {operands[0].classname}[{stack[0]}]")
+_PIT.register_ins("arraylength", 1, "{stack[0]}.length")
+_PIT.register_ins("athrow", 1, "throw {stack[0]}") # this is a bit weird, but throw does put the exception back on the stack, kinda
+_PIT.register_ins("checkcast", 1, "(({operands[0].classname}){stack[0]})")
+_PIT.register_ins("instanceof", 1, "({stack[0]} instanceof {operands[0].classname})")
