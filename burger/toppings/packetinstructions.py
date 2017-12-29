@@ -87,7 +87,6 @@ class PacketInstructionsTopping(Topping):
     CACHE = {}
 
     OPCODES = {
-        0x00: (0),                                  # nop
         0x01: (0, "null"),                          # aconst_null
         0x02: (0, "{0}", lambda op: op - 3),        # iconst_<i>
         0x09: (0, "{0}", lambda op: op - 9),        # lconst_<l>
@@ -111,10 +110,6 @@ class PacketInstructionsTopping(Topping):
         0x2f: (2, "{0}[{1}]", 2),                   # laload
         0x31: (2, "{0}[{1}]", 2),                   # daload
         0x35: (2, "{0}[{1}]", 2),                   # saload
-        0x36: (1),                                  # Tstore
-        0x43: (1),                                  # Tstore_<n>
-        0x4f: (3),                                  # Tastore
-        0x57: (1),                                  # pop
         0x85: (1, "((long){0})", 2),                # i2l
         0x86: (1, "((float){0})"),                  # i2f
         0x87: (1, "((double){0})", 2),              # i2d
@@ -131,13 +126,8 @@ class PacketInstructionsTopping(Topping):
         0x92: (1, "((chat){0})"),                   # i2c
         0x93: (1, "((short){0})"),                  # i2s
         0x94: (2, "compare({0}, {1})"),             # Tcmp<op>
-        0xa9: (0),                                  # ret
-        0xac: (1),                                  # Treturn
-        0xb1: (0),                                  # return
         0xb2: (0, "{0.classname}.{0.name}"),        # getstatic
-        0xb3: (1),                                  # putstatic
         0xb4: (1, "{0}.{1.name}"),                  # getfield
-        0xb5: (2),                                  # putfield
         0xbb: (0, "new {0.classname}"),             # new
         0xbc: (1, "new {1.atype}[{0}]"),            # newarray
         0xbd: (1, "new {1.classname}[{0}]"),        # anewarray
@@ -145,8 +135,6 @@ class PacketInstructionsTopping(Topping):
         0xbf: (1, "throw {0}"),                     # athrow
         0xc0: (1, "(({1.classname}){0})"),          # checkcast
         0xc1: (1, "({0} instanceof {1.classname})"),# instanceof
-        0xc2: (0),                                  # monitorenter
-        0xc4: (0),                                  # wide
         0x30: (2, "{0}[{1}]"),                      # Taload
 
     }
@@ -529,6 +517,8 @@ class PacketInstructionsTopping(Topping):
                     operand = "[%s]%s" % (stack.pop(), operand)
                 stack.append(StackOperand(
                     "new %s%s" % (operands[0].type, operand)))
+            elif opcode == 0x57:                        # pop
+                stack.pop()
             elif opcode == 0x58:                        # pop2
                 if stack.pop().category != 2:
                     stack.pop()
@@ -563,10 +553,39 @@ class PacketInstructionsTopping(Topping):
                     stack.insert(
                         -3 if stack[-3].category == 2 else -4, stack[-1]
                     )
+            elif opcode == 0xb1:                        # return
+                # Don't attempt to lookup the instruction in the handler
+                pass
 
             # Unhandled opcodes
             elif opcode in [0xc8, 0xa8, 0xc9]:
                 raise Exception("unhandled opcode 0x%x" % opcode)
+            elif "store" in instruction.mnemonic:
+                type = _PIT.INSTRUCTION_TYPES[instruction.mnemonic[0]]
+
+                if instruction.mnemonic[1] == 'a':
+                    # Array store
+                    value = stack.pop()
+                    index = stack.pop()
+                    array = stack.pop()
+                    operations.append(Operation(instruction.pos, "arraystore",
+                                            type=type,
+                                            index=index,
+                                            var=array,
+                                            value=value))
+                else:
+                    # Keep track of what is being stored, for clarity
+                    if "_" in instruction.mnemonic:
+                        # Tstore_<index>
+                        arg = instruction.mnemonic[-1]
+                    else:
+                        arg = operands.pop().value
+
+                    var = arg_names[arg] if arg < len(arg_names) else "var%s" % arg
+                    operations.append(Operation(instruction.pos, "store",
+                                                type=type,
+                                                var=var,
+                                                value=stack.pop()))
 
             # Default handlers
             else:
@@ -615,33 +634,6 @@ class PacketInstructionsTopping(Topping):
                         format.format(*operands),
                         category)
                     )
-
-                if "store" in instruction.mnemonic:
-                    type = _PIT.INSTRUCTION_TYPES[instruction.mnemonic[0]]
-
-                    if instruction.mnemonic[1] == 'a':
-                        # Array store
-                        value = operands.pop()
-                        index = operands.pop()
-                        array = operands.pop()
-                        operations.append(Operation(instruction.pos, "arraystore",
-                                                type=type,
-                                                index=index,
-                                                var=array,
-                                                value=value))
-                    else:
-                        # Keep track of what is being stored, for clarity
-                        if "_" in instruction.mnemonic:
-                            # Tstore_<index>
-                            arg = instruction.mnemonic[-1]
-                        else:
-                            arg = operands.pop().value
-
-                        var = arg_names[arg] if arg < len(arg_names) else "var%s" % arg
-                        operations.append(Operation(instruction.pos, "store",
-                                                    type=type,
-                                                    var=var,
-                                                    value=operands.pop()))
 
         return operations
 
