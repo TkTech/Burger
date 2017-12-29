@@ -108,8 +108,9 @@ class PacketInstructionsTopping(Topping):
         0x2a: (0, "{1}", lambda op: op - 0x2a),     # aload_<n>
         0x2e: (2, "{0}[{1}]"),                      # iaload
         0x2f: (2, "{0}[{1}]", 2),                   # laload
+        0x30: (2, "{0}[{1}]"),                      # Taload
         0x31: (2, "{0}[{1}]", 2),                   # daload
-        0x35: (2, "{0}[{1}]", 2),                   # saload
+        0x35: (2, "{0}[{1}]"),                      # saload
         0x85: (1, "((long){0})", 2),                # i2l
         0x86: (1, "((float){0})"),                  # i2f
         0x87: (1, "((double){0})", 2),              # i2d
@@ -135,7 +136,6 @@ class PacketInstructionsTopping(Topping):
         0xbf: (1, "throw {0}"),                     # athrow
         0xc0: (1, "(({1.classname}){0})"),          # checkcast
         0xc1: (1, "({0} instanceof {1.classname})"),# instanceof
-        0x30: (2, "{0}[{1}]"),                      # Taload
 
     }
 
