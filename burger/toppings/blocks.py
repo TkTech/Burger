@@ -91,7 +91,11 @@ class BlocksTopping(Topping):
             elif ins.mnemonic == "fdiv":
                 den = stack.pop()
                 num = stack.pop()
-                stack.append({"numerator": num, "denominator": den})
+                if isinstance(den, (float, int)) and isinstance(num, dict) and "scale" in num:
+                    num["scale"] /= den
+                    stack.append(num)
+                else:
+                    stack.append({"numerator": num, "denominator": den})
             elif ins.mnemonic in ("ldc", "ldc_w"):
                 const = cf.constants.get(ins.operands[0].value)
 
@@ -112,7 +116,14 @@ class BlocksTopping(Topping):
             elif ins.mnemonic == "getfield":
                 const = cf.constants.get(ins.operands[0].value)
                 obj = stack.pop()
-                stack.append({"obj": obj, "field": repr(const)})
+                if "text_id" in obj:
+                    stack.append({
+                        "block": obj["text_id"],
+                        "field": const.name_and_type.name.value,
+                        "scale": 1
+                    })
+                else:
+                    stack.append({"obj": obj, "field": repr(const)})
             elif ins.mnemonic in ("invokevirtual", "invokespecial", "invokeinterface"):
                 # A method invocation
                 const = cf.constants.get(ins.operands[0].value)
@@ -133,9 +144,7 @@ class BlocksTopping(Topping):
 
                 if "calls" in obj:
                     obj["calls"][method_name + method_desc] = args
-                else:
-                    #print obj
-                    pass
+
                 if desc.returns.name != "void":
                     if desc.returns.name == superclass:
                         stack.append(obj)
@@ -200,10 +209,15 @@ class BlocksTopping(Topping):
         )
 
         for method in hardness_setters:
+            fld = None
             for ins in method.code.disassemble():
-                if ins.mnemonic == "ifge":
+                if ins.mnemonic == "putfield":
+                    const = cf.constants.get(ins.operands[0].value)
+                    fld = const.name_and_type.name.value
+                elif ins.mnemonic == "ifge":
                     const = cf.constants.get(method.descriptor.index)
                     hardness_setter = method.name.value + const.value
+                    hardness_field = fld
                     break
 
         for blk in tmp:
@@ -240,7 +254,14 @@ class BlocksTopping(Topping):
                         print "%s: Broken hardness value" % final["text_id"]
                     final["hardness"] = 0.00
                 else:
-                    final["hardness"] = blk["calls"][hardness_setter][0]
+                    hardness = blk["calls"][hardness_setter][0]
+                    if isinstance(hardness, dict) and "field" in hardness:
+                        # Repair field info
+                        assert hardness["field"] == hardness_field
+                        assert "block" in hardness
+                        assert hardness["block"] in block
+                        hardness = block[hardness["block"]]["hardness"] * hardness["scale"]
+                    final["hardness"] = hardness
 
             ordered_blocks.append(final["text_id"])
             block[final["text_id"]] = final
