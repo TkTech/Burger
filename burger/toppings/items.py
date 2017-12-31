@@ -39,7 +39,8 @@ class ItemsTopping(Topping):
         "identify.item.list",
         "language",
         "blocks",
-        "version.protocol"
+        "version.protocol",
+        "version.is_flattened"
     ]
 
     @staticmethod
@@ -47,6 +48,8 @@ class ItemsTopping(Topping):
         superclass = aggregate["classes"]["item.superclass"]
         blockclass = aggregate["classes"]["block.superclass"]
         blocklist = aggregate["classes"]["block.list"]
+
+        is_flattened = aggregate["version"]["is_flattened"]
 
         def add_block_info_to_item(field_info, item):
             """Adds data from the given field (should be in Blocks) to the given item"""
@@ -59,7 +62,7 @@ class ItemsTopping(Topping):
                 return
             block = aggregate["blocks"]["block"][block_name]
 
-            if "numeric_id" in block:
+            if not is_flattened and "numeric_id" in block:
                 item["numeric_id"] = block["numeric_id"]
             item["text_id"] = block["text_id"]
             if "name" in block:
@@ -206,6 +209,10 @@ class ItemsTopping(Topping):
                     "calls": {}
                 }
 
+        if is_flattened:
+            # Current IDs are incremental, manually track them
+            cur_id = 0
+
         for item in tmp:
             if not "text_id" in item:
                 init_one_block = "<init>(L" + blockclass + ";)V"
@@ -230,7 +237,13 @@ class ItemsTopping(Topping):
             final = {}
 
             if "numeric_id" in item:
+                assert not is_flattened
                 final["numeric_id"] = item["numeric_id"]
+            else:
+                assert is_flattened
+                final["numeric_id"] = cur_id
+                cur_id += 1
+
             if "text_id" in item:
                 final["text_id"] = item["text_id"]
             final["register_method"] = item["register_method"]

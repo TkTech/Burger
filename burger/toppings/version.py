@@ -30,7 +30,8 @@ class VersionTopping(Topping):
     PROVIDES = [
         "version.protocol",
         "version.name",
-        "version.data"
+        "version.data",
+        "version.is_flattened"
     ]
 
     DEPENDS = [
@@ -108,3 +109,9 @@ class VersionTopping(Topping):
                     break
         elif verbose:
             print "Unable to determine data version"
+
+        if "data" in aggregate["version"]:
+            # Versions after 17w46a (1449) are flattened
+            aggregate["version"]["is_flattened"] = (aggregate["version"]["data"] > 1449)
+        else:
+            aggregate["version"]["is_flattened"] = False

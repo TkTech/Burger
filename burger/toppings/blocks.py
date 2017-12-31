@@ -37,7 +37,8 @@ class BlocksTopping(Topping):
         "identify.block.superclass",
         "identify.block.list",
         "language",
-        "version.protocol"
+        "version.protocol",
+        "version.is_flattened"
     ]
 
     @staticmethod
@@ -45,6 +46,7 @@ class BlocksTopping(Topping):
         superclass = aggregate["classes"]["block.superclass"]
         cf = classloader.load(superclass + ".class")
 
+        is_flattened = aggregate["version"]["is_flattened"]
         individual_textures = True #aggregate["version"]["protocol"] >= 52 # assume >1.5 http://wiki.vg/Protocol_History#1.5.x since don't read packets TODO
 
         if "tile" in aggregate["language"]:
@@ -218,6 +220,10 @@ class BlocksTopping(Topping):
                     hardness_field = fld
                     break
 
+        if is_flattened:
+            # Current IDs are incremental, manually track them
+            cur_id = 0
+
         for blk in tmp:
             if not "text_id" in blk:
                 print "Dropping nameless block:", blk
@@ -226,7 +232,13 @@ class BlocksTopping(Topping):
             final = {}
 
             if "numeric_id" in blk:
+                assert not is_flattened
                 final["numeric_id"] = blk["numeric_id"]
+            else:
+                assert is_flattened
+                final["numeric_id"] = cur_id
+                cur_id += 1
+
             if "text_id" in blk:
                 final["text_id"] = blk["text_id"]
 

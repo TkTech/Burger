@@ -25,7 +25,7 @@ class BlockStateTopping(Topping):
 
     DEPENDS = [
         "blocks",
-        "version.data",
+        "version.is_flattened",
         "identify.blockstatecontainer",
         "identify.sounds.list"
     ]
@@ -37,8 +37,7 @@ class BlockStateTopping(Topping):
                 print "blockstatecontainer not found; skipping blockstates"
             return
 
-        # 1449 is 17w46a
-        is_flattened = ("data" in aggregate["version"] and aggregate["version"]["data"] > 1449)
+        is_flattened = aggregate["version"]["is_flattened"]
 
         blockstatecontainer = aggregate["classes"]["blockstatecontainer"]
         block_cf = classloader.load(aggregate["classes"]["block.superclass"] + ".class")
