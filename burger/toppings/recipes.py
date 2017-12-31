@@ -99,29 +99,18 @@ class RecipesTopping(Topping):
             # There's some wierd stuff regarding 0 or 32767 here; I'm not worrying about it though
             # Probably 0 is the default for results, and 32767 means "any" for ingredients
             assert "item" in blob
-            result = {}
+            result = {
+                "type": "item"
+            }
 
             id = blob["item"]
             if id.startswith("minecraft:"):
                 id = id[len("minecraft:"):] # TODO: In the future, we don't want to strip namespaces
 
+            if verbose and id not in aggregate["items"]["item"]:
+                print "A recipe references item %s but that doesn't exist" % id
+
             result["name"] = id
-            # TODO: Do we need the type and data fields anymore?  They're fairly redundant (and don't reflect ingame behavior anymore)
-            # Check if it's a block
-            if id in aggregate["blocks"]["block"]:
-                result["data"] = aggregate["blocks"]["block"][id]
-                result["type"] = "block"
-            elif id in aggregate["items"]["item"]:
-                result["data"] = aggregate["items"]["item"][id]
-                result["type"] = "item"
-            else:
-                if verbose:
-                    print "No information is available for recipe entry %s" % id
-                result["data"] = {
-                    "text_id": id,
-                    "name": id
-                }
-                result["type"] = "unknown"
 
             if "data" in blob:
                 result["metadata"] = blob["data"]
@@ -251,22 +240,18 @@ class RecipesTopping(Topping):
             if clazz == aggregate["classes"]["block.list"]:
                 if field in aggregate["blocks"]["block_fields"]:
                     name = aggregate["blocks"]["block_fields"][field]
-                    data = aggregate["blocks"]["block"][name]
                     return {
                         'type': 'block',
-                        'name': name,
-                        'data': data
+                        'name': name
                     }
                 else:
                     raise Exception("Unknown block with field " + field)
             elif clazz == aggregate["classes"]["item.list"]:
                 if field in aggregate["items"]["item_fields"]:
                     name = aggregate["items"]["item_fields"][field]
-                    data = aggregate["items"]["item"][name]
                     return {
                         'type': 'item',
-                        'name': name,
-                        'data': data
+                        'name': name
                     }
                 else:
                     raise Exception("Unknown item with field " + field)
