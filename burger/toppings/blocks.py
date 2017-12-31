@@ -56,8 +56,6 @@ class BlocksTopping(Topping):
 
         # Find the static block registration method
         method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
-        # Find the registerBlock method.
-        registerMethod = cf.methods.find_one(args='ILjava/lang/String;Latr;', returns="V")
 
         blocks = aggregate.setdefault("blocks", {})
         block = blocks.setdefault("block", {})
