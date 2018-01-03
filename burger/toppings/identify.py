@@ -165,6 +165,7 @@ class IdentifyTopping(Topping):
         "identify.chatcomponent",
         "identify.entity.list",
         "identify.entity.trackerentry",
+        "idetnify.enumfacing.plane",
         "identify.item.list",
         "identify.item.superclass",
         "identify.itemstack",
