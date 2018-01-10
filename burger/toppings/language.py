@@ -23,6 +23,10 @@ THE SOFTWARE.
 """
 from .topping import Topping
 
+try:
+    import json
+except ImportError:
+    import simplejson as json
 
 class LanguageTopping(Topping):
     """Provides the contents of the English language files."""
@@ -60,9 +64,16 @@ class LanguageTopping(Topping):
             "assets/minecraft/lang/en_us.lang",
             verbose
         )
+        LanguageTopping.load_language(
+            aggregate,
+            classloader,
+            "assets/minecraft/lang/en_us.json",
+            verbose,
+            True
+        )
 
     @staticmethod
-    def load_language(aggregate, classloader, path, verbose=False):
+    def load_language(aggregate, classloader, path, verbose=False, is_json=False):
         try:
             # Hacky
             contents = classloader.path_map[path].read(path)
@@ -71,29 +82,36 @@ class LanguageTopping(Topping):
                 print "Can't find file %s in jar" % path
             return
 
-        for category, name, value in LanguageTopping.parse_lang(contents, verbose):
+        for category, name, value in LanguageTopping.parse_lang(contents, verbose, is_json):
             cat = aggregate["language"].setdefault(category, {})
             cat[name] = value
 
     @staticmethod
-    def parse_lang(contents, verbose):
-        contents = contents.split("\n")
-        lineno = 0
-        for line in contents:
-            lineno = lineno + 1
-            line = line.strip()
+    def parse_lang(contents, verbose, is_json):
+        if is_json:
+            contents = json.loads(contents)
+            for tag, value in contents.iteritems():
+                category, name = tag.split(".", 1)
 
-            if not line:
-                continue
-            if line[0] == "#":
-                continue
+                yield (category, name, value)
+        else:
+            contents = contents.split("\n")
+            lineno = 0
+            for line in contents:
+                lineno = lineno + 1
+                line = line.strip()
 
-            if not "=" in line or not "." in line:
-                if verbose:
-                    print "Language file line %s is malformed: %s" % (lineno, line)
-                continue
+                if not line:
+                    continue
+                if line[0] == "#":
+                    continue
 
-            tag, value = line.split("=", 1)
-            category, name = tag.split(".", 1)
+                if not "=" in line or not "." in line:
+                    if verbose:
+                        print "Language file line %s is malformed: %s" % (lineno, line)
+                    continue
 
-            yield (category, name, value)
+                tag, value = line.split("=", 1)
+                category, name = tag.split(".", 1)
+
+                yield (category, name, value)
