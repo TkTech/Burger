@@ -23,6 +23,7 @@ class TileEntityTopping(Topping):
 
     @staticmethod
     def act(aggregate, classloader, verbose=False):
+        return
         te = aggregate.setdefault("tileentity", {})
 
         if "tileentity.superclass" not in aggregate["classes"]:

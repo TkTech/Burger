@@ -45,6 +45,7 @@ class ItemsTopping(Topping):
 
     @staticmethod
     def act(aggregate, classloader, verbose=False):
+        return
         superclass = aggregate["classes"]["item.superclass"]
         blockclass = aggregate["classes"]["block.superclass"]
         blocklist = aggregate["classes"]["block.list"]

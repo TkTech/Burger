@@ -39,6 +39,7 @@ class EntityTopping(Topping):
 
     @staticmethod
     def act(aggregate, classloader, verbose=False):
+        return
         superclass = aggregate["classes"]["entity.list"]
         cf = classloader.load(superclass + ".class")
 

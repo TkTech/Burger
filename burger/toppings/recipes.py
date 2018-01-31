@@ -52,6 +52,7 @@ class RecipesTopping(Topping):
 
     @staticmethod
     def act(aggregate, classloader, verbose=False):
+        return
         if "assets/minecraft/recipes/stick.json" in classloader.path_map:
             recipe_list = RecipesTopping.find_from_json(aggregate, classloader, "assets/minecraft/recipes/", verbose)
         elif "data/minecraft/recipes/stick.json" in classloader.path_map:
