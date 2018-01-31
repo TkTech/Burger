@@ -27,7 +27,8 @@ class BlockStateTopping(Topping):
         "blocks",
         "version.is_flattened",
         "identify.blockstatecontainer",
-        "identify.sounds.list"
+        "identify.sounds.list",
+        "identify.enumfacing.plane"
     ]
 
     @staticmethod
