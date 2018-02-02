@@ -32,6 +32,7 @@ try:
 except ImportError:
     import simplejson as json
 
+import six
 import copy
 
 class RecipesTopping(Topping):
@@ -71,7 +72,7 @@ class RecipesTopping(Topping):
     @staticmethod
     def find_from_json(aggregate, classloader, prefix, verbose):
         if verbose:
-            print "Extracting recipes from JSON"
+            print("Extracting recipes from JSON")
 
         recipes = []
 
@@ -109,7 +110,7 @@ class RecipesTopping(Topping):
                 id = id[len("minecraft:"):] # TODO: In the future, we don't want to strip namespaces
 
             if verbose and id not in aggregate["items"]["item"]:
-                print "A recipe references item %s but that doesn't exist" % id
+                print("A recipe references item %s but that doesn't exist" % id)
 
             result["name"] = id
 
@@ -136,7 +137,7 @@ class RecipesTopping(Topping):
 
                     if data["type"] not in ("crafting_shaped", "crafting_shapeless"):
                         if verbose:
-                            print "Unrecognized recipe type %s for %s" % (data["type"], recipe_id)
+                            print("Unrecognized recipe type %s for %s" % (data["type"], recipe_id))
                         continue
 
 
@@ -177,7 +178,7 @@ class RecipesTopping(Topping):
                             "rows": pattern,
                             "subs": {}
                         }
-                        for (id, value) in data["key"].iteritems():
+                        for (id, value) in six.iteritems(data["key"]):
                             item = parse_item(value)
                             if isinstance(item, list):
                                 tmp = []
@@ -205,7 +206,7 @@ class RecipesTopping(Topping):
 
                     recipes.extend(matching_recipes)
                 except Exception as e:
-                    print "Failed to parse %s: %s" % (recipe_id, e)
+                    print("Failed to parse %s: %s" % (recipe_id, e))
                     raise
 
         return recipes
@@ -215,7 +216,7 @@ class RecipesTopping(Topping):
         superclass = aggregate["classes"]["recipe.superclass"]
 
         if verbose:
-            print "Extracting recipes from", superclass
+            print("Extracting recipes from %s" % superclass)
 
         cf = classloader.load(superclass + ".class")
 
@@ -342,13 +343,18 @@ class RecipesTopping(Topping):
                         # though.  Also, note that the array index is pushed,
                         # but we overwrite it with the second value and just
                         # add in order instead.
+                        #
+                        # The weirdness here is because characters and strings are
+                        # mixed; for example jukebox looks like this:
+                        # new Object[] {"###", "#X#", "###", '#', Blocks.PLANKS, 'X', Items.DIAMOND}
                         if ins.mnemonic == "aastore":
                             num_astore += 1
                             array.append(data)
                             data = None
                         elif ins.mnemonic in ("ldc", "ldc_w"):
                             const = cf.constants.get(ins.operands[0].value)
-                            data = const.string.value
+                            # Separate into a list of characters, to disambiguate (see below)
+                            data = list(const.string.value)
                         elif ins.mnemonic.startswith("iconst_"):
                             data = int(ins.mnemonic[-1])
                         elif ins.mnemonic == "bipush":
@@ -378,19 +384,17 @@ class RecipesTopping(Topping):
                         recipe_data['makes'] = crafted_item
                         rows = []
                         subs = {}
-                        # TODO: Is there a better way to distinguish chars
-                        # and strings?  Right now, chars seem to be strings,
-                        # except that the strings that come from jawa are
-                        # unicode ones and the ones that come from chr() are
-                        # just 'str'...
+                        # Keys are a list while values are a single character;
+                        # we make the keys a list merely as a way to disambiguate
+                        # and rejoin it later (hacky :/)
                         try:
                             itr2 = iter(array)
                             while True:
                                 obj = itr2.next()
-                                if isinstance(obj, unicode):
+                                if isinstance(obj, list):
                                     # Pattern
-                                    rows.append(obj)
-                                elif isinstance(obj, str):
+                                    rows.append("".join(obj))
+                                elif isinstance(obj, six.string_types):
                                     # Character
                                     item = itr2.next()
                                     subs[obj] = item

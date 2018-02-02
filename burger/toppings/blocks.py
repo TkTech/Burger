@@ -26,6 +26,8 @@ from .topping import Topping
 from jawa.constants import *
 from jawa.util.descriptor import method_descriptor
 
+import six.moves
+
 class BlocksTopping(Topping):
     """Gets most available block types."""
 
@@ -69,8 +71,6 @@ class BlocksTopping(Topping):
         stack = []
         locals = {}
         for ins in method.code.disassemble():
-            #print stack
-            #print "INS",ins
             if ins.mnemonic == "new":
                 # The beginning of a new block definition
                 const = cf.constants.get(ins.operands[0].value)
@@ -106,7 +106,6 @@ class BlocksTopping(Topping):
                     stack.append(const.string.value)
                 else:
                     stack.append(const.value)
-                #print "ldc",stack
             elif ins.mnemonic == "getstatic":
                 const = cf.constants.get(ins.operands[0].value)
                 if const.class_.name.value == superclass:
@@ -139,7 +138,7 @@ class BlocksTopping(Topping):
                     break
 
                 args = []
-                for i in range(num_args):
+                for i in six.moves.range(num_args):
                     args.insert(0, stack.pop())
                 obj = stack.pop()
 
@@ -184,7 +183,7 @@ class BlocksTopping(Topping):
             elif ins.mnemonic == "checkcast":
                 pass
             elif verbose:
-                print "Unknown instruction %s: stack is %s" % (ins, stack)
+                print("Unknown instruction %s: stack is %s" % (ins, stack))
 
         # Now that we have all of the blocks, we need a few more things
         # to make sense of what it all means. So,
@@ -227,7 +226,8 @@ class BlocksTopping(Topping):
 
         for blk in tmp:
             if not "text_id" in blk:
-                print "Dropping nameless block:", blk
+                if verbose:
+                    print("Dropping nameless block:", blk)
                 continue
 
             final = {}
@@ -262,7 +262,7 @@ class BlocksTopping(Topping):
                 stack = blk["calls"][hardness_setter]
                 if len(stack) == 0:
                     if verbose:
-                        print "%s: Broken hardness value" % final["text_id"]
+                        print("%s: Broken hardness value" % final["text_id"])
                     final["hardness"] = 0.00
                 else:
                     hardness = blk["calls"][hardness_setter][0]
@@ -297,7 +297,7 @@ class BlocksTopping(Topping):
                 if blk_name in block:
                     block[blk_name]["field"] = field
                 elif verbose:
-                    print "Cannot find a block matching %s for field %s" % (blk_name, field)
+                    print("Cannot find a block matching %s for field %s" % (blk_name, field))
                 block_fields[field] = blk_name
 
         blocks["info"] = {

@@ -26,6 +26,8 @@ from .topping import Topping
 
 from jawa.constants import *
 
+import six
+
 class ItemsTopping(Topping):
     """Provides some information on most available items."""
     PROVIDES = [
@@ -59,7 +61,7 @@ class ItemsTopping(Topping):
             block_name = aggregate["blocks"]["block_fields"][field_info["name"]]
             if block_name not in aggregate["blocks"]["block"]:
                 if verbose:
-                    print "No information available for item-block for %s/%s" % (field_info["name"], block_name)
+                    print("No information available for item-block for %s/%s" % (field_info["name"], block_name))
                 return
             block = aggregate["blocks"]["block"][block_name]
 
@@ -115,7 +117,6 @@ class ItemsTopping(Topping):
         tmp = []
 
         for ins in method.code.disassemble():
-            #print "INS",ins
             if ins.mnemonic == "new":
                 # The beginning of a new block definition
                 const = cf.constants.get(ins.operands[0].value)
@@ -144,7 +145,7 @@ class ItemsTopping(Topping):
                     current_item["numeric_id"] = stack[0]
                     current_item["text_id"] = stack[1]
                 elif len(stack) == 1:
-                    if isinstance(stack[0], (str, unicode)):
+                    if isinstance(stack[0], six.string_types):
                         current_item["text_id"] = stack[0]
                     else:
                         # Assuming this is a field set via getstatic
@@ -165,7 +166,6 @@ class ItemsTopping(Topping):
                     stack.append(const.string.value)
                 else:
                     stack.append(const.value)
-                #print "ldc",stack
             elif ins.mnemonic in ("invokevirtual", "invokespecial"):
                 # A method invocation
                 const = cf.constants.get(ins.operands[0].value)
@@ -227,12 +227,12 @@ class ItemsTopping(Topping):
                     add_block_info_to_item(item["calls"][init_two_blocks][0], item)
                 else:
                     if verbose:
-                        print "Dropping nameless item, couldn't identify ctor for a block:", item
+                        print("Dropping nameless item, couldn't identify ctor for a block: %s" % item)
                     continue
 
                 if not "text_id" in item:
                     if verbose:
-                        print "Even after item block handling, no name:", item
+                        print("Even after item block handling, no name: %s" % item)
                     continue
 
             final = {}

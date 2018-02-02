@@ -22,6 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 
+import six
 from copy import copy
 
 from .topping import Topping
@@ -76,11 +77,12 @@ class ObjectTopping(Topping):
                 break
 
         if packet_class_name is None:
-            print "Failed to find spawn object packet"
+            if verbose:
+                print("Failed to find spawn object packet")
             return
 
         # Get the packet info for the spawn object packet - not required but it is helpful information
-        for key, packet in aggregate["packets"]["packet"].iteritems():
+        for key, packet in six.iteritems(aggregate["packets"]["packet"]):
             if packet_class_name in packet["class"]:
                 # "in" is used because packet["class"] would have ".class" at the end
                 entities["info"]["spawn_object_packet"] = key
@@ -109,11 +111,11 @@ class ObjectTopping(Topping):
                 objects[tmp["id"]] = tmp
 
         classes = {}
-        for entity in entities["entity"].itervalues():
+        for entity in six.itervalues(entities["entity"]):
             classes[entity["class"]] = entity
 
         from .entities import EntityTopping
-        for o in objects.itervalues():
+        for o in six.itervalues(objects):
             if o["class"] in classes:
                 o["entity"] = copy(classes[o["class"]])
                 del o["entity"]["class"]

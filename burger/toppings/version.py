@@ -76,7 +76,7 @@ class VersionTopping(Topping):
                                     str[len("Outdated server! I'm still on "):]
                                 return
         elif verbose:
-            print "Unable to determine protocol version"
+            print("Unable to determine protocol version")
 
     @staticmethod
     def get_data_version(aggregate, classloader, verbose):
@@ -108,7 +108,7 @@ class VersionTopping(Topping):
                 if next_ins_is_version:
                     break
         elif verbose:
-            print "Unable to determine data version"
+            print("Unable to determine data version")
 
         if "data" in aggregate["version"]:
             # Versions after 17w46a (1449) are flattened

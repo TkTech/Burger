@@ -7,6 +7,8 @@ from jawa.constants import *
 from jawa.util.descriptor import method_descriptor, field_descriptor
 
 import traceback
+import six
+import six.moves
 
 # EnumFacing.Plane.  Needed because this is also a predicate, which is used
 # to get certain facings
@@ -36,7 +38,7 @@ class BlockStateTopping(Topping):
         return
         if "blockstatecontainer" not in aggregate["classes"]:
             if verbose:
-                print "blockstatecontainer not found; skipping blockstates"
+                print("blockstatecontainer not found; skipping blockstates")
             return
 
         is_flattened = aggregate["version"]["is_flattened"]
@@ -159,18 +161,18 @@ class BlockStateTopping(Topping):
                 elif ins.mnemonic == "aload_0":
                     stack.append(object())
                 elif verbose:
-                    print "%s createBlockState contains unimplemented ins %s" % (name, ins)
+                    print("%s createBlockState contains unimplemented ins %s" % (name, ins))
 
             properties_by_class[name] = properties
             return properties
 
-        for block in aggregate["blocks"]["block"].itervalues():
+        for block in six.itervalues(aggregate["blocks"]["block"]):
             cls = block["class"]
             try:
                 process_class(cls)
             except:
                 if verbose:
-                    print "Failed to process properties for %s (for %s)" % (cls, block["text_id"])
+                    print("Failed to process properties for %s (for %s)" % (cls, block["text_id"]))
                     traceback.print_exc()
                 properties_by_class[cls] = []
 
@@ -191,7 +193,7 @@ class BlockStateTopping(Topping):
                 elif "Boolean" in signature:
                     property_types[type] = "bool"
                 elif verbose:
-                    print "Unknown property type %s with signature %s" % (type, signature)
+                    print("Unknown property type %s with signature %s" % (type, signature))
 
         is_enum_cache = {}
         def is_enum(cls):
@@ -320,7 +322,7 @@ class BlockStateTopping(Topping):
                     const = cf.constants.get(ins.operands[0].value)
                     desc = method_descriptor(const.name_and_type.descriptor.value)
                     num_args = len(desc.args)
-                    args = [stack.pop() for _ in xrange(num_args)]
+                    args = [stack.pop() for _ in six.moves.range(num_args)]
                     args.reverse()
 
                     if ins.mnemonic == "invokestatic":
@@ -394,7 +396,7 @@ class BlockStateTopping(Topping):
                     # Code in stairs that loops over state combinations for hitboxes
                     break
                 elif verbose:
-                    print "%s initializer contains unimplemented ins %s" % (cls, ins)
+                    print("%s initializer contains unimplemented ins %s" % (cls, ins))
 
             if field_name is not None:
                 return fields_by_class[cls][field_name]
@@ -406,7 +408,7 @@ class BlockStateTopping(Topping):
             field = prop["field"]
             args = field["args"]
             assert len(args) >= 1
-            assert isinstance(args[0], basestring)
+            assert isinstance(args[0], six.string_types)
             ret = {
                 "type": field["type"],
                 "name": args[0],
@@ -444,14 +446,14 @@ class BlockStateTopping(Topping):
 
             args = prop["field"]["args"]
             assert len(args) in (2, 3)
-            assert isinstance(args[1], basestring)
+            assert isinstance(args[1], six.string_types)
             assert args[1].endswith(".class") # Should be a class
             class_name = args[1][:-len(".class")]
 
             ret["enum_class"] = class_name
             if len(args) == 2:
                 values = [c["enum_name"] for c
-                          in find_field(class_name, None).itervalues()
+                          in six.itervalues(find_field(class_name, None))
                           if isinstance(c, dict) and c["is_enum"]]
             elif isinstance(args[2], list):
                 values = [c["enum_name"] for c in args[2]]
@@ -462,15 +464,15 @@ class BlockStateTopping(Topping):
                     ret["predicate"] = args[2]["class"]
                     # Will be trimmed later
                     values = [c["enum_name"] for c
-                          in find_field(class_name, None).itervalues()
+                          in six.itervalues(find_field(class_name, None))
                           if isinstance(c, dict) and c["is_enum"]]
                 elif verbose:
-                    print "Unhandled args for %s" % prop
+                    print("Unhandled args for %s" % prop)
                     values = []
             else:
                 # Regular Collection (unused)
                 if verbose:
-                    print "Unhandled args for %s" % prop
+                    print("Unhandled args for %s" % prop)
                 values = []
             ret["values"] = values
             ret["num_values"] = len(values)
@@ -502,12 +504,12 @@ class BlockStateTopping(Topping):
                     # Will be filled in later
                     values = ["DOWN", "UP", "NORTH", "SOUTH", "EAST", "WEST"]
                 elif verbose:
-                    print "Unhandled args for %s" % prop
+                    print("Unhandled args for %s" % prop)
                     values = []
             else:
                 # Regular Collection (unused)
                 if verbose:
-                    print "Unhandled args for %s" % prop
+                    print("Unhandled args for %s" % prop)
                 values = []
             ret["values"] = values
             ret["num_values"] = len(values)
@@ -531,11 +533,11 @@ class BlockStateTopping(Topping):
                 property["data"] = property_handlers[field["type"]](property)
             except:
                 if verbose:
-                    print "Failed to handle property %s (declared %s.%s)" % (property, cls, field_name)
+                    print("Failed to handle property %s (declared %s.%s)" % (property, cls, field_name))
                     traceback.print_exc()
                 property["data"] = None
 
-        for cls, properties in properties_by_class.iteritems():
+        for cls, properties in six.iteritems(properties_by_class):
             for property in properties:
                 if isinstance(property, dict):
                     process_property(property)
@@ -547,7 +549,7 @@ class BlockStateTopping(Topping):
                     # Manual handling
                     pass
                 elif verbose:
-                    print "Skipping odd property %s (declared in %s)" % (property, cls)
+                    print("Skipping odd property %s (declared in %s)" % (property, cls))
 
         state_id = 0
         for block_id in aggregate["blocks"]["ordered_blocks"]:
@@ -584,12 +586,12 @@ class BlockStateTopping(Topping):
                         }}
                     else:
                         if verbose:
-                            print "Skipping missing prop for %s" % block_id
+                            print("Skipping missing prop for %s" % block_id)
                         continue
 
                 if not isinstance(prop, dict) or not isinstance(prop["data"], dict):
                     if verbose:
-                        print "Skipping bad prop %s for %s" % (prop, block_id)
+                        print("Skipping bad prop %s for %s" % (prop, block_id))
                     continue
                 if "predicate" in prop["data"]:
                     data = prop["data"].copy()
@@ -608,7 +610,7 @@ class BlockStateTopping(Topping):
                         predicate = lambda v: v in ("DARK_OAK", "ACACIA")
                     else:
                         if verbose:
-                            print "Unhandled predicate for prop %s for %s" % (prop, block_id)
+                            print("Unhandled predicate for prop %s for %s" % (prop, block_id))
                         predicate = lambda v: False
 
                     data["values"] = [v for v in data["values"] if predicate(v)]

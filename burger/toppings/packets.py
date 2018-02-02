@@ -174,7 +174,7 @@ class PacketsTopping(Topping):
                     field = const.name_and_type.name.value
                     stack.append(directions_by_field[field])
                 elif ins.mnemonic.startswith("iconst"):
-                    stack.append(ins.mnemonic[-1])
+                    stack.append(int(ins.mnemonic[-1]))
                 elif ins.mnemonic == "bipush":
                     stack.append(ins.operands[0].value)
                 elif ins.mnemonic in ("ldc", "ldc_w"):

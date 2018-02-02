@@ -25,6 +25,8 @@ THE SOFTWARE.
 import re
 import sys
 import traceback
+import six
+import six.moves
 
 from types import LambdaType
 
@@ -80,7 +82,7 @@ class PacketInstructionsTopping(Topping):
         extra_method: Used to get a bit of additional information.  Param is ins
         category: JVM category for the resulting StackOperand
         """
-        if isinstance(opcodes, basestring):
+        if isinstance(opcodes, six.string_types):
             opcodes = [opcodes]
         data = {
             "stack_count": stack_count,
@@ -111,20 +113,19 @@ class PacketInstructionsTopping(Topping):
     @staticmethod
     def act(aggregate, classloader, verbose=False):
         """Finds all packets and decompiles them"""
-        for key, packet in aggregate["packets"]["packet"].iteritems():
+        for key, packet in six.iteritems(aggregate["packets"]["packet"]):
             operations = None
             try:
                 operations = _PIT.operations(classloader, packet["class"], aggregate["classes"])
                 packet.update(_PIT.format(operations))
             except Exception as e:
                 if verbose:
-                    print "Error: Failed to parse instructions",
-                    print "of packet %s (%s): %s" % (key, packet["class"], e)
+                    print("Error: Failed to parse instructions of packet %s (%s): %s" % (key, packet["class"], e))
                     traceback.print_exc()
                     if operations:
                         import json
-                        print json.dumps(operations, default=lambda o:o.__dict__, indent=4)
-                    print ""
+                        print(json.dumps(operations, default=lambda o:o.__dict__, indent=4))
+                    print()
 
     @staticmethod
     def operations(classloader, classname, classes, args=None,
@@ -205,7 +206,7 @@ class PacketInstructionsTopping(Topping):
                     arguments = stack[-len(descriptor.args):]
                 else:
                     arguments = []
-                for i in range(num_arguments):
+                for i in six.moves.range(num_arguments):
                     stack.pop()
 
                 is_static = (mnemonic == "invokestatic")
@@ -417,7 +418,7 @@ class PacketInstructionsTopping(Topping):
                 default = operands[0].target
                 low = operands[1].value
                 high = operands[2].value
-                for opr in range(3, len(operands)):
+                for opr in six.moves.range(3, len(operands)):
                     target = operands[opr].target
                     operations.append(Operation(target, "case",
                                                 value=low + opr - 3))
@@ -430,7 +431,7 @@ class PacketInstructionsTopping(Topping):
                 raise Exception("lookupswitch is not supported")
                 # operations.append(Operation(instruction.pos, "switch",
                 #                             field=stack.pop()))
-                # for opr in range(1, len(operands)):
+                # for opr in six.moves.range(1, len(operands)):
                 #     target = operands[opr].find_target(1)
                 #     operations.append(Operation(target, "case",
                 #                                 value=operands[opr].value[0]))
@@ -464,7 +465,7 @@ class PacketInstructionsTopping(Topping):
             # Other manually handled instructions
             elif mnemonic == "multianewarray":
                 operand = ""
-                for i in range(operands[1].value):
+                for i in six.moves.range(operands[1].value):
                     operand = "[%s]%s" % (stack.pop(), operand)
                 stack.append(StackOperand(
                     "new %s%s" % (operands[0].type, operand)))
@@ -525,7 +526,7 @@ class PacketInstructionsTopping(Topping):
                     # Keep track of what is being stored, for clarity
                     if "_" in instruction.mnemonic:
                         # Tstore_<index>
-                        arg = instruction.mnemonic[-1]
+                        arg = int(instruction.mnemonic[-1])
                     else:
                         arg = operands.pop().value
 
@@ -545,7 +546,7 @@ class PacketInstructionsTopping(Topping):
                 ins_stack = []
                 assert len(stack) >= handler["stack_count"]
 
-                for _ in range(handler["stack_count"]):
+                for _ in six.moves.range(handler["stack_count"]):
                     ins_stack.insert(0, stack.pop())
 
                 ctx = {
@@ -807,7 +808,7 @@ def arg_name(arg_index=lambda ctx: ctx["operands"][0].value):
 
 _PIT.register_ins("aconst_null", 0, "null")
 _PIT.register_ins("iconst_m1", 0, "-1")
-_PIT.register_ins(["iconst_" + str(i) for i in range(6)], 0, "{extra}", lambda ctx: int(ctx["ins"].mnemonic[-1]))
+_PIT.register_ins(["iconst_" + str(i) for i in six.moves.range(6)], 0, "{extra}", lambda ctx: int(ctx["ins"].mnemonic[-1]))
 _PIT.register_ins(["lconst_0", "lconst_1"], 0, "{extra}", lambda ctx: int(ctx["ins"].mnemonic[-1], 2))
 _PIT.register_ins(["fconst_0", "fconst_1", "fconst_2"], 0, "{extra}.0f", lambda ctx: int(ctx["ins"].mnemonic[-1]))
 _PIT.register_ins(["dconst_0", "dconst_1"], 0, "{extra}.0", lambda ctx: int(ctx["ins"].mnemonic[-1], 2))
@@ -820,11 +821,11 @@ _PIT.register_ins("lload", 0, "{extra}", arg_name(), 2)
 _PIT.register_ins("fload", 0, "{extra}", arg_name())
 _PIT.register_ins("dload", 0, "{extra}", arg_name(), 2)
 _PIT.register_ins("aload", 0, "{extra}", arg_name())
-_PIT.register_ins(["iload_" + str(i) for i in range(4)], 0, "{extra}", arg_name(lambda ctx: int(ctx["ins"].mnemonic[-1])))
-_PIT.register_ins(["lload_" + str(i) for i in range(4)], 0, "{extra}", arg_name(lambda ctx: int(ctx["ins"].mnemonic[-1])), 2)
-_PIT.register_ins(["fload_" + str(i) for i in range(4)], 0, "{extra}", arg_name(lambda ctx: int(ctx["ins"].mnemonic[-1])))
-_PIT.register_ins(["dload_" + str(i) for i in range(4)], 0, "{extra}", arg_name(lambda ctx: int(ctx["ins"].mnemonic[-1])), 2)
-_PIT.register_ins(["aload_" + str(i) for i in range(4)], 0, "{extra}", arg_name(lambda ctx: int(ctx["ins"].mnemonic[-1])))
+_PIT.register_ins(["iload_" + str(i) for i in six.moves.range(4)], 0, "{extra}", arg_name(lambda ctx: int(ctx["ins"].mnemonic[-1])))
+_PIT.register_ins(["lload_" + str(i) for i in six.moves.range(4)], 0, "{extra}", arg_name(lambda ctx: int(ctx["ins"].mnemonic[-1])), 2)
+_PIT.register_ins(["fload_" + str(i) for i in six.moves.range(4)], 0, "{extra}", arg_name(lambda ctx: int(ctx["ins"].mnemonic[-1])))
+_PIT.register_ins(["dload_" + str(i) for i in six.moves.range(4)], 0, "{extra}", arg_name(lambda ctx: int(ctx["ins"].mnemonic[-1])), 2)
+_PIT.register_ins(["aload_" + str(i) for i in six.moves.range(4)], 0, "{extra}", arg_name(lambda ctx: int(ctx["ins"].mnemonic[-1])))
 _PIT.register_ins("iaload", 2, "{stack[0]}[{stack[1]}]")
 _PIT.register_ins("laload", 2, "{stack[0]}[{stack[1]}]", category=2)
 _PIT.register_ins("faload", 2, "{stack[0]}[{stack[1]}]")

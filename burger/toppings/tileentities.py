@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
+import six
+
 from .topping import Topping
 
 from jawa.constants import ConstantClass, ConstantString
@@ -28,7 +30,7 @@ class TileEntityTopping(Topping):
 
         if "tileentity.superclass" not in aggregate["classes"]:
             if verbose:
-                print "Missing tileentity.superclass"
+                print("Missing tileentity.superclass")
             return
 
         superclass = aggregate["classes"]["tileentity.superclass"]
@@ -77,7 +79,7 @@ class TileEntityTopping(Topping):
                 elif ins.mnemonic == "invokeinterface":
                     if len(stack) != 2:
                         if verbose:
-                            print "Unexpected stack length for BETag:", stack
+                            print("Unexpected stack length for BETag:", stack)
                         stack = []
                         continue
 
@@ -103,12 +105,12 @@ class TileEntityTopping(Topping):
                         # doesn't track the old block entity name).
                         pass
         elif verbose:
-            print "No block entity tag info; skipping that"
+            print("No block entity tag info; skipping that")
 
         nbt_tag_type = "L" + aggregate["classes"]["nbtcompound"] + ";"
         if "nethandler.client" in aggregate["classes"]:
             updatepacket = None
-            for packet in aggregate["packets"]["packet"].itervalues():
+            for packet in six.itervalues(aggregate["packets"]["packet"]):
                 if (packet["direction"] != "CLIENTBOUND" or
                         packet["state"] != "PLAY"):
                     continue
@@ -126,7 +128,8 @@ class TileEntityTopping(Topping):
                     break
 
             if not updatepacket:
-                print "Failed to identify update tile entity packet"
+                if verbose:
+                    print("Failed to identify update tile entity packet")
                 return
 
             te["update_packet"] = updatepacket
@@ -141,7 +144,7 @@ class TileEntityTopping(Topping):
             value = None
             for ins in method.code.disassemble():
                 if ins.mnemonic.startswith("iconst_"):
-                    value = ins.mnemonic[-1]
+                    value = int(ins.mnemonic[-1])
                 elif ins.mnemonic == "bipush":
                     value = ins.operands[0].value
                 elif ins.mnemonic == "instanceof":

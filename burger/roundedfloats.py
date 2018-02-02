@@ -22,14 +22,15 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 
+import six
 
 def transform_floats(o):
     if isinstance(o, float):
         return RoundedFloat(o)
     elif isinstance(o, dict):
-        return dict((k, transform_floats(v)) for k, v in o.iteritems())
+        return dict((k, transform_floats(v)) for k, v in six.iteritems(o))
     elif isinstance(o, (list, tuple)):
-        return map(transform_floats, o)
+        return [transform_floats(v) for v in o]
     return o
 
 

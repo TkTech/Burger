@@ -22,13 +22,15 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 
-import urllib
 try:
     import json
 except ImportError:
     import simplejson as json
 
 import traceback
+
+import six
+import six.moves.urllib.request
 
 from .topping import Topping
 
@@ -38,7 +40,7 @@ VERSION_META = "https://s3.amazonaws.com/Minecraft.Download/versions/%(version)s
 RESOURCES_SITE = "http://resources.download.minecraft.net/%(short_hash)s/%(hash)s"
 
 def load_json(url):
-    stream = urllib.urlopen(url)
+    stream = six.moves.urllib.request.urlopen(url)
     try:
         return json.load(stream)
     finally:
@@ -58,7 +60,7 @@ def get_asset_index(version_meta, verbose):
         raise Exception("No asset index defined in the version meta")
     asset_index = version_meta["assetIndex"]
     if verbose:
-        print "Assets: id %(id)s, url %(url)s" % asset_index
+        print("Assets: id %(id)s, url %(url)s" % asset_index)
     return load_json(asset_index["url"])
 
 def get_sounds(asset_index, resources_site=RESOURCES_SITE):
@@ -67,7 +69,7 @@ def get_sounds(asset_index, resources_site=RESOURCES_SITE):
     short_hash = hash[0:2]
     sounds_url = resources_site % {'hash': hash, 'short_hash': short_hash}
 
-    sounds_file = urllib.urlopen(sounds_url)
+    sounds_file = six.moves.urllib.request.urlopen(sounds_url)
 
     try:
         return json.load(sounds_file)
@@ -96,21 +98,21 @@ class SoundTopping(Topping):
             version_meta = get_version_meta(aggregate["version"]["name"])
         except Exception as e:
             if verbose:
-                print "Error: Failed to download version meta for sounds: %s" % e
+                print("Error: Failed to download version meta for sounds: %s" % e)
                 traceback.print_exc()
             return
         try:
             assets = get_asset_index(version_meta, verbose)
         except Exception as e:
             if verbose:
-                print "Error: Failed to download asset index for sounds: %s" % e
+                print("Error: Failed to download asset index for sounds: %s" % e)
                 traceback.print_exc()
             return
         try:
             sounds_json = get_sounds(assets)
         except Exception as e:
             if verbose:
-                print "Error: Failed to download sound list: %s" % e
+                print("Error: Failed to download sound list: %s" % e)
                 traceback.print_exc()
             return
 
@@ -143,7 +145,7 @@ class SoundTopping(Topping):
                         sound["sounds"] = []
                         for value in json_sound["sounds"]:
                             data = {}
-                            if isinstance(value, basestring):
+                            if isinstance(value, six.string_types):
                                 data["name"] = value
                                 path = value
                             elif isinstance(value, dict):

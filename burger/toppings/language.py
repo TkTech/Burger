@@ -22,6 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 from .topping import Topping
+import six
 
 try:
     import json
@@ -76,10 +77,10 @@ class LanguageTopping(Topping):
     def load_language(aggregate, classloader, path, verbose=False, is_json=False):
         try:
             # Hacky
-            contents = classloader.path_map[path].read(path)
+            contents = classloader.path_map[path].read(path).decode("utf-8")
         except:
             if verbose:
-                print "Can't find file %s in jar" % path
+                print("Can't find file %s in jar" % path)
             return
 
         for category, name, value in LanguageTopping.parse_lang(contents, verbose, is_json):
@@ -90,7 +91,7 @@ class LanguageTopping(Topping):
     def parse_lang(contents, verbose, is_json):
         if is_json:
             contents = json.loads(contents)
-            for tag, value in contents.iteritems():
+            for tag, value in six.iteritems(contents):
                 category, name = tag.split(".", 1)
 
                 yield (category, name, value)
@@ -108,7 +109,7 @@ class LanguageTopping(Topping):
 
                 if not "=" in line or not "." in line:
                     if verbose:
-                        print "Language file line %s is malformed: %s" % (lineno, line)
+                        print("Language file line %s is malformed: %s" % (lineno, line))
                     continue
 
                 tag, value = line.split("=", 1)

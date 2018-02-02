@@ -22,6 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 
+import six
+
 from .topping import Topping
 
 from jawa.constants import *
@@ -103,7 +105,7 @@ class EntityTopping(Topping):
         if is_1point11:
             # 1.11 logic
             if verbose:
-                print "Using 1.11 entity format"
+                print("Using 1.11 entity format")
 
             method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
 
@@ -147,12 +149,12 @@ class EntityTopping(Topping):
                             entity[name]["egg_primary"] = stack[1]
                             entity[name]["egg_secondary"] = stack[2]
                         else:
-                            print "Missing entity during egg registration:", name
+                            print("Missing entity during egg registration: %s" % name)
                     stack = []
         else:
             # 1.10 logic
             if verbose:
-                print "Using 1.10 entity format"
+                print("Using 1.10 entity format")
 
             method = cf.methods.find_one("<clinit>")
             mode = "starting"
@@ -213,7 +215,7 @@ class EntityTopping(Topping):
                         tmp = {}
                         stack = []
 
-        for e in entity.itervalues():
+        for e in six.itervalues(entity):
             cf = classloader.load(e["class"] + ".class")
             size = EntityTopping.size(cf)
             if size:

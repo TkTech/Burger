@@ -200,7 +200,7 @@ class IdentifyTopping(Topping):
                 raise
             except:
                 if verbose:
-                    print "Failed to parse %s" % path
+                    print("Failed to parse %s" % path)
                     traceback.print_exc()
                 result = None
             if result:
@@ -218,4 +218,4 @@ class IdentifyTopping(Topping):
                     # searching, so stop early for performance
                     break
         if verbose:
-            print "identify classes:", classes
+            print("identify classes: %s" % classes)
