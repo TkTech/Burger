@@ -42,7 +42,7 @@ def identify(classloader, class_file):
     # looking for consistent strings.
     matches = (
         (['Accessed Biomes before Bootstrap!'], 'biome.list'),  # 1.9 only
-        (['Ice Plains'], 'biome.superclass'),
+        ((['Ice Plains'], True), 'biome.superclass'),
         (['Accessed Blocks before Bootstrap!'], 'block.list'),
         (['lightgem', 'Block{'], 'block.superclass'),
         (['Skipping Entity with id'], 'entity.list'),
@@ -79,9 +79,17 @@ def identify(classloader, class_file):
     for c in class_file.constants.find(ConstantString):
         value = c.string.value
         for match_list, match_name in matches:
+            exact = False
+            if isinstance(match_list, tuple):
+                match_list, exact = match_list
+
             for match in match_list:
-                if match not in value:
-                    continue
+                if exact:
+                    if value != match:
+                        continue
+                else:
+                    if match not in value:
+                        continue
 
                 return match_name, class_file.this.name.value
         if 'BaseComponent' in value:
