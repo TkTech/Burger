@@ -38,7 +38,8 @@ class EntityTopping(Topping):
 
     DEPENDS = [
         "identify.entity.list",
-        "version.entity_format"
+        "version.entity_format",
+        "language"
     ]
 
     @staticmethod
@@ -106,6 +107,9 @@ class EntityTopping(Topping):
                         "name": name,
                         "class": stack[1]
                     }
+                    if "minecraft." + name in aggregate["language"]["entity"]:
+                        entity[name]["display_name"] = aggregate["language"]["entity"]["minecraft." + name]
+
                     numeric_id += 1
                 stack = []
 
@@ -150,13 +154,17 @@ class EntityTopping(Topping):
                 if len(stack) == 4:
                     # Initial registration
                     name = stack[1]
+                    old_name = stack[3]
 
                     entity[name] = {
                         "id": stack[0],
                         "name": name,
                         "class": stack[2],
-                        "old_name": stack[3]
+                        "old_name": old_name
                     }
+
+                    if old_name + ".name" in aggregate["language"]["entity"]:
+                        entity[name]["display_name"] = aggregate["language"]["entity"][old_name + ".name"]
                 elif len(stack) == 3:
                     # Spawn egg registration
                     name = stack[0]
@@ -232,6 +240,8 @@ class EntityTopping(Topping):
                         if (len(stack) >= 5):
                             tmp["egg_primary"] = stack[3]
                             tmp["egg_secondary"] = stack[4]
+                        if tmp["name"] + ".name" in aggregate["language"]["entity"]:
+                            tmp["display_name"] = aggregate["language"]["entity"][tmp["name"] + ".name"]
                         entity[tmp["name"]] = tmp
                     elif mode == "aliases":
                         tmp["entity"] = stack[0]
