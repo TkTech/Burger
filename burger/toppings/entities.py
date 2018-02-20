@@ -25,6 +25,7 @@ THE SOFTWARE.
 import six
 
 from .topping import Topping
+from burger.util import class_from_invokedynamic
 
 from jawa.constants import *
 
@@ -36,81 +37,168 @@ class EntityTopping(Topping):
     ]
 
     DEPENDS = [
-        "identify.entity.list"
+        "identify.entity.list",
+        "version.entity_format"
     ]
 
     @staticmethod
     def act(aggregate, classloader, verbose=False):
-        return
+        # Decide which type of entity logic should be used.
+
+        handlers = {
+            "1.10": EntityTopping._entities_1point10,
+            "1.11": EntityTopping._entities_1point11,
+            "1.13": EntityTopping._entities_1point13
+        }
+        entity_format = aggregate["version"]["entity_format"]
+        if entity_format in handlers:
+            handlers[entity_format](aggregate, classloader, verbose)
+        else:
+            if verbose:
+                print("Unknown entity format %s" % entity_format)
+            return
+
+        entities = aggregate["entities"]
+
+        for e in six.itervalues(entities["entity"]):
+            cf = classloader.load(e["class"] + ".class")
+            size = EntityTopping.size(cf)
+            if size:
+                e["width"], e["height"], texture = size
+                if texture:
+                    e["texture"] = texture
+
+        entities["info"] = {
+            "entity_count": len(entities["entity"])
+        }
+
+    @staticmethod
+    def _entities_1point13(aggregate, classloader, verbose):
+        if verbose:
+            print("Using 1.13 entity format")
+
         superclass = aggregate["classes"]["entity.list"]
         cf = classloader.load(superclass + ".class")
 
-        # Find the static constructor
         entities = aggregate.setdefault("entities", {})
         entity = entities.setdefault("entity", {})
-        alias = entities.setdefault("alias", {})
-        tmp = {}
-
         minecart_info = entities.setdefault("minecart_info", {})
 
-        def load_minecart_enum(classname):
-            """Stores data about the minecart enum in aggregate"""
-            minecart_info["class"] = classname
+        method = cf.methods.find_one("<clinit>")
 
-            minecart_types = minecart_info.setdefault("types", {})
-            minecart_types_by_field = minecart_info.setdefault("types_by_field", {})
+        stack = []
+        numeric_id = 0
+        for ins in method.code.disassemble():
+            if ins.mnemonic in ("ldc", "ldc_w"):
+                const = cf.constants.get(ins.operands[0].value)
+                if isinstance(const, ConstantClass):
+                    stack.append(const.name.value)
+                elif isinstance(const, ConstantString):
+                    stack.append(const.string.value)
+            elif ins.mnemonic == "invokedynamic":
+                stack.append(class_from_invokedynamic(ins, cf))
+            elif ins.mnemonic == "putstatic":
+                if len(stack) == 3:
+                    assert stack[1] == stack[2] # The invokedynamic should produce the same thing as the entity class
+                    name = stack[0]
 
-            minecart_cf = classloader.load(classname + ".class")
-            init_method = minecart_cf.methods.find_one("<clinit>")
-
-            already_has_minecart_name = False
-            for ins in init_method.code.disassemble():
-                if ins.mnemonic == "new":
-                    const = minecart_cf.constants.get(ins.operands[0].value)
-                    minecart_class = const.name.value
-                elif ins.mnemonic == "ldc":
-                    const = minecart_cf.constants.get(ins.operands[0].value)
-                    if isinstance(const, ConstantString):
-                        if already_has_minecart_name:
-                            minecart_type = const.string.value
-                        else:
-                            already_has_minecart_name = True
-                            minecart_name = const.string.value
-                elif ins.mnemonic == "putstatic":
-                    const = minecart_cf.constants.get(ins.operands[0].value)
-                    if const.name_and_type.descriptor.value != "L" + classname + ";":
-                        # Other parts of the enum initializer (values array) that we don't care about
-                        continue
-
-                    minecart_field = const.name_and_type.name.value
-
-                    minecart_types[minecart_name] = {
-                        "class": minecart_class,
-                        "field": minecart_field,
-                        "name": minecart_name,
-                        "entitytype": minecart_type
+                    entity[name] = {
+                        "id": numeric_id,
+                        "name": name,
+                        "class": stack[1]
                     }
-                    minecart_types_by_field[minecart_field] = minecart_name
+                    numeric_id += 1
+                stack = []
 
-                    already_has_minecart_name = False
+    @staticmethod
+    def _entities_1point11(aggregate, classloader, verbose):
+        # 1.11 logic
+        if verbose:
+            print("Using 1.11 entity format")
 
-        # Detect whether post-1.11 logic should be used
-        is_1point11 = False
-        for c in cf.constants.find(ConstantString):
-            # Lowercase 1.11 naming in a special constant
-            if c.string.value == "lightning_bolt":
-                is_1point11 = True
-                break
+        superclass = aggregate["classes"]["entity.list"]
+        cf = classloader.load(superclass + ".class")
 
-        if is_1point11:
-            # 1.11 logic
-            if verbose:
-                print("Using 1.11 entity format")
+        entities = aggregate.setdefault("entities", {})
+        entity = entities.setdefault("entity", {})
+        minecart_info = entities.setdefault("minecart_info", {})
 
-            method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
+        method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
 
-            stack = []
-            for ins in method.code.disassemble():
+        stack = []
+        for ins in method.code.disassemble():
+            if ins.mnemonic in ("ldc", "ldc_w"):
+                const = cf.constants.get(ins.operands[0].value)
+                if isinstance(const, ConstantClass):
+                    stack.append(const.name.value)
+                elif isinstance(const, ConstantString):
+                    stack.append(const.string.value)
+                else:
+                    stack.append(const.value)
+            elif ins.mnemonic in ("bipush", "sipush"):
+                stack.append(ins.operands[0].value)
+            elif ins.opcode <= 8 and ins.opcode >= 2: # iconst
+                stack.append(ins.opcode - 3)
+            elif ins.mnemonic == "getstatic":
+                # Minecarts use an enum for their data - assume that this is that enum
+                const = cf.constants.get(ins.operands[0].value)
+                if not "types_by_field" in minecart_info:
+                    EntityTopping._load_minecart_enum(classloader, const.class_.name.value, minecart_info)
+                # This technically happens when invokevirtual is called, but do it like this for simplicity
+                minecart_name = minecart_info["types_by_field"][const.name_and_type.name.value]
+                stack.append(minecart_info["types"][minecart_name]["entitytype"])
+            elif ins.mnemonic == "invokestatic":
+                if len(stack) == 4:
+                    # Initial registration
+                    name = stack[1]
+
+                    entity[name] = {
+                        "id": stack[0],
+                        "name": name,
+                        "class": stack[2],
+                        "old_name": stack[3]
+                    }
+                elif len(stack) == 3:
+                    # Spawn egg registration
+                    name = stack[0]
+                    if name in entity:
+                        entity[name]["egg_primary"] = stack[1]
+                        entity[name]["egg_secondary"] = stack[2]
+                    else:
+                        print("Missing entity during egg registration: %s" % name)
+                stack = []
+
+    @staticmethod
+    def _entities_1point10(aggregate, classloader, verbose):
+        # 1.10 logic
+        if verbose:
+            print("Using 1.10 entity format")
+
+        superclass = aggregate["classes"]["entity.list"]
+        cf = classloader.load(superclass + ".class")
+
+        method = cf.methods.find_one("<clinit>")
+        mode = "starting"
+
+        superclass = aggregate["classes"]["entity.list"]
+        cf = classloader.load(superclass + ".class")
+
+        entities = aggregate.setdefault("entities", {})
+        entity = entities.setdefault("entity", {})
+        minecart_info = entities.setdefault("minecart_info", {})
+        alias = None
+
+        stack = []
+        tmp = {}
+
+        for ins in method.code.disassemble():
+            if mode == "starting":
+                # We don't care about the logger setup stuff at the beginning;
+                # wait until an entity definition starts.
+                if ins.mnemonic in ("ldc", "ldc_w"):
+                    mode = "entities"
+            # elif is not used here because we need to handle modes changing
+            if mode != "starting":
                 if ins.mnemonic in ("ldc", "ldc_w"):
                     const = cf.constants.get(ins.operands[0].value)
                     if isinstance(const, ConstantClass):
@@ -123,109 +211,84 @@ class EntityTopping(Topping):
                     stack.append(ins.operands[0].value)
                 elif ins.opcode <= 8 and ins.opcode >= 2: # iconst
                     stack.append(ins.opcode - 3)
+                elif ins.mnemonic == "new":
+                    # Entity aliases (for lack of a better term) start with 'new's.
+                    # Switch modes (this operation will be processed there)
+                    mode = "aliases"
+                    const = cf.constants.get(ins.operands[0].value)
+                    stack.append(const.name.value)
                 elif ins.mnemonic == "getstatic":
                     # Minecarts use an enum for their data - assume that this is that enum
                     const = cf.constants.get(ins.operands[0].value)
                     if not "types_by_field" in minecart_info:
-                        load_minecart_enum(const.class_.name.value)
+                        EntityTopping._load_minecart_enum(classloader, const.class_.name.value, minecart_info)
                     # This technically happens when invokevirtual is called, but do it like this for simplicity
                     minecart_name = minecart_info["types_by_field"][const.name_and_type.name.value]
                     stack.append(minecart_info["types"][minecart_name]["entitytype"])
-                elif ins.mnemonic == "invokestatic":
-                    if len(stack) == 4:
-                        # Initial registration
-                        name = stack[1]
+                elif ins.mnemonic == "invokestatic":  # invokestatic
+                    if mode == "entities":
+                        tmp["class"] = stack[0]
+                        tmp["name"] = stack[1]
+                        tmp["id"] = stack[2]
+                        if (len(stack) >= 5):
+                            tmp["egg_primary"] = stack[3]
+                            tmp["egg_secondary"] = stack[4]
+                        entity[tmp["name"]] = tmp
+                    elif mode == "aliases":
+                        tmp["entity"] = stack[0]
+                        tmp["name"] = stack[1]
+                        if (len(stack) >= 5):
+                            tmp["egg_primary"] = stack[2]
+                            tmp["egg_secondary"] = stack[3]
+                        tmp["class"] = stack[-1] # last item, made by new.
+                        if alias is None:
+                            alias = entities.setdefault("alias", {})
+                        alias[tmp["name"]] = tmp
 
-                        entity[name] = {
-                            "id": stack[0],
-                            "name": name,
-                            "class": stack[2],
-                            "old_name": stack[3]
-                        }
-                    elif len(stack) == 3:
-                        # Spawn egg registration
-                        name = stack[0]
-                        if name in entity:
-                            entity[name]["egg_primary"] = stack[1]
-                            entity[name]["egg_secondary"] = stack[2]
-                        else:
-                            print("Missing entity during egg registration: %s" % name)
+                    tmp = {}
                     stack = []
-        else:
-            # 1.10 logic
-            if verbose:
-                print("Using 1.10 entity format")
 
-            method = cf.methods.find_one("<clinit>")
-            mode = "starting"
+    @staticmethod
+    def _load_minecart_enum(classloader, classname, minecart_info):
+        """Stores data about the minecart enum in aggregate"""
+        minecart_info["class"] = classname
 
-            stack = []
-            for ins in method.code.disassemble():
-                if mode == "starting":
-                    # We don't care about the logger setup stuff at the beginning;
-                    # wait until an entity definition starts.
-                    if ins.mnemonic in ("ldc", "ldc_w"):
-                        mode = "entities"
-                # elif is not used here because we need to handle modes changing
-                if mode != "starting":
-                    if ins.mnemonic in ("ldc", "ldc_w"):
-                        const = cf.constants.get(ins.operands[0].value)
-                        if isinstance(const, ConstantClass):
-                            stack.append(const.name.value)
-                        elif isinstance(const, ConstantString):
-                            stack.append(const.string.value)
-                        else:
-                            stack.append(const.value)
-                    elif ins.mnemonic in ("bipush", "sipush"):
-                        stack.append(ins.operands[0].value)
-                    elif ins.opcode <= 8 and ins.opcode >= 2: # iconst
-                        stack.append(ins.opcode - 3)
-                    elif ins.mnemonic == "new":
-                        # Entity aliases (for lack of a better term) start with 'new's.
-                        # Switch modes (this operation will be processed there)
-                        mode = "aliases"
-                        const = cf.constants.get(ins.operands[0].value)
-                        stack.append(const.name.value)
-                    elif ins.mnemonic == "getstatic":
-                        # Minecarts use an enum for their data - assume that this is that enum
-                        const = cf.constants.get(ins.operands[0].value)
-                        if not "types_by_field" in minecart_info:
-                            load_minecart_enum(const.class_.name.value)
-                        # This technically happens when invokevirtual is called, but do it like this for simplicity
-                        minecart_name = minecart_info["types_by_field"][const.name_and_type.name.value]
-                        stack.append(minecart_info["types"][minecart_name]["entitytype"])
-                    elif ins.mnemonic == "invokestatic":  # invokestatic
-                        if mode == "entities":
-                            tmp["class"] = stack[0]
-                            tmp["name"] = stack[1]
-                            tmp["id"] = stack[2]
-                            if (len(stack) >= 5):
-                                tmp["egg_primary"] = stack[3]
-                                tmp["egg_secondary"] = stack[4]
-                            entity[tmp["name"]] = tmp
-                        elif mode == "aliases":
-                            tmp["entity"] = stack[0]
-                            tmp["name"] = stack[1]
-                            if (len(stack) >= 5):
-                                tmp["egg_primary"] = stack[2]
-                                tmp["egg_secondary"] = stack[3]
-                            tmp["class"] = stack[-1] # last item, made by new.
-                            alias[tmp["name"]] = tmp
+        minecart_types = minecart_info.setdefault("types", {})
+        minecart_types_by_field = minecart_info.setdefault("types_by_field", {})
 
-                        tmp = {}
-                        stack = []
+        minecart_cf = classloader.load(classname + ".class")
+        init_method = minecart_cf.methods.find_one("<clinit>")
 
-        for e in six.itervalues(entity):
-            cf = classloader.load(e["class"] + ".class")
-            size = EntityTopping.size(cf)
-            if size:
-                e["width"], e["height"], texture = size
-                if texture:
-                    e["texture"] = texture
+        already_has_minecart_name = False
+        for ins in init_method.code.disassemble():
+            if ins.mnemonic == "new":
+                const = minecart_cf.constants.get(ins.operands[0].value)
+                minecart_class = const.name.value
+            elif ins.mnemonic == "ldc":
+                const = minecart_cf.constants.get(ins.operands[0].value)
+                if isinstance(const, ConstantString):
+                    if already_has_minecart_name:
+                        minecart_type = const.string.value
+                    else:
+                        already_has_minecart_name = True
+                        minecart_name = const.string.value
+            elif ins.mnemonic == "putstatic":
+                const = minecart_cf.constants.get(ins.operands[0].value)
+                if const.name_and_type.descriptor.value != "L" + classname + ";":
+                    # Other parts of the enum initializer (values array) that we don't care about
+                    continue
 
-        entities["info"] = {
-            "entity_count": len(entity)
-        }
+                minecart_field = const.name_and_type.name.value
+
+                minecart_types[minecart_name] = {
+                    "class": minecart_class,
+                    "field": minecart_field,
+                    "name": minecart_name,
+                    "entitytype": minecart_type
+                }
+                minecart_types_by_field[minecart_field] = minecart_name
+
+                already_has_minecart_name = False
 
     @staticmethod
     def size(cf):

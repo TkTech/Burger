@@ -31,7 +31,8 @@ class VersionTopping(Topping):
         "version.protocol",
         "version.name",
         "version.data",
-        "version.is_flattened"
+        "version.is_flattened",
+        "version.entity_format"
     ]
 
     DEPENDS = [
@@ -111,7 +112,18 @@ class VersionTopping(Topping):
             print("Unable to determine data version")
 
         if "data" in aggregate["version"]:
+            data_version = aggregate["version"]["data"]
             # Versions after 17w46a (1449) are flattened
-            aggregate["version"]["is_flattened"] = (aggregate["version"]["data"] > 1449)
+            aggregate["version"]["is_flattened"] = (data_version > 1449)
+            if data_version >= 1461:
+                # 1.13 (18w02a and above, 1461) uses yet another entity format
+                aggregate["version"]["entity_format"] = "1.13"
+            elif data_version >= 800:
+                # 1.11 versions (16w32a and above, 800) use one entity format
+                aggregate["version"]["entity_format"] = "1.11"
+            else:
+                # Old entity format
+                aggregate["version"]["entity_format"] = "1.10"
         else:
             aggregate["version"]["is_flattened"] = False
+            aggregate["version"]["entity_format"] = "1.10"
