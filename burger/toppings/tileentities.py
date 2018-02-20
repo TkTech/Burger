@@ -6,12 +6,13 @@ import six
 from .topping import Topping
 
 from jawa.constants import ConstantClass, ConstantString
-
+from burger.util import class_from_invokedynamic
 
 class TileEntityTopping(Topping):
     """Gets tile entity (block entity) types."""
 
     PROVIDES = [
+        "identify.tileentity.list",
         "tileentities.list",
         "tileentities.tags",
         "tileentities.networkids"
@@ -25,7 +26,6 @@ class TileEntityTopping(Topping):
 
     @staticmethod
     def act(aggregate, classloader, verbose=False):
-        return
         te = aggregate.setdefault("tileentity", {})
 
         if "tileentity.superclass" not in aggregate["classes"]:
@@ -35,6 +35,23 @@ class TileEntityTopping(Topping):
 
         superclass = aggregate["classes"]["tileentity.superclass"]
         cf = classloader.load(superclass + ".class")
+
+        # First, figure out whether this is a version where the TE superclass
+        # is also the TE list.
+        if cf.constants.find_one(ConstantString, lambda c: c.string.value in ('daylight_detector', 'DLDetector')):
+            # Yes, it is
+            listclass = superclass
+            has_separate_list =-False
+        else:
+            # It isn't, but we can figure it out by looking at the constructor's only parameter.
+            method = cf.methods.find_one("<init>")
+            assert len(method.args) == 1
+            listclass = method.args[0].name
+            cf = classloader.load(listclass + ".class")
+            has_separate_list = True
+
+        aggregate["classes"]["tileentity.list"] = listclass
+
         method = cf.methods.find_one("<clinit>")
 
         tileentities = te.setdefault("tileentities", {})
@@ -44,9 +61,13 @@ class TileEntityTopping(Topping):
             if ins.mnemonic in ("ldc", "ldc_w"):
                 const = cf.constants.get(ins.operands[0].value)
                 if isinstance(const, ConstantClass):
+                    # Used before 1.13
                     tmp["class"] = const.name.value
                 elif isinstance(const, ConstantString):
                     tmp["name"] = const.string.value
+            elif ins.mnemonic == "invokedynamic":
+                # Used after 1.13
+                tmp["class"] = class_from_invokedynamic(ins, cf)
             elif ins.mnemonic == "invokestatic":
                 if "class" in tmp and "name" in tmp:
                     tmp["blocks"] = []
