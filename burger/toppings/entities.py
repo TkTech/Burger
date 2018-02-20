@@ -98,8 +98,12 @@ class EntityTopping(Topping):
             elif ins.mnemonic == "invokedynamic":
                 stack.append(class_from_invokedynamic(ins, cf))
             elif ins.mnemonic == "putstatic":
-                if len(stack) == 3:
-                    assert stack[1] == stack[2] # The invokedynamic should produce the same thing as the entity class
+                if len(stack) in (2, 3):
+                    if len(stack) == 3:
+                        # In 18w07a, they added a parameter for the entity class,
+                        # in addition to the invokedynamic.  Make sure both are the same.
+                        assert stack[1] == stack[2]
+
                     name = stack[0]
 
                     entity[name] = {
