@@ -82,7 +82,6 @@ class EntityTopping(Topping):
 
         entities = aggregate.setdefault("entities", {})
         entity = entities.setdefault("entity", {})
-        minecart_info = entities.setdefault("minecart_info", {})
 
         method = cf.methods.find_one("<clinit>")
 
@@ -121,11 +120,11 @@ class EntityTopping(Topping):
 
         entities = aggregate.setdefault("entities", {})
         entity = entities.setdefault("entity", {})
-        minecart_info = entities.setdefault("minecart_info", {})
 
         method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
 
         stack = []
+        minecart_info = {}
         for ins in method.code.disassemble():
             if ins.mnemonic in ("ldc", "ldc_w"):
                 const = cf.constants.get(ins.operands[0].value)
@@ -185,11 +184,11 @@ class EntityTopping(Topping):
 
         entities = aggregate.setdefault("entities", {})
         entity = entities.setdefault("entity", {})
-        minecart_info = entities.setdefault("minecart_info", {})
         alias = None
 
         stack = []
         tmp = {}
+        minecart_info = {}
 
         for ins in method.code.disassemble():
             if mode == "starting":
