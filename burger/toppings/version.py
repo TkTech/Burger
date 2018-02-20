@@ -23,6 +23,7 @@ THE SOFTWARE.
 from .topping import Topping
 
 from jawa.constants import *
+from jawa.transforms.simple_swap import simple_swap
 
 class VersionTopping(Topping):
     """Provides the protocol version."""
@@ -54,11 +55,9 @@ class VersionTopping(Topping):
             version = None
             looking_for_version_name = False
             for method in cf.methods:
-                for instr in method.code.disassemble():
+                for instr in method.code.disassemble(transforms=[simple_swap]):
                     if instr.mnemonic in ("bipush", "sipush"):
                         version = instr.operands[0].value
-                    elif instr.mnemonic.startswith("iconst"):
-                        version = int(instr.mnemonic[-1])
                     elif instr.mnemonic == "ldc" and version is not None:
                         constant = cf.constants.get(instr.operands[0].value)
                         if isinstance(constant, String):
@@ -87,7 +86,7 @@ class VersionTopping(Topping):
 
             for method in cf.methods:
                 next_ins_is_version = False
-                for ins in method.code.disassemble():
+                for ins in method.code.disassemble(transforms=[simple_swap]):
                     if ins.mnemonic in ("ldc", "ldc_w"):
                         const = cf.constants.get(ins.operands[0].value)
                         if isinstance(const, String):
@@ -101,9 +100,6 @@ class VersionTopping(Topping):
                         pass
                     elif ins.mnemonic in ("bipush", "sipush"):
                         aggregate["version"]["data"] = ins.operands[0].value
-                        break
-                    elif ins.mnemonic.startswith("iconst"):
-                        aggregate["version"]["data"] = int(ins.mnemonic[-1])
                         break
 
                 if next_ins_is_version:

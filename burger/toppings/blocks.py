@@ -25,6 +25,7 @@ from .topping import Topping
 
 from jawa.constants import *
 from jawa.util.descriptor import method_descriptor
+from jawa.transforms.simple_swap import simple_swap
 
 import six.moves
 
@@ -70,7 +71,7 @@ class BlocksTopping(Topping):
 
         stack = []
         locals = {}
-        for ins in method.code.disassemble():
+        for ins in method.code.disassemble(transforms=[simple_swap]):
             if ins.mnemonic == "new":
                 # The beginning of a new block definition
                 const = cf.constants.get(ins.operands[0].value)
@@ -81,13 +82,11 @@ class BlocksTopping(Topping):
                 }
 
                 stack.append(current_block)
-            elif ins.mnemonic.startswith("iconst"):
-                stack.append(int(ins.mnemonic[-1]))
             elif ins.mnemonic.startswith("fconst"):
                 stack.append(float(ins.mnemonic[-1]))
             elif ins.mnemonic == "aconst_null":
                 stack.append(None)
-            elif ins.mnemonic.endswith("ipush"):
+            elif ins.mnemonic in ("bipush", "sipush"):
                 stack.append(ins.operands[0].value)
             elif ins.mnemonic == "fdiv":
                 den = stack.pop()
@@ -210,7 +209,7 @@ class BlocksTopping(Topping):
 
         for method in hardness_setters:
             fld = None
-            for ins in method.code.disassemble():
+            for ins in method.code.disassemble(transforms=[simple_swap]):
                 if ins.mnemonic == "putfield":
                     const = cf.constants.get(ins.operands[0].value)
                     fld = const.name_and_type.name.value
@@ -284,7 +283,7 @@ class BlocksTopping(Topping):
         # Find the static block, and load the fields for each.
         method = lcf.methods.find_one(name="<clinit>")
         blk_name = ""
-        for ins in method.code.disassemble():
+        for ins in method.code.disassemble(transforms=[simple_swap]):
             if ins.mnemonic in ("ldc", "ldc_w"):
                 const = lcf.constants.get(ins.operands[0].value)
                 if isinstance(const, String):

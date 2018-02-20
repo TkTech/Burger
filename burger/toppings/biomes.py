@@ -26,6 +26,7 @@ from .topping import Topping
 import types
 
 from jawa.util.descriptor import method_descriptor
+from jawa.transforms.simple_swap import simple_swap
 
 from jawa.constants import *
 
@@ -64,7 +65,7 @@ class BiomeTopping(Topping):
         mutate_method_name = None
         void_methods = cf.methods.find(returns="L" + superclass + ";", args="", f=lambda m: m.access_flags.acc_protected and not m.access_flags.acc_static)
         for method in void_methods:
-            for ins in method.code.disassemble():
+            for ins in method.code.disassemble(transforms=[simple_swap]):
                 if ins.mnemonic == "sipush" and ins.operands[0].value == 128:
                     mutate_method_desc = method.descriptor.value
                     mutate_method_name = method.name.value
@@ -73,7 +74,7 @@ class BiomeTopping(Topping):
         make_mutated_method_name = None
         int_methods = cf.methods.find(returns="L" + superclass + ";", args="I", f=lambda m: m.access_flags.acc_protected and not m.access_flags.acc_static)
         for method in int_methods:
-            for ins in method.code.disassemble():
+            for ins in method.code.disassemble(transforms=[simple_swap]):
                 if ins.mnemonic == "new":
                     make_mutated_method_desc = method.descriptor.value
                     make_mutated_method_name = method.name.value
@@ -91,7 +92,7 @@ class BiomeTopping(Topping):
                     biome_fields[biome["field"]] = biome["name"]
 
         # OK, start running through the initializer for biomes.
-        for ins in method.code.disassemble():
+        for ins in method.code.disassemble(transforms=[simple_swap]):
             if ins.mnemonic == "new":
                 store_biome_if_valid(tmp)
 
@@ -174,13 +175,9 @@ class BiomeTopping(Topping):
                 if isinstance(const, (Integer, Float)):
                     stack.append(const.value)
 
-            elif ins.opcode <= 8 and ins.opcode >= 2:  # iconst
-                stack.append(ins.opcode - 3)
-            elif ins.opcode >= 0xb and ins.opcode <= 0xd:  # fconst
-                stack.append(ins.opcode - 0xb)
-            elif ins.mnemonic == "bipush":
-                stack.append(ins.operands[0].value)
-            elif ins.mnemonic == "sipush":
+            elif ins.mnemonic.startswith("fconst"):
+                stack.append(float(ins.mnemonic[-1]))
+            elif ins.mnemonic in ("bipush", "sipush"):
                 stack.append(ins.operands[0].value)
 
         store_biome_if_valid(tmp)
@@ -202,7 +199,7 @@ class BiomeTopping(Topping):
         stack = []
 
         # OK, start running through the initializer for biomes.
-        for ins in method.code.disassemble():
+        for ins in method.code.disassemble(transforms=[simple_swap]):
             if ins.mnemonic == "anewarray":
                 # End of biome initialization; now creating the list of biomes
                 # for the explore all biomes achievement but we don't need
@@ -272,13 +269,9 @@ class BiomeTopping(Topping):
                 if isinstance(const, (Integer, Float)):
                     stack.append(const.value)
 
-            elif ins.opcode <= 8 and ins.opcode >= 2:  # iconst
-                stack.append(ins.opcode - 3)
-            elif ins.opcode >= 0xb and ins.opcode <= 0xd:  # fconst
-                stack.append(ins.opcode - 0xb)
-            elif ins.mnemonic == "bipush":
-                stack.append(ins.operands[0].value)
-            elif ins.mnemonic == "sipush":
+            elif ins.mnemonic.startswith("fconst"):
+                stack.append(float(ins.mnemonic[-1]))
+            elif ins.mnemonic in ("bipush", "sipush"):
                 stack.append(ins.operands[0].value)
 
         # Go through the block list and add the field info.
@@ -288,7 +281,7 @@ class BiomeTopping(Topping):
         # Find the static block, and load the fields for each.
         method = lcf.methods.find_one(name="<clinit>")
         biome_name = ""
-        for ins in method.code.disassemble():
+        for ins in method.code.disassemble(transforms=[simple_swap]):
             if ins.mnemonic in ("ldc", "ldc_w"):
                 const = lcf.constants.get(ins.operands[0].value)
                 if isinstance(const, String):

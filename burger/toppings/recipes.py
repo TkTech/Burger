@@ -26,6 +26,7 @@ from .topping import Topping
 
 from jawa.util.descriptor import method_descriptor
 from jawa.constants import *
+from jawa.transforms.simple_swap import simple_swap
 
 try:
     import json
@@ -265,9 +266,7 @@ class RecipesTopping(Topping):
             stack = []
             while True:
                 ins = itr.next()
-                if ins.mnemonic.startswith("iconst_"):
-                    stack.append(int(ins.mnemonic[-1]))
-                elif ins.mnemonic == "bipush":
+                if ins.mnemonic in ("bipush", "sipush"):
                     stack.append(ins.operands[0].value)
                 elif ins.mnemonic == "getstatic":
                     const = cf.constants.get(ins.operands[0].value)
@@ -309,7 +308,7 @@ class RecipesTopping(Topping):
 
         def find_recipes(classloader, cf, method, target_class, setter_names):
             # Go through all instructions.
-            itr = iter(method.code.disassemble())
+            itr = iter(method.code.disassemble(transforms=[simple_swap]))
             recipes = []
             try:
                 while True:
@@ -327,9 +326,7 @@ class RecipesTopping(Topping):
 
                     ins = itr.next()
                     # Size of the parameter array
-                    if ins.mnemonic.startswith("iconst_"):
-                        param_count = int(ins.mnemonic[-1])
-                    elif ins.mnemonic == "bipush":
+                    if ins.mnemonic in ("bipush", "sipush"):
                         param_count = ins.operands[0].value
                     else:
                         raise Exception('Unexpected instruction: expected int constant, got ' + str(ins))
@@ -355,9 +352,7 @@ class RecipesTopping(Topping):
                             const = cf.constants.get(ins.operands[0].value)
                             # Separate into a list of characters, to disambiguate (see below)
                             data = list(const.string.value)
-                        elif ins.mnemonic.startswith("iconst_"):
-                            data = int(ins.mnemonic[-1])
-                        elif ins.mnemonic == "bipush":
+                        if ins.mnemonic in ("bipush", "sipush"):
                             data = ins.operands[0].value
                         elif ins.mnemonic == "invokestatic":
                             const = cf.constants.get(ins.operands[0].value)

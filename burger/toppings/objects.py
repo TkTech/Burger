@@ -28,6 +28,7 @@ from copy import copy
 from .topping import Topping
 
 from jawa.constants import *
+from jawa.transforms.simple_swap import simple_swap
 
 class ObjectTopping(Topping):
     """Gets most vehicle/object types."""
@@ -65,7 +66,7 @@ class ObjectTopping(Topping):
         item_entity_class = entities["entity"]["item"]["class"] if "item" in entities["entity"] else entities["entity"]["Item"]["class"]
 
         will_be_spawn_object_packet = False
-        for ins in createspawnpacket_method.code.disassemble():
+        for ins in createspawnpacket_method.code.disassemble(transforms=[simple_swap]):
             if ins.mnemonic == "instanceof":
                 # Check to make sure that it's a spawn packet for item entities
                 const = entitytrackerentry_cf.constants.get(ins.operands[0].value)
@@ -98,13 +99,11 @@ class ObjectTopping(Topping):
         potential_id = 0
         current_id = 0
 
-        for ins in method.code.disassemble():
+        for ins in method.code.disassemble(transforms=[simple_swap]):
             if ins.mnemonic == "if_icmpne":
                 current_id = potential_id
             elif ins.mnemonic in ("bipush", "sipush"):
                 potential_id = ins.operands[0].value
-            elif ins.opcode <= 8 and ins.opcode >= 2: # iconst
-                potential_id = ins.opcode - 3
             elif ins.mnemonic == "new":
                 const = nethandler_cf.constants.get(ins.operands[0].value)
                 tmp = {"id": current_id, "class": const.name.value}

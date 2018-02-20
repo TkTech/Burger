@@ -26,6 +26,7 @@ import six
 
 from .topping import Topping
 from burger.util import class_from_invokedynamic
+from jawa.transforms.simple_swap import simple_swap
 
 from jawa.constants import *
 
@@ -88,7 +89,7 @@ class EntityTopping(Topping):
 
         stack = []
         numeric_id = 0
-        for ins in method.code.disassemble():
+        for ins in method.code.disassemble(transforms=[simple_swap]):
             if ins.mnemonic in ("ldc", "ldc_w"):
                 const = cf.constants.get(ins.operands[0].value)
                 if isinstance(const, ConstantClass):
@@ -133,7 +134,7 @@ class EntityTopping(Topping):
 
         stack = []
         minecart_info = {}
-        for ins in method.code.disassemble():
+        for ins in method.code.disassemble(transforms=[simple_swap]):
             if ins.mnemonic in ("ldc", "ldc_w"):
                 const = cf.constants.get(ins.operands[0].value)
                 if isinstance(const, ConstantClass):
@@ -144,8 +145,6 @@ class EntityTopping(Topping):
                     stack.append(const.value)
             elif ins.mnemonic in ("bipush", "sipush"):
                 stack.append(ins.operands[0].value)
-            elif ins.opcode <= 8 and ins.opcode >= 2: # iconst
-                stack.append(ins.opcode - 3)
             elif ins.mnemonic == "getstatic":
                 # Minecarts use an enum for their data - assume that this is that enum
                 const = cf.constants.get(ins.operands[0].value)
@@ -202,7 +201,7 @@ class EntityTopping(Topping):
         tmp = {}
         minecart_info = {}
 
-        for ins in method.code.disassemble():
+        for ins in method.code.disassemble(transforms=[simple_swap]):
             if mode == "starting":
                 # We don't care about the logger setup stuff at the beginning;
                 # wait until an entity definition starts.
@@ -220,8 +219,6 @@ class EntityTopping(Topping):
                         stack.append(const.value)
                 elif ins.mnemonic in ("bipush", "sipush"):
                     stack.append(ins.operands[0].value)
-                elif ins.opcode <= 8 and ins.opcode >= 2: # iconst
-                    stack.append(ins.opcode - 3)
                 elif ins.mnemonic == "new":
                     # Entity aliases (for lack of a better term) start with 'new's.
                     # Switch modes (this operation will be processed there)
@@ -273,7 +270,7 @@ class EntityTopping(Topping):
         init_method = minecart_cf.methods.find_one("<clinit>")
 
         already_has_minecart_name = False
-        for ins in init_method.code.disassemble():
+        for ins in init_method.code.disassemble(transforms=[simple_swap]):
             if ins.mnemonic == "new":
                 const = minecart_cf.constants.get(ins.operands[0].value)
                 minecart_class = const.name.value
@@ -312,7 +309,7 @@ class EntityTopping(Topping):
         stage = 0
         tmp = []
         texture = None
-        for ins in method.code.disassemble():
+        for ins in method.code.disassemble(transforms=[simple_swap]):
             if ins.mnemonic == "aload_0" and stage == 0:
                 stage = 1
             elif ins.mnemonic in ("ldc", "ldc_w"):

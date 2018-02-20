@@ -35,6 +35,7 @@ import six.moves.urllib.request
 from .topping import Topping
 
 from jawa.constants import *
+from jawa.transforms.simple_swap import simple_swap
 
 VERSION_META = "https://s3.amazonaws.com/Minecraft.Download/versions/%(version)s/%(version)s.json"
 RESOURCES_SITE = "http://resources.download.minecraft.net/%(short_hash)s/%(hash)s"
@@ -128,7 +129,7 @@ class SoundTopping(Topping):
 
         sound_name = None
         sound_id = 0
-        for ins in method.code.disassemble():
+        for ins in method.code.disassemble(transforms=[simple_swap]):
             if ins.mnemonic in ('ldc', 'ldc_w'):
                 const = cf.constants.get(ins.operands[0].value)
                 sound_name = const.string.value
@@ -172,7 +173,7 @@ class SoundTopping(Topping):
         lcf = classloader.load(soundlist + ".class")
 
         method = lcf.methods.find_one(name="<clinit>")
-        for ins in method.code.disassemble():
+        for ins in method.code.disassemble(transforms=[simple_swap]):
             if ins.mnemonic in ('ldc', 'ldc_w'):
                 const = lcf.constants.get(ins.operands[0].value)
                 sound_name = const.string.value
