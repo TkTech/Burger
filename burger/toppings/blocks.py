@@ -165,18 +165,10 @@ class BlocksTopping(Topping):
                     current_block["text_id"] = stack.pop()
 
                 tmp.append(current_block)
-            elif ins.mnemonic.startswith("astore"):
-                if ins.mnemonic == "astore":
-                    index = ins.operands[0].value
-                else:
-                    index = int(ins.mnemonic[-1])
-                locals[index] = stack.pop()
-            elif ins.mnemonic.startswith("aload"):
-                if ins.mnemonic == "aload":
-                    index = ins.operands[0].value
-                else:
-                    index = int(ins.mnemonic[-1])
-                stack.append(locals[index])
+            elif ins.mnemonic == "astore":
+                locals[ins.operands[0].value] = stack.pop()
+            elif ins.mnemonic == "aload":
+                stack.append(locals[ins.operands[0].value])
             elif ins.mnemonic == "dup":
                 stack.append(stack[-1])
             elif ins.mnemonic == "checkcast":

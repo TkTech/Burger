@@ -510,32 +510,29 @@ class PacketInstructionsTopping(Topping):
                 # Don't attempt to lookup the instruction in the handler
                 pass
 
-            elif "store" in instruction.mnemonic:
+            elif instruction.mnemonic in ("istore", "lstore", "fstore", "dstore", "astore"):
+                # Keep track of what is being stored, for clarity
+                type = _PIT.INSTRUCTION_TYPES[instruction.mnemonic[0]]
+                arg = operands.pop().value
+
+                var = arg_names[arg] if arg < len(arg_names) else "var%s" % arg
+                operations.append(Operation(instruction.pos, "store",
+                                            type=type,
+                                            var=var,
+                                            value=stack.pop()))
+
+            elif instruction.mnemonic in ("iastore", "lastore", "fastore", "dastore", "aastore", "bastore", "castore", "sastore"):
                 type = _PIT.INSTRUCTION_TYPES[instruction.mnemonic[0]]
 
-                if instruction.mnemonic[1] == 'a':
-                    # Array store
-                    value = stack.pop()
-                    index = stack.pop()
-                    array = stack.pop()
-                    operations.append(Operation(instruction.pos, "arraystore",
-                                            type=type,
-                                            index=index,
-                                            var=array,
-                                            value=value))
-                else:
-                    # Keep track of what is being stored, for clarity
-                    if "_" in instruction.mnemonic:
-                        # Tstore_<index>
-                        arg = int(instruction.mnemonic[-1])
-                    else:
-                        arg = operands.pop().value
-
-                    var = arg_names[arg] if arg < len(arg_names) else "var%s" % arg
-                    operations.append(Operation(instruction.pos, "store",
-                                                type=type,
-                                                var=var,
-                                                value=stack.pop()))
+                # Array store
+                value = stack.pop()
+                index = stack.pop()
+                array = stack.pop()
+                operations.append(Operation(instruction.pos, "arraystore",
+                                        type=type,
+                                        index=index,
+                                        var=array,
+                                        value=value))
 
             # Default handlers
             else:

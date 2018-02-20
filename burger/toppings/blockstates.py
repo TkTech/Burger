@@ -157,7 +157,8 @@ class BlockStateTopping(Topping):
                         index = 0 if ins.pos < if_pos else 1
                         assert properties[index] == None
                         properties[index] = stack.pop()
-                elif ins.mnemonic == "aload_0":
+                elif ins.mnemonic == "aload":
+                    assert ins.operands[0].value == 0 # Should be aload_0 (this)
                     stack.append(object())
                 elif verbose:
                     print("%s createBlockState contains unimplemented ins %s" % (name, ins))
@@ -362,20 +363,12 @@ class BlockStateTopping(Topping):
                         else:
                             o = object()
                             stack.append(o)
-                elif "store" in ins.mnemonic and ins.mnemonic[1] != 'a':
+                elif ins.mnemonic in ("istore", "lstore", "fstore", "dstore", "astore"):
                     # Store other than array store
-                    if "_" in ins.mnemonic:
-                        index = ins.mnemonic[-1]
-                    else:
-                        index = ins.operands[0].value
-                    locals[index] = stack.pop()
-                elif "load" in ins.mnemonic and ins.mnemonic[1] != 'a':
+                    locals[ins.operands[0].value] = stack.pop()
+                elif ins.mnemonic in ("iload", "lload", "fload", "dload", "aload"):
                     # Load other than array load
-                    if "_" in ins.mnemonic:
-                        index = ins.mnemonic[-1]
-                    else:
-                        index = ins.operands[0].value
-                    stack.append(locals[index])
+                    stack.append(locals[ins.operands[0].value])
                 elif ins.mnemonic == "new":
                     const = cf.constants.get(ins.operands[0].value)
                     type_name = const.name.value

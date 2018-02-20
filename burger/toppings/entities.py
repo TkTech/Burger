@@ -310,7 +310,7 @@ class EntityTopping(Topping):
         tmp = []
         texture = None
         for ins in method.code.disassemble(transforms=[simple_swap]):
-            if ins.mnemonic == "aload_0" and stage == 0:
+            if ins.mnemonic == "aload" and ins.operands[0].value == 0 and stage == 0:
                 stage = 1
             elif ins.mnemonic in ("ldc", "ldc_w"):
                 const = cf.constants.get(ins.operands[0].value)
