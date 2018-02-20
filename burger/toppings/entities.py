@@ -93,7 +93,7 @@ class EntityTopping(Topping):
                 const = cf.constants.get(ins.operands[0].value)
                 if isinstance(const, ConstantClass):
                     stack.append(const.name.value)
-                elif isinstance(const, ConstantString):
+                elif isinstance(const, String):
                     stack.append(const.string.value)
             elif ins.mnemonic == "invokedynamic":
                 stack.append(class_from_invokedynamic(ins, cf))
@@ -138,7 +138,7 @@ class EntityTopping(Topping):
                 const = cf.constants.get(ins.operands[0].value)
                 if isinstance(const, ConstantClass):
                     stack.append(const.name.value)
-                elif isinstance(const, ConstantString):
+                elif isinstance(const, String):
                     stack.append(const.string.value)
                 else:
                     stack.append(const.value)
@@ -214,7 +214,7 @@ class EntityTopping(Topping):
                     const = cf.constants.get(ins.operands[0].value)
                     if isinstance(const, ConstantClass):
                         stack.append(const.name.value)
-                    elif isinstance(const, ConstantString):
+                    elif isinstance(const, String):
                         stack.append(const.string.value)
                     else:
                         stack.append(const.value)
@@ -279,7 +279,7 @@ class EntityTopping(Topping):
                 minecart_class = const.name.value
             elif ins.mnemonic == "ldc":
                 const = minecart_cf.constants.get(ins.operands[0].value)
-                if isinstance(const, ConstantString):
+                if isinstance(const, String):
                     if already_has_minecart_name:
                         minecart_type = const.string.value
                     else:
@@ -317,13 +317,13 @@ class EntityTopping(Topping):
                 stage = 1
             elif ins.mnemonic in ("ldc", "ldc_w"):
                 const = cf.constants.get(ins.operands[0].value)
-                if isinstance(const, ConstantFloat) and stage in (1, 2):
+                if isinstance(const, Float) and stage in (1, 2):
                     tmp.append(round(const.value, 2))
                     stage += 1
                 else:
                     stage = 0
                     tmp = []
-                    if isinstance(const, ConstantString):
+                    if isinstance(const, String):
                         texture = const.string.value
             elif ins.mnemonic == "invokevirtual" and stage == 3:
                 return tmp + [texture]

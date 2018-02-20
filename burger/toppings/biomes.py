@@ -169,9 +169,9 @@ class BiomeTopping(Topping):
             # numeric values & constants
             elif ins.mnemonic in ("ldc", "ldc_w"):
                 const = cf.constants.get(ins.operands[0].value)
-                if isinstance(const, ConstantString):
+                if isinstance(const, String):
                     tmp["name"] = const.string.value
-                if isinstance(const, (ConstantInteger, ConstantFloat)):
+                if isinstance(const, (Integer, Float)):
                     stack.append(const.value)
 
             elif ins.opcode <= 8 and ins.opcode >= 2:  # iconst
@@ -267,9 +267,9 @@ class BiomeTopping(Topping):
             # numeric values & constants
             elif ins.mnemonic in ("ldc", "ldc_w"):
                 const = cf.constants.get(ins.operands[0].value)
-                if isinstance(const, ConstantString):
+                if isinstance(const, String):
                     stack.append(const.string.value)
-                if isinstance(const, (ConstantInteger, ConstantFloat)):
+                if isinstance(const, (Integer, Float)):
                     stack.append(const.value)
 
             elif ins.opcode <= 8 and ins.opcode >= 2:  # iconst
@@ -291,7 +291,7 @@ class BiomeTopping(Topping):
         for ins in method.code.disassemble():
             if ins.mnemonic in ("ldc", "ldc_w"):
                 const = lcf.constants.get(ins.operands[0].value)
-                if isinstance(const, ConstantString):
+                if isinstance(const, String):
                     biome_name = const.string.value
             elif ins.mnemonic == "putstatic":
                 if biome_name is None or biome_name == "Accessed Biomes before Bootstrap!":

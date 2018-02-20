@@ -730,9 +730,9 @@ class InstructionField:
         const = self.constants[self.value]
         if isinstance(const, ConstantClass):
             return const.name.value
-        elif isinstance(const, ConstantString):
+        elif isinstance(const, String):
             return '"' + const.string.value + '"'
-        elif isinstance(const, (ConstantInteger, ConstantFloat, ConstantLong, ConstantDouble, ConstantUTF8)):
+        elif isinstance(const, (Integer, Float, Long, Double, UTF8)):
             return str(const.value)
         else:
             return self.constants[self.value].name_and_type.name.value

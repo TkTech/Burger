@@ -162,7 +162,7 @@ class ItemsTopping(Topping):
 
                 if isinstance(const, ConstantClass):
                     stack.append("%s.class" % const.name.value)
-                elif isinstance(const, ConstantString):
+                elif isinstance(const, String):
                     stack.append(const.string.value)
                 else:
                     stack.append(const.value)
@@ -278,7 +278,7 @@ class ItemsTopping(Topping):
         for ins in method.code.disassemble():
             if ins.mnemonic in ("ldc", "ldc_w"):
                 const = lcf.constants.get(ins.operands[0].value)
-                if isinstance(const, ConstantString):
+                if isinstance(const, String):
                     item_name = const.string.value
             elif ins.mnemonic == "putstatic":
                 const = lcf.constants.get(ins.operands[0].value)

@@ -61,7 +61,7 @@ class VersionTopping(Topping):
                         version = int(instr.mnemonic[-1])
                     elif instr.mnemonic == "ldc" and version is not None:
                         constant = cf.constants.get(instr.operands[0].value)
-                        if isinstance(constant, ConstantString):
+                        if isinstance(constant, String):
                             str = constant.string.value
 
                             if "multiplayer.disconnect.outdated_client" in str:
@@ -90,10 +90,10 @@ class VersionTopping(Topping):
                 for ins in method.code.disassemble():
                     if ins.mnemonic in ("ldc", "ldc_w"):
                         const = cf.constants.get(ins.operands[0].value)
-                        if isinstance(const, ConstantString):
+                        if isinstance(const, String):
                             if const.string.value == "DataVersion":
                                 next_ins_is_version = True
-                        elif isinstance(const, ConstantInteger):
+                        elif isinstance(const, Integer):
                             if next_ins_is_version:
                                 aggregate["version"]["data"] = const.value
                             break

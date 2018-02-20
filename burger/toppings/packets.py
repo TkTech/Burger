@@ -65,7 +65,7 @@ class PacketsTopping(Topping):
                 state_class = const.name.value
             elif ins.mnemonic == "ldc":
                 const = cf.constants.get(ins.operands[0].value)
-                if isinstance(const, ConstantString):
+                if isinstance(const, String):
                     state_name = const.string.value
             elif ins.mnemonic == "putstatic":
                 const = cf.constants.get(ins.operands[0].value)
@@ -100,7 +100,7 @@ class PacketsTopping(Topping):
                     dir_class = const.name.value
                 elif ins.mnemonic == "ldc":
                     const = direction_class_file.constants.get(ins.operands[0].value)
-                    if isinstance(const, ConstantString):
+                    if isinstance(const, String):
                         dir_name = const.string.value
                 elif ins.mnemonic == "putstatic":
                     const = direction_class_file.constants.get(ins.operands[0].value)
@@ -136,7 +136,7 @@ class PacketsTopping(Topping):
                 for ins in method.code.disassemble():
                     if ins.mnemonic == "ldc":
                         const = cf.constants.get(ins.operands[0].value)
-                        if isinstance(const, ConstantString):
+                        if isinstance(const, String):
                             if "Clientbound" in const.string.value:
                                 directions["CLIENTBOUND"] = {
                                     "register_method": method.name.value,

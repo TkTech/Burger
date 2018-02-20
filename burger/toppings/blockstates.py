@@ -283,7 +283,7 @@ class BlockStateTopping(Topping):
 
                     if isinstance(const, ConstantClass):
                         stack.append("%s.class" % const.name.value)
-                    elif isinstance(const, ConstantString):
+                    elif isinstance(const, String):
                         stack.append(const.string.value)
                     else:
                         stack.append(const.value)

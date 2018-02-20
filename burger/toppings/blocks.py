@@ -102,7 +102,7 @@ class BlocksTopping(Topping):
 
                 if isinstance(const, ConstantClass):
                     stack.append("%s.class" % const.name.value)
-                elif isinstance(const, ConstantString):
+                elif isinstance(const, String):
                     stack.append(const.string.value)
                 else:
                     stack.append(const.value)
@@ -287,7 +287,7 @@ class BlocksTopping(Topping):
         for ins in method.code.disassemble():
             if ins.mnemonic in ("ldc", "ldc_w"):
                 const = lcf.constants.get(ins.operands[0].value)
-                if isinstance(const, ConstantString):
+                if isinstance(const, String):
                     blk_name = const.string.value
             elif ins.mnemonic == "putstatic":
                 if blk_name is None or blk_name == "Accessed Blocks before Bootstrap!":

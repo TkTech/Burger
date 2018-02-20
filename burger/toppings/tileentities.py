@@ -5,7 +5,7 @@ import six
 
 from .topping import Topping
 
-from jawa.constants import ConstantClass, ConstantString
+from jawa.constants import ConstantClass, String
 from burger.util import class_from_invokedynamic
 
 class TileEntityTopping(Topping):
@@ -38,7 +38,7 @@ class TileEntityTopping(Topping):
 
         # First, figure out whether this is a version where the TE superclass
         # is also the TE list.
-        if cf.constants.find_one(ConstantString, lambda c: c.string.value in ('daylight_detector', 'DLDetector')):
+        if cf.constants.find_one(String, lambda c: c.string.value in ('daylight_detector', 'DLDetector')):
             # Yes, it is
             listclass = superclass
             has_separate_list =-False
@@ -63,7 +63,7 @@ class TileEntityTopping(Topping):
                 if isinstance(const, ConstantClass):
                     # Used before 1.13
                     tmp["class"] = const.name.value
-                elif isinstance(const, ConstantString):
+                elif isinstance(const, String):
                     tmp["name"] = const.string.value
             elif ins.mnemonic == "invokedynamic":
                 # Used after 1.13
@@ -95,7 +95,7 @@ class TileEntityTopping(Topping):
                     assert num_getstatic <= num_maps
                 elif ins.mnemonic in ("ldc", "ldc_w") and num_getstatic != 0:
                     const = tag_cf.constants.get(ins.operands[0].value)
-                    if isinstance(const, ConstantString):
+                    if isinstance(const, String):
                         stack.append(const.string.value)
                 elif ins.mnemonic == "invokeinterface":
                     if len(stack) != 2:

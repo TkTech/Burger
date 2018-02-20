@@ -24,7 +24,7 @@ THE SOFTWARE.
 
 from .topping import Topping
 
-from jawa.constants import ConstantString
+from jawa.constants import String
 
 import traceback
 
@@ -76,7 +76,7 @@ def identify(classloader, class_file):
         (['has invalidly named property'], 'blockstatecontainer'),
         (['Someone\'s been tampering with the universe!'], 'enumfacing.plane')
     )
-    for c in class_file.constants.find(ConstantString):
+    for c in class_file.constants.find(String):
         value = c.string.value
         for match_list, match_name in matches:
             exact = False
