@@ -28,6 +28,48 @@ from jawa.constants import String
 
 import traceback
 
+# We can identify almost every class we need just by
+# looking for consistent strings.
+MATCHES = (
+    (['Accessed Biomes before Bootstrap!'], 'biome.list'),  # 1.9 only
+    ((['Ice Plains', 'ice_flats'], True), 'biome.superclass'),
+    (['Accessed Blocks before Bootstrap!'], 'block.list'),
+    (['lightgem', 'Block{'], 'block.superclass'),
+    (['Skipping Entity with id'], 'entity.list'),
+    (['Fetching addPacket for removed entity'], 'entity.trackerentry'),
+    (['Accessed Items before Bootstrap!'], 'item.list'),
+    (['yellowDust', 'CB3F55D3-645C-4F38-A497-9C13A33DB5CF'], 'item.superclass'),
+    (['#%04d/%d%s', 'attribute.modifier.equals.'], 'itemstack'),
+    (['disconnect.lost'], 'nethandler.client'),
+    (['Outdated server!', 'multiplayer.disconnect.outdated_client'],
+        'nethandler.server'),
+    (['Corrupt NBT tag'], 'nbtcompound'),
+    ([' is already assigned to protocol '], 'packet.connectionstate'),
+    (
+        ['The received encoded string buffer length is ' \
+        'less than zero! Weird string!'],
+        'packet.packetbuffer'
+    ),
+    (['Data value id is too big'], 'metadata'),
+    (['X#X'], 'recipe.superclass'),
+    (['Accessed Sounds before Bootstrap!'], 'sounds.list'),
+    (['Skipping BlockEntity with id '], 'tileentity.superclass'),
+    (
+        ['Unable to resolve BlockEntity for ItemInstance:',
+        'Unable to resolve BlockEntity for ItemStack:'],
+        'tileentity.blockentitytag'
+    ),
+    (
+        ['ThreadedAnvilChunkStorage ({}): All chunks are saved'],
+        'anvilchunkloader'
+    ),
+    (['has invalidly named property'], 'blockstatecontainer'),
+    (['Someone\'s been tampering with the universe!'], 'enumfacing.plane')
+)
+
+# In some cases there really isn't a good way to verify that it's a specific
+# class and we need to just depend on it coming first (bad!)
+IGNORE_DUPLICATES = [ "biome.superclass" ]
 
 def identify(classloader, class_file):
     """
@@ -38,47 +80,9 @@ def identify(classloader, class_file):
     check for known signatures and predictable constants. In the next pass,
     we'll have the initial mapping from this pass available to us.
     """
-    # We can identify almost every class we need just by
-    # looking for consistent strings.
-    matches = (
-        (['Accessed Biomes before Bootstrap!'], 'biome.list'),  # 1.9 only
-        ((['Ice Plains'], True), 'biome.superclass'),
-        (['Accessed Blocks before Bootstrap!'], 'block.list'),
-        (['lightgem', 'Block{'], 'block.superclass'),
-        (['Skipping Entity with id'], 'entity.list'),
-        (['Fetching addPacket for removed entity'], 'entity.trackerentry'),
-        (['Accessed Items before Bootstrap!'], 'item.list'),
-        (['yellowDust', 'CB3F55D3-645C-4F38-A497-9C13A33DB5CF'], 'item.superclass'),
-        (['#%04d/%d%s', 'attribute.modifier.equals.'], 'itemstack'),
-        (['disconnect.lost'], 'nethandler.client'),
-        (['Outdated server!', 'multiplayer.disconnect.outdated_client'],
-            'nethandler.server'),
-        (['Corrupt NBT tag'], 'nbtcompound'),
-        ([' is already assigned to protocol '], 'packet.connectionstate'),
-        (
-            ['The received encoded string buffer length is ' \
-            'less than zero! Weird string!'],
-            'packet.packetbuffer'
-        ),
-        (['Data value id is too big'], 'metadata'),
-        (['X#X'], 'recipe.superclass'),
-        (['Accessed Sounds before Bootstrap!'], 'sounds.list'),
-        (['Skipping BlockEntity with id '], 'tileentity.superclass'),
-        (
-            ['Unable to resolve BlockEntity for ItemInstance:',
-            'Unable to resolve BlockEntity for ItemStack:'],
-            'tileentity.blockentitytag'
-        ),
-        (
-            ['ThreadedAnvilChunkStorage ({}): All chunks are saved'],
-            'anvilchunkloader'
-        ),
-        (['has invalidly named property'], 'blockstatecontainer'),
-        (['Someone\'s been tampering with the universe!'], 'enumfacing.plane')
-    )
     for c in class_file.constants.find(String):
         value = c.string.value
-        for match_list, match_name in matches:
+        for match_list, match_name in MATCHES:
             exact = False
             if isinstance(match_list, tuple):
                 match_list, exact = match_list
@@ -201,18 +205,12 @@ class IdentifyTopping(Topping):
             if not path.endswith(".class"):
                 continue
 
-            try:
-                cf = classloader.load(path)
-                result = identify(classloader, cf)
-            except KeyboardInterrupt:
-                raise
-            except:
-                if verbose:
-                    print("Failed to parse %s" % path)
-                    traceback.print_exc()
-                result = None
+            cf = classloader.load(path)
+            result = identify(classloader, cf)
             if result:
                 if result[0] in classes:
+                    if result[0] in IGNORE_DUPLICATES:
+                        continue
                     raise Exception(
                             "Already registered %(value)s to %(old_class)s! "
                             "Can't overwrite it with %(new_class)s" % {
