@@ -76,8 +76,8 @@ class LanguageTopping(Topping):
     @staticmethod
     def load_language(aggregate, classloader, path, verbose=False, is_json=False):
         try:
-            # Hacky
-            contents = classloader.path_map[path].read(path).decode("utf-8")
+            with classloader.load_asset(path) as fin:
+                contents = fin.read().decode("utf-8")
         except:
             if verbose:
                 print("Can't find file %s in jar" % path)

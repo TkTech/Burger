@@ -126,7 +126,8 @@ class RecipesTopping(Topping):
             if name.startswith(prefix) and name.endswith(".json"):
                 recipe_id = "minecraft:" + name[len(prefix):-len(".json")]
                 try:
-                    data = json.loads(classloader.path_map[name].read(name))
+                    with classloader.load_asset(name) as fin:
+                        data = json.load(fin)
 
                     assert "type" in data
 
