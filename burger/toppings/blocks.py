@@ -40,13 +40,191 @@ class BlocksTopping(Topping):
         "identify.block.superclass",
         "identify.block.list",
         "language",
-        "version.protocol",
+        "version.data",
         "version.is_flattened"
     ]
 
     @staticmethod
     def act(aggregate, classloader, verbose=False):
-        return
+        if "data" in aggregate["version"] and aggregate["version"]["data"] >= 1461: # 18w02a
+            BlocksTopping._process_1point13(aggregate, classloader, verbose)
+        else:
+            BlocksTopping._process_1point12(aggregate, classloader, verbose)
+
+        # Shared logic: Go through the block list and add the field info.
+        list = aggregate["classes"]["block.list"]
+        lcf = classloader.load(list + ".class")
+
+        blocks = aggregate["blocks"]
+        block = blocks["block"]
+        block_fields = blocks["block_fields"]
+
+        # Find the static block, and load the fields for each.
+        method = lcf.methods.find_one(name="<clinit>")
+        blk_name = ""
+        for ins in method.code.disassemble(transforms=[simple_swap]):
+            if ins.mnemonic in ("ldc", "ldc_w"):
+                const = lcf.constants.get(ins.operands[0].value)
+                if isinstance(const, String):
+                    blk_name = const.string.value
+            elif ins.mnemonic == "putstatic":
+                if blk_name is None or blk_name == "Accessed Blocks before Bootstrap!":
+                    continue
+                const = lcf.constants.get(ins.operands[0].value)
+                field = const.name_and_type.name.value
+                if blk_name in block:
+                    block[blk_name]["field"] = field
+                elif verbose:
+                    print("Cannot find a block matching %s for field %s" % (blk_name, field))
+                block_fields[field] = blk_name
+
+    @staticmethod
+    def _process_1point13(aggregate, classloader, verbose):
+        # Handles versions after 1.13 (specifically >= 18w02a)
+        superclass = aggregate["classes"]["block.superclass"]
+        cf = classloader.load(superclass + ".class")
+
+        if "block" in aggregate["language"]:
+            language = aggregate["language"]["block"]
+        else:
+            language = None
+
+        # Figure out what the builder class is
+        ctor = cf.methods.find_one("<init>")
+        builder_class = ctor.args[0].name
+
+        builder_cf = classloader.load(builder_class + ".class")
+        # Sets hardness and resistance
+        hardness_setter = builder_cf.methods.find_one(args='FF')
+        # There's also one that sets both to the same value
+        hardness_setter_2 = None
+        for method in builder_cf.methods.find(args='F'):
+            for ins in method.code.disassemble(transforms=[simple_swap]):
+                if ins.mnemonic == "invokevirtual":
+                    const = builder_cf.constants.get(ins.operands[0].value)
+                    if (const.name_and_type.name.value == hardness_setter.name.value and
+                            const.name_and_type.descriptor.value == hardness_setter.descriptor.value):
+                        hardness_setter_2 = method
+                        break
+        assert hardness_setter_2 != None
+
+        blocks = aggregate.setdefault("blocks", {})
+        block = blocks.setdefault("block", {})
+        block_fields = blocks.setdefault("block_fields", {})
+        ordered_blocks = blocks.setdefault("ordered_blocks", [])
+
+        # Find the static block registration method
+        method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
+
+        stack = []
+        locals = {}
+
+        cur_id = 0
+        for ins in method.code.disassemble(transforms=[simple_swap]):
+            if ins.mnemonic.startswith("fconst"):
+                stack.append(float(ins.mnemonic[-1]))
+            elif ins.mnemonic in ("bipush", "sipush"):
+                stack.append(ins.operands[0].value)
+            elif ins.mnemonic in ("ldc", "ldc_w"):
+                const = cf.constants.get(ins.operands[0].value)
+
+                if isinstance(const, String):
+                    stack.append(const.string.value)
+                else:
+                    stack.append(const.value)
+            elif ins.mnemonic == "aconst_null":
+                stack.append(None)
+            elif ins.mnemonic == "getstatic":
+                const = cf.constants.get(ins.operands[0].value)
+                if const.class_.name.value == superclass:
+                    # Probably getting the static AIR resource location
+                    stack.append("air")
+                else:
+                    stack.append(object())
+            elif ins.mnemonic == "getfield":
+                stack.pop()
+                stack.append(object())
+            elif ins.mnemonic == "new":
+                # The beginning of a new block definition
+                const = cf.constants.get(ins.operands[0].value)
+                class_name = const.name.value
+                stack.append({"class": class_name})
+            elif ins.mnemonic in ("invokevirtual", "invokespecial", "invokeinterface"):
+                const = cf.constants.get(ins.operands[0].value)
+                method_name = const.name_and_type.name.value
+                method_desc = const.name_and_type.descriptor.value
+                desc = method_descriptor(method_desc)
+                num_args = len(desc.args)
+
+                if method_name == "hasNext":
+                    # We've reached the end of block registration
+                    # (and have started iterating over registry keys)
+                    break
+
+                args = []
+                for i in six.moves.range(num_args):
+                    args.insert(0, stack.pop())
+                obj = stack.pop()
+
+                if method_name == hardness_setter.name.value and method_desc == hardness_setter.descriptor.value:
+                    obj["hardness"] = args[0]
+                    # resistance is args[1]
+                elif method_name == hardness_setter_2.name.value and method_desc == hardness_setter_2.descriptor.value:
+                    obj["hardness"] = args[0]
+                    # resistance is args[0]
+                elif method_name == "<init>":
+                    # Call to the constructor for the block
+                    # We can't hardcode index 0 because sand has an extra parameter, so use the last one
+                    # There are also cases where it's an arg-less constructor; we don't want to do anything there.
+                    if num_args > 0:
+                        obj.update(args[-1])
+
+                if desc.returns.name != "void":
+                    if desc.returns.name == builder_class:
+                        stack.append(obj)
+                    else:
+                        stack.append(object())
+            elif ins.mnemonic == "invokestatic":
+                const = cf.constants.get(ins.operands[0].value)
+                method_name = const.name_and_type.name.value
+                method_desc = const.name_and_type.descriptor.value
+                desc = method_descriptor(method_desc)
+                num_args = len(desc.args)
+
+                args = []
+                for i in six.moves.range(num_args):
+                    args.insert(0, stack.pop())
+
+                if const.class_.name.value == superclass:
+                    # Call to the static register method.
+                    text_id = args[0]
+                    current_block = args[1]
+                    current_block["text_id"] = text_id
+                    current_block["numeric_id"] = cur_id
+                    cur_id += 1
+                    lang_key = "minecraft.%s" % text_id
+                    if language != None and lang_key in language:
+                        current_block["display_name"] = language[lang_key]
+                    block[text_id] = current_block
+                    ordered_blocks.append(text_id)
+                elif const.class_.name.value == builder_class:
+                    if desc.args[0].name == superclass: # Copy constructor
+                        stack.append(dict(args[0]))
+                    else:
+                        stack.append({}) # Append current block
+            elif ins.mnemonic == "astore":
+                locals[ins.operands[0].value] = stack.pop()
+            elif ins.mnemonic == "aload":
+                stack.append(locals[ins.operands[0].value])
+            elif ins.mnemonic == "dup":
+                stack.append(stack[-1])
+            else:
+                if verbose:
+                    print("Unhandled instruction %s" % str(ins))
+
+    @staticmethod
+    def _process_1point12(aggregate, classloader, verbose):
+        # Handles versions prior to 1.13
         superclass = aggregate["classes"]["block.superclass"]
         cf = classloader.load(superclass + ".class")
 
@@ -267,31 +445,3 @@ class BlocksTopping(Topping):
 
             ordered_blocks.append(final["text_id"])
             block[final["text_id"]] = final
-
-        # Go through the block list and add the field info.
-        list = aggregate["classes"]["block.list"]
-        lcf = classloader.load(list + ".class")
-
-        # Find the static block, and load the fields for each.
-        method = lcf.methods.find_one(name="<clinit>")
-        blk_name = ""
-        for ins in method.code.disassemble(transforms=[simple_swap]):
-            if ins.mnemonic in ("ldc", "ldc_w"):
-                const = lcf.constants.get(ins.operands[0].value)
-                if isinstance(const, String):
-                    blk_name = const.string.value
-            elif ins.mnemonic == "putstatic":
-                if blk_name is None or blk_name == "Accessed Blocks before Bootstrap!":
-                    continue
-                const = lcf.constants.get(ins.operands[0].value)
-                field = const.name_and_type.name.value
-                if blk_name in block:
-                    block[blk_name]["field"] = field
-                elif verbose:
-                    print("Cannot find a block matching %s for field %s" % (blk_name, field))
-                block_fields[field] = blk_name
-
-        blocks["info"] = {
-            "count": len(block),
-            "real_count": len(tmp)
-        }

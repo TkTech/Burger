@@ -36,7 +36,6 @@ class BlockStateTopping(Topping):
 
     @staticmethod
     def act(aggregate, classloader, verbose=False):
-        return
         if "blockstatecontainer" not in aggregate["classes"]:
             if verbose:
                 print("blockstatecontainer not found; skipping blockstates")
