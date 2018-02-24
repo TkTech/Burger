@@ -57,7 +57,7 @@ class BlocksTopping(Topping):
 
         blocks = aggregate["blocks"]
         block = blocks["block"]
-        block_fields = blocks["block_fields"]
+        block_fields = blocks.setdefault("block_fields", {})
 
         # Find the static block, and load the fields for each.
         method = lcf.methods.find_one(name="<clinit>")
@@ -121,7 +121,6 @@ class BlocksTopping(Topping):
 
         blocks = aggregate.setdefault("blocks", {})
         block = blocks.setdefault("block", {})
-        block_fields = blocks.setdefault("block_fields", {})
         ordered_blocks = blocks.setdefault("ordered_blocks", [])
 
         # Find the static block registration method
@@ -264,7 +263,6 @@ class BlocksTopping(Topping):
 
         blocks = aggregate.setdefault("blocks", {})
         block = blocks.setdefault("block", {})
-        block_fields = blocks.setdefault("block_fields", {})
         ordered_blocks = blocks.setdefault("ordered_blocks", [])
         tmp = []
 
