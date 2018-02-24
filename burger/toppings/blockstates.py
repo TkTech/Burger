@@ -19,6 +19,10 @@ class Plane:
 HORIZONTAL = Plane(["NORTH", "EAST", "SOUTH", "WEST"])
 VERTICAL = Plane(["UP", "DOWN"])
 PLANES = { "HORIZONTAL": HORIZONTAL, "VERTICAL": VERTICAL }
+
+# Classes that represent predicates in various versions
+PREDICATE_CLASSES = ("com/google/common/base/Predicate", "java/util/function/Predicate")
+
 class BlockStateTopping(Topping):
     """Gets tile entity (block entity) types."""
 
@@ -312,9 +316,10 @@ class BlockStateTopping(Topping):
                 elif ins.mnemonic == "dup":
                     stack.append(stack[-1])
                 elif ins.mnemonic == "invokedynamic":
-                    # TODO: Pop the right number of arguments
-                    # Actually counting that would be hard, so just assume none
-                    stack.append(object())
+                    # Try to get the class that's being created
+                    const = cf.constants.get(ins.operands[0].value)
+                    desc = method_descriptor(const.name_and_type.descriptor.value)
+                    stack.append({"dynamic_class": desc.returns.name, "class": cls})
                 elif ins.mnemonic.startswith("invoke"):
                     const = cf.constants.get(ins.operands[0].value)
                     desc = method_descriptor(const.name_and_type.descriptor.value)
@@ -448,9 +453,17 @@ class BlockStateTopping(Topping):
                 values = [c["enum_name"] for c in args[2]]
             elif isinstance(args[2], dict):
                 # Possibly a predicate (used for powered and activator rails)
-                cf = classloader.load(args[2]["class"] + ".class")
-                if len(cf.interfaces) == 1 and cf.interfaces[0].name.value == "com/google/common/base/Predicate":
-                    ret["predicate"] = args[2]["class"]
+                if "dynamic_class" in args[2]:
+                    predicate_type = args[2]["dynamic_class"]
+                    predicate_class = args[2]["dynamic_class"]
+                else:
+                    cf = classloader.load(args[2]["class"] + ".class")
+                    if len(cf.interfaces) == 1:
+                        predicate_type = cf.interfaces[0].name.value
+                        predicate_class = args[2]["class"]
+
+                if predicate_type in PREDICATE_CLASSES:
+                    ret["predicate"] = predicate_class
                     # Will be trimmed later
                     values = [c["enum_name"] for c
                           in six.itervalues(find_field(class_name, None))
@@ -487,9 +500,17 @@ class BlockStateTopping(Topping):
                 values = args[1].directions
             elif isinstance(args[1], dict):
                 # Possibly a predicate (used for hoppers)
-                cf = classloader.load(args[1]["class"] + ".class")
-                if len(cf.interfaces) == 1 and cf.interfaces[0].name.value == "com/google/common/base/Predicate":
-                    ret["predicate"] = args[1]["class"]
+                if "dynamic_class" in args[1]:
+                    predicate_type = args[1]["dynamic_class"]
+                    predicate_class = args[1]["dynamic_class"]
+                else:
+                    cf = classloader.load(args[1]["class"] + ".class")
+                    if len(cf.interfaces) == 1:
+                        predicate_type = cf.interfaces[0].name.value
+                        predicate_class = args[1]["class"]
+
+                if predicate_type in PREDICATE_CLASSES:
+                    ret["predicate"] = predicate_class
                     # Will be filled in later
                     values = ["DOWN", "UP", "NORTH", "SOUTH", "EAST", "WEST"]
                 elif verbose:

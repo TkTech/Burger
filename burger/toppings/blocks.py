@@ -107,6 +107,17 @@ class BlocksTopping(Topping):
                         hardness_setter_2 = method
                         break
         assert hardness_setter_2 != None
+        # ... and one that sets them both to 0
+        hardness_setter_3 = None
+        for method in builder_cf.methods.find(args=''):
+            for ins in method.code.disassemble(transforms=[simple_swap]):
+                if ins.mnemonic == "invokevirtual":
+                    const = builder_cf.constants.get(ins.operands[0].value)
+                    if (const.name_and_type.name.value == hardness_setter_2.name.value and
+                            const.name_and_type.descriptor.value == hardness_setter_2.descriptor.value):
+                        hardness_setter_3 = method
+                        break
+        assert hardness_setter_3 != None
 
         blocks = aggregate.setdefault("blocks", {})
         block = blocks.setdefault("block", {})
@@ -148,7 +159,8 @@ class BlocksTopping(Topping):
                 # The beginning of a new block definition
                 const = cf.constants.get(ins.operands[0].value)
                 class_name = const.name.value
-                stack.append({"class": class_name})
+                tmp = {"class": class_name}
+                stack.append(tmp)
             elif ins.mnemonic in ("invokevirtual", "invokespecial", "invokeinterface"):
                 const = cf.constants.get(ins.operands[0].value)
                 method_name = const.name_and_type.name.value
@@ -172,6 +184,9 @@ class BlocksTopping(Topping):
                 elif method_name == hardness_setter_2.name.value and method_desc == hardness_setter_2.descriptor.value:
                     obj["hardness"] = args[0]
                     # resistance is args[0]
+                elif method_name == hardness_setter_3.name.value and method_desc == hardness_setter_3.descriptor.value:
+                    obj["hardness"] = 0.0
+                    # resistance is 0.0
                 elif method_name == "<init>":
                     # Call to the constructor for the block
                     # We can't hardcode index 0 because sand has an extra parameter, so use the last one
@@ -209,7 +224,13 @@ class BlocksTopping(Topping):
                     ordered_blocks.append(text_id)
                 elif const.class_.name.value == builder_class:
                     if desc.args[0].name == superclass: # Copy constructor
-                        stack.append(dict(args[0]))
+                        copy = dict(args[0])
+                        del copy["text_id"]
+                        del copy["numeric_id"]
+                        del copy["class"]
+                        if "display_name" in copy:
+                            del copy["display_name"]
+                        stack.append(copy)
                     else:
                         stack.append({}) # Append current block
             elif ins.mnemonic == "astore":
