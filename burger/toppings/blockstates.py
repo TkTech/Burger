@@ -227,6 +227,8 @@ class BlockStateTopping(Topping):
             """
             if cls in fields_by_class:
                 if field_name is not None:
+                    if field_name not in fields_by_class[cls] and verbose:
+                        print("Requested field %s.%s but that wasn't found last time" % (cls, field_name))
                     return fields_by_class[cls][field_name]
                 else:
                     return fields_by_class[cls]
@@ -251,16 +253,24 @@ class BlockStateTopping(Topping):
 
             stack = []
             locals = {}
+            # After certain calls, we're no longer storing properties.
+            # But, we still want to assign values for remaining fields;
+            # go through and put None in, only looking at putstatic.
+            ignore_remaining = False
+
             for ins in init.code.disassemble(transforms=[simple_swap]):
                 if ins.mnemonic == "putstatic":
                     const = cf.constants.get(ins.operands[0].value)
                     name = const.name_and_type.name.value
-                    value = stack.pop()
+                    if ignore_remaining:
+                        value = None
+                    else:
+                        value = stack.pop()
 
                     if isinstance(value, dict):
                         if "declared_in" not in value:
                             # If there's already a declared_in, this is a field
-                            # loaded with getstatic, and we don't wnat to change
+                            # loaded with getstatic, and we don't want to change
                             # the true location of it
                             value["declared_in"] = cls
                         if value["class"] == plane:
@@ -272,6 +282,8 @@ class BlockStateTopping(Topping):
                             assert value["enum_name"] in PLANES
                             value = PLANES[value["enum_name"]]
                     fields_by_class[cls][name] = value
+                elif ignore_remaining:
+                    continue
                 elif ins.mnemonic == "getstatic":
                     const = cf.constants.get(ins.operands[0].value)
                     target = const.class_.name.value
@@ -331,7 +343,8 @@ class BlockStateTopping(Topping):
                         if const.class_.name.value.startswith("com/google/"):
                             # Call to e.g. Maps.newHashMap, beyond what we
                             # care about
-                            break
+                            ignore_remaining = True
+                            continue
                         obj = None
                     else:
                         obj = stack.pop()
