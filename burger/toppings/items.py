@@ -25,7 +25,6 @@ THE SOFTWARE.
 from .topping import Topping
 
 from jawa.constants import *
-from jawa.util.descriptor import method_descriptor
 from jawa.transforms.simple_swap import simple_swap
 
 import six
@@ -87,13 +86,6 @@ class ItemsTopping(Topping):
         else:
             language = None
 
-        # Figure out what the builder class is
-        ctor = cf.methods.find_one("<init>")
-        if len(ctor.args) > 0:
-            builder_class = ctor.args[0].name
-        else:
-            builder_class = None
-
         string_setter = cf.methods.find_one(returns="L" + superclass + ";",
                 args="Ljava/lang/String;",
                 f=lambda x: not x.access_flags.acc_static)
@@ -105,6 +97,9 @@ class ItemsTopping(Topping):
             name_setter = None
 
         register_item_block_method = cf.methods.find_one(args='L' + blockclass + ';', returns="V")
+        register_item_block_method_custom = cf.methods.find_one(args='L' + blockclass + ';L' + superclass + ';', returns="V")
+        register_item_method = cf.methods.find_one(args='ILjava/lang/String;L' + superclass + ';', returns="V") \
+                or cf.methods.find_one(args='Ljava/lang/String;L' + superclass + ';', returns="V")
 
         item_block_class = None
         # Find the class used that represents an item that is a block
@@ -115,25 +110,17 @@ class ItemsTopping(Topping):
                 break
 
         stack = []
-        locals = {}
         current_item = {
             "class": None,
             "calls": {}
         }
         tmp = []
 
-        # Mapping from constant ID to boolean, true if it's registration
-        register_item_method_cache = {}
-
         for ins in method.code.disassemble(transforms=[simple_swap]):
             if ins.mnemonic == "new":
-                # The beginning of a new item definition
+                # The beginning of a new block definition
                 const = cf.constants.get(ins.operands[0].value)
                 class_name = const.name.value
-
-                if class_name == builder_class:
-                    # We don't care about calling the builder constructor
-                    continue
 
                 class_file = classloader.load(class_name + ".class")
                 if class_file.super_.name.value == "java/lang/Object":
@@ -177,26 +164,6 @@ class ItemsTopping(Topping):
                     stack.append(const.string.value)
                 else:
                     stack.append(const.value)
-            elif ins.mnemonic == "astore":
-                locals[ins.operands[0].value] = current_item
-                current_item = None
-            elif ins.mnemonic == "aload":
-                if not current_item:
-                    current_item = locals[ins.operands[0].value]
-                    if len(stack) == 2:
-                        # If the block is constructed in the registration method,
-                        # like `registerBlock(1, "stone", (new BlockStone()))`, then
-                        # the parameters are pushed onto the stack before the
-                        # constructor is called.
-                        current_item["numeric_id"] = stack[0]
-                        current_item["text_id"] = stack[1]
-                    elif len(stack) == 1:
-                        if isinstance(stack[0], six.string_types):
-                            current_item["text_id"] = stack[0]
-                        else:
-                            # Assuming this is a field set via getstatic
-                            add_block_info_to_item(stack[0], current_item)
-                    stack = []
             elif ins.mnemonic in ("invokevirtual", "invokespecial"):
                 # A method invocation
                 const = cf.constants.get(ins.operands[0].value)
@@ -210,38 +177,36 @@ class ItemsTopping(Topping):
                 #TODO: Is this the right way to represent a field on the stack?
                 stack.append({"class": const.class_.name.value,
                         "name": const.name_and_type.name.value})
-                if current_item == None and const.class_.name.value == blocklist:
-                    current_item = {
-                        "class": item_block_class,
-                        "calls": {}
-                    }
-                    add_block_info_to_item(stack[0], current_item)
             elif ins.mnemonic == "invokestatic":
                 const = cf.constants.get(ins.operands[0].value)
-                if const.class_.name.value != superclass:
-                    # e.g. a call to a static synthetic method to call a private method in an inner class...
-                    method_name = const.name_and_type.name.value
-                    method_desc = const.name_and_type.descriptor.value
-                    current_item["calls"][method_name] = stack
-                    current_item["calls"][method_name + method_desc] = stack
-                    stack = []
-                    continue
-
-                if const.index in register_item_method_cache:
-                    if not register_item_method_cache[const.index]:
-                        continue
-                else:
-                    desc = method_descriptor(const.name_and_type.descriptor.value)
-                    is_register = False
-                    for arg in desc.args:
-                        if arg.name in (blockclass, superclass):
-                            is_register = True
-                            break
-                    register_item_method_cache[const.index] = is_register
+                name_index = const.name_and_type.name.index
+                descriptor_index = const.name_and_type.descriptor.index
+                if name_index == register_item_block_method.name.index and descriptor_index == register_item_block_method.descriptor.index:
+                    current_item["register_method"] = "block"
+                    current_item["class"] = item_block_class
+                    if len(stack) == 1:
+                        # Assuming this is a field set via getstatic
+                        add_block_info_to_item(stack[0], current_item)
+                elif name_index == register_item_block_method_custom.name.index and descriptor_index == register_item_block_method_custom.descriptor.index:
+                    current_item["register_method"] = "block_and_item"
+                    # Other information was set at 'new'
+                elif name_index == register_item_method.name.index and descriptor_index == register_item_method.descriptor.index:
+                    current_item["register_method"] = "item"
+                    # Some items are constructed as a method variable rather
+                    # than directly in the registration method; thus the
+                    # paremters are set here.
+                    if len(stack) == 2:
+                        current_item["numeric_id"] = stack[0]
+                        current_item["text_id"] = stack[1]
+                    elif len(stack) == 1:
+                        current_item["text_id"] = stack[0]
 
                 stack = []
                 tmp.append(current_item)
-                current_item = None
+                current_item = {
+                    "class": None,
+                    "calls": {}
+                }
 
         if is_flattened:
             # Current IDs are incremental, manually track them
@@ -252,9 +217,11 @@ class ItemsTopping(Topping):
                 init_one_block = "<init>(L" + blockclass + ";)V"
                 init_two_blocks = "<init>(L" + blockclass + ";L" + blockclass + ";)V"
                 if init_one_block in item["calls"]:
+                    item["register_method"] = "itemblock"
                     add_block_info_to_item(item["calls"][init_one_block][0], item)
                 elif init_two_blocks in item["calls"]:
                     # Skulls use this
+                    item["register_method"] = "itemblock2"
                     add_block_info_to_item(item["calls"][init_two_blocks][0], item)
                 else:
                     if verbose:
@@ -278,6 +245,7 @@ class ItemsTopping(Topping):
 
             if "text_id" in item:
                 final["text_id"] = item["text_id"]
+            final["register_method"] = item["register_method"]
             final["class"] = item["class"]
 
             if "name" in item:
@@ -313,9 +281,10 @@ class ItemsTopping(Topping):
             elif ins.mnemonic == "putstatic":
                 const = lcf.constants.get(ins.operands[0].value)
                 field = const.name_and_type.name.value
-                if item_name in item_list:
-                    item_list[item_name]["field"] = field
-                elif verbose:
-                    print("Item found in item list, but not known: %s = %s" % (item_name, field))
+                item_list[item_name]["field"] = field
                 item_fields[field] = item_name
 
+        items["info"] = {
+            "count": len(item_list),
+            "real_count": len(tmp)
+        }
