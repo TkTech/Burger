@@ -165,7 +165,7 @@ def walk_method(cf, method, callback, verbose):
             stack.append(locals[ins.operands[0].value])
         elif ins.mnemonic == "dup":
             stack.append(stack[-1])
-        elif ins.mnemonic == "checkcast":
+        elif ins.mnemonic in ("checkcast", "return"):
             pass
         elif verbose:
             print("Unknown instruction %s: stack is %s" % (ins, stack))
