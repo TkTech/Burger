@@ -189,7 +189,12 @@ class ItemsTopping(Topping):
                                 # obj.update(args[idx]) # there's nothing of value here
                                 pass
                             elif arg.name == blockclass and "text_id" not in obj:
-                                obj["text_id"] = args[idx]["text_id"]
+                                block = args[idx]
+                                obj["text_id"] = block["text_id"]
+                                if "name" in block:
+                                    obj["name"] = block["name"]
+                                if "display_name" in block:
+                                    obj["display_name"] = block["display_name"]
                             idx += 1
 
                 if desc.returns.name != "void":
