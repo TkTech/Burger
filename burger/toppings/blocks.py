@@ -27,6 +27,8 @@ from jawa.constants import *
 from jawa.util.descriptor import method_descriptor
 from jawa.transforms.simple_swap import simple_swap
 
+from burger.util import WalkerCallback, walk_method
+
 import six.moves
 
 class BlocksTopping(Topping):
@@ -126,121 +128,81 @@ class BlocksTopping(Topping):
         # Find the static block registration method
         method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
 
-        stack = []
-        locals = {}
+        class Walker(WalkerCallback):
+            def __init__(self):
+                self.cur_id = 0
 
-        cur_id = 0
-        for ins in method.code.disassemble(transforms=[simple_swap]):
-            if ins.mnemonic.startswith("fconst"):
-                stack.append(float(ins.mnemonic[-1]))
-            elif ins.mnemonic in ("bipush", "sipush"):
-                stack.append(ins.operands[0].value)
-            elif ins.mnemonic in ("ldc", "ldc_w"):
-                const = cf.constants.get(ins.operands[0].value)
+            def on_new(self, ins, const):
+                class_name = const.name.value
+                return {"class": class_name}
 
-                if isinstance(const, String):
-                    stack.append(const.string.value)
+            def on_invoke(self, ins, const, obj, args):
+                method_name = const.name_and_type.name.value
+                method_desc = const.name_and_type.descriptor.value
+                desc = method_descriptor(method_desc)
+
+                if ins.mnemonic == "invokestatic":
+                    if const.class_.name.value == superclass:
+                        # Call to the static register method.
+                        text_id = args[0]
+                        current_block = args[1]
+                        current_block["text_id"] = text_id
+                        current_block["numeric_id"] = self.cur_id
+                        self.cur_id += 1
+                        lang_key = "minecraft.%s" % text_id
+                        if language != None and lang_key in language:
+                            current_block["display_name"] = language[lang_key]
+                        block[text_id] = current_block
+                        ordered_blocks.append(text_id)
+                    elif const.class_.name.value == builder_class:
+                        if desc.args[0].name == superclass: # Copy constructor
+                            copy = dict(args[0])
+                            del copy["text_id"]
+                            del copy["numeric_id"]
+                            del copy["class"]
+                            if "display_name" in copy:
+                                del copy["display_name"]
+                            return copy
+                        else:
+                            return {} # Append current block
                 else:
-                    stack.append(const.value)
-            elif ins.mnemonic == "aconst_null":
-                stack.append(None)
-            elif ins.mnemonic == "getstatic":
-                const = cf.constants.get(ins.operands[0].value)
+                    if method_name == "hasNext":
+                        # We've reached the end of block registration
+                        # (and have started iterating over registry keys)
+                        raise StopIteration()
+
+                    if method_name == hardness_setter.name.value and method_desc == hardness_setter.descriptor.value:
+                        obj["hardness"] = args[0]
+                        # resistance is args[1]
+                    elif method_name == hardness_setter_2.name.value and method_desc == hardness_setter_2.descriptor.value:
+                        obj["hardness"] = args[0]
+                        # resistance is args[0]
+                    elif method_name == hardness_setter_3.name.value and method_desc == hardness_setter_3.descriptor.value:
+                        obj["hardness"] = 0.0
+                        # resistance is 0.0
+                    elif method_name == "<init>":
+                        # Call to the constructor for the block
+                        # We can't hardcode index 0 because sand has an extra parameter, so use the last one
+                        # There are also cases where it's an arg-less constructor; we don't want to do anything there.
+                        if len(args) > 0:
+                            obj.update(args[-1])
+
+                    if desc.returns.name == builder_class:
+                        return obj
+                    elif desc.returns.name != "void":
+                        return object()
+
+            def on_get_field(self, ins, const, obj):
                 if const.class_.name.value == superclass:
                     # Probably getting the static AIR resource location
-                    stack.append("air")
+                    return "air"
                 else:
-                    stack.append(object())
-            elif ins.mnemonic == "getfield":
-                stack.pop()
-                stack.append(object())
-            elif ins.mnemonic == "new":
-                # The beginning of a new block definition
-                const = cf.constants.get(ins.operands[0].value)
-                class_name = const.name.value
-                tmp = {"class": class_name}
-                stack.append(tmp)
-            elif ins.mnemonic in ("invokevirtual", "invokespecial", "invokeinterface"):
-                const = cf.constants.get(ins.operands[0].value)
-                method_name = const.name_and_type.name.value
-                method_desc = const.name_and_type.descriptor.value
-                desc = method_descriptor(method_desc)
-                num_args = len(desc.args)
+                    return object()
 
-                if method_name == "hasNext":
-                    # We've reached the end of block registration
-                    # (and have started iterating over registry keys)
-                    break
+            def on_put_field(self, ins, const, obj, value):
+                raise Exception("unexpected putfield: %s" % ins)
 
-                args = []
-                for i in six.moves.range(num_args):
-                    args.insert(0, stack.pop())
-                obj = stack.pop()
-
-                if method_name == hardness_setter.name.value and method_desc == hardness_setter.descriptor.value:
-                    obj["hardness"] = args[0]
-                    # resistance is args[1]
-                elif method_name == hardness_setter_2.name.value and method_desc == hardness_setter_2.descriptor.value:
-                    obj["hardness"] = args[0]
-                    # resistance is args[0]
-                elif method_name == hardness_setter_3.name.value and method_desc == hardness_setter_3.descriptor.value:
-                    obj["hardness"] = 0.0
-                    # resistance is 0.0
-                elif method_name == "<init>":
-                    # Call to the constructor for the block
-                    # We can't hardcode index 0 because sand has an extra parameter, so use the last one
-                    # There are also cases where it's an arg-less constructor; we don't want to do anything there.
-                    if num_args > 0:
-                        obj.update(args[-1])
-
-                if desc.returns.name != "void":
-                    if desc.returns.name == builder_class:
-                        stack.append(obj)
-                    else:
-                        stack.append(object())
-            elif ins.mnemonic == "invokestatic":
-                const = cf.constants.get(ins.operands[0].value)
-                method_name = const.name_and_type.name.value
-                method_desc = const.name_and_type.descriptor.value
-                desc = method_descriptor(method_desc)
-                num_args = len(desc.args)
-
-                args = []
-                for i in six.moves.range(num_args):
-                    args.insert(0, stack.pop())
-
-                if const.class_.name.value == superclass:
-                    # Call to the static register method.
-                    text_id = args[0]
-                    current_block = args[1]
-                    current_block["text_id"] = text_id
-                    current_block["numeric_id"] = cur_id
-                    cur_id += 1
-                    lang_key = "minecraft.%s" % text_id
-                    if language != None and lang_key in language:
-                        current_block["display_name"] = language[lang_key]
-                    block[text_id] = current_block
-                    ordered_blocks.append(text_id)
-                elif const.class_.name.value == builder_class:
-                    if desc.args[0].name == superclass: # Copy constructor
-                        copy = dict(args[0])
-                        del copy["text_id"]
-                        del copy["numeric_id"]
-                        del copy["class"]
-                        if "display_name" in copy:
-                            del copy["display_name"]
-                        stack.append(copy)
-                    else:
-                        stack.append({}) # Append current block
-            elif ins.mnemonic == "astore":
-                locals[ins.operands[0].value] = stack.pop()
-            elif ins.mnemonic == "aload":
-                stack.append(locals[ins.operands[0].value])
-            elif ins.mnemonic == "dup":
-                stack.append(stack[-1])
-            else:
-                if verbose:
-                    print("Unhandled instruction %s" % str(ins))
+        walk_method(cf, method, Walker(), verbose)
 
     @staticmethod
     def _process_1point12(aggregate, classloader, verbose):
