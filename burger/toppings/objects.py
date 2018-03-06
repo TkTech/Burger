@@ -46,7 +46,6 @@ class ObjectTopping(Topping):
 
     @staticmethod
     def act(aggregate, classloader, verbose=False):
-        return
         if "entity.trackerentry" not in aggregate["classes"] or "nethandler.client" not in aggregate["classes"]:
             return
 
