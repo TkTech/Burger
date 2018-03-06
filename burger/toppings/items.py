@@ -161,7 +161,7 @@ class ItemsTopping(Topping):
                                 text_id = args[idx]
                             idx += 1
 
-                        if current_item == {}:
+                        if current_item == {} and not text_id:
                             if verbose:
                                 print("Couldn't find any identifying information for the call to %s with %s" % (method_desc, args))
                             return
