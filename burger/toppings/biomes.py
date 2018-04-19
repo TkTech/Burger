@@ -40,7 +40,8 @@ class BiomeTopping(Topping):
     DEPENDS = [
         "identify.biome.superclass",
         "identify.biome.list",
-        "version.data"
+        "version.data",
+        "language"
     ]
 
     @staticmethod
@@ -379,7 +380,13 @@ class BiomeTopping(Topping):
                         str_count += 1
                     last = None
 
-        # 3rd pass: go through the biome list and add the field info.
+        # 3rd pass: add biome display names if needed
+        for biome in six.itervalues(biomes):
+            if "name" in biome:
+                continue
+            biome["name"] = aggregate["language"]["biome"]["minecraft." + biome["text_id"]]
+
+        # 4th pass: go through the biome list and add the field info.
         list = aggregate["classes"]["biome.list"]
         lcf = classloader.load(list + ".class")
 
