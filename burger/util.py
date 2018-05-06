@@ -94,7 +94,7 @@ def walk_method(cf, method, callback, verbose):
     for ins in method.code.disassemble():
         if ins.mnemonic in ("bipush", "sipush"):
             stack.append(ins.operands[0].value)
-        elif ins.mnemonic.startswith("fconst") or ins.mnemonic.startswith("fconst") :
+        elif ins.mnemonic.startswith("fconst"):
             stack.append(float(ins.mnemonic[-1]))
         elif ins.mnemonic == "aconst_null":
             stack.append(None)
