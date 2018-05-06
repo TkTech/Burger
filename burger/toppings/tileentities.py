@@ -34,7 +34,7 @@ class TileEntityTopping(Topping):
             return
 
         superclass = aggregate["classes"]["tileentity.superclass"]
-        cf = classloader.load(superclass + ".class")
+        cf = classloader[superclass]
 
         # First, figure out whether this is a version where the TE superclass
         # is also the TE list.
@@ -47,7 +47,7 @@ class TileEntityTopping(Topping):
             method = cf.methods.find_one(name="<init>")
             assert len(method.args) == 1
             listclass = method.args[0].name
-            cf = classloader.load(listclass + ".class")
+            cf = classloader[listclass]
             has_separate_list = True
 
         aggregate["classes"]["tileentity.list"] = listclass
@@ -77,8 +77,8 @@ class TileEntityTopping(Topping):
 
         if "tileentity.blockentitytag" in aggregate["classes"]:
             # Block entity tag matches block names to tile entities.
-            tag = aggregate["classes"]["tileentity.blockentitytag"] + ".class"
-            tag_cf = classloader.load(tag)
+            tag = aggregate["classes"]["tileentity.blockentitytag"]
+            tag_cf = classloader[tag]
             method = tag_cf.methods.find_one(name="<clinit>")
 
             stack = []
@@ -154,8 +154,8 @@ class TileEntityTopping(Topping):
                 return
 
             te["update_packet"] = updatepacket
-            nethandler = aggregate["classes"]["nethandler.client"] + ".class"
-            nethandler_cf = classloader.load(nethandler)
+            nethandler = aggregate["classes"]["nethandler.client"]
+            nethandler_cf = classloader[nethandler]
 
             updatepacket_name = updatepacket["class"].replace(".class", "")
 

@@ -221,7 +221,7 @@ class RecipesTopping(Topping):
         if verbose:
             print("Extracting recipes from %s" % superclass)
 
-        cf = classloader.load(superclass + ".class")
+        cf = classloader[superclass]
 
         # Find the constructor
         method = cf.methods.find_one(

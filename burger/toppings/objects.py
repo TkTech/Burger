@@ -53,7 +53,7 @@ class ObjectTopping(Topping):
         # Find the spawn object packet ID using EntityTrackerEntry.createSpawnPacket
         # (which handles other spawn packets too, but the first item in it is correct)
         entitytrackerentry = aggregate["classes"]["entity.trackerentry"]
-        entitytrackerentry_cf = classloader.load(entitytrackerentry + ".class")
+        entitytrackerentry_cf = classloader[entitytrackerentry]
 
         createspawnpacket_method = entitytrackerentry_cf.methods.find_one(args="",
                 f=lambda x: x.access_flags.acc_private and not x.access_flags.acc_static and not x.returns.name == "void")
@@ -91,7 +91,7 @@ class ObjectTopping(Topping):
 
         # Now find the spawn object packet handler and use it to figure out IDs
         nethandler = aggregate["classes"]["nethandler.client"]
-        nethandler_cf = classloader.load(nethandler + ".class")
+        nethandler_cf = classloader[nethandler]
         method = nethandler_cf.methods.find_one(args="L" + packet_class_name + ";")
 
         potential_id = 0
@@ -117,7 +117,7 @@ class ObjectTopping(Topping):
                 o["entity"] = copy(classes[o["class"]])
                 del o["entity"]["class"]
             else:
-                cf = classloader.load(o["class"] + ".class")
+                cf = classloader[o["class"]]
                 size = EntityTopping.size(cf)
                 if size:
                     o["entity"] = {"width": size[0], "height": size[1]}

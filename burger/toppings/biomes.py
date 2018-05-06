@@ -63,7 +63,7 @@ class BiomeTopping(Topping):
         biome_fields = biomes_base.setdefault("biome_fields", {})
 
         superclass = aggregate["classes"]["biome.superclass"]
-        cf = classloader.load(superclass + ".class")
+        cf = classloader[superclass]
         
         mutate_method_desc = None
         mutate_method_name = None
@@ -194,7 +194,7 @@ class BiomeTopping(Topping):
         biome_fields = biomes_base.setdefault("biome_fields", {})
 
         superclass = aggregate["classes"]["biome.superclass"]
-        cf = classloader.load(superclass + ".class")
+        cf = classloader[superclass]
 
         method = cf.methods.find_one(returns="V", args="", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
         heights_by_field = {}
@@ -280,7 +280,7 @@ class BiomeTopping(Topping):
 
         # Go through the biome list and add the field info.
         list = aggregate["classes"]["biome.list"]
-        lcf = classloader.load(list + ".class")
+        lcf = classloader[list]
 
         # Find the static block, and load the fields for each.
         method = lcf.methods.find_one(name="<clinit>")
@@ -306,7 +306,7 @@ class BiomeTopping(Topping):
         biome_fields = biomes_base.setdefault("biome_fields", {})
 
         superclass = aggregate["classes"]["biome.superclass"]
-        cf = classloader.load(superclass + ".class")
+        cf = classloader[superclass]
 
         method = cf.methods.find_one(returns="V", args="", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
 
@@ -350,7 +350,7 @@ class BiomeTopping(Topping):
 
         # 3rd pass: go through the biome list and add the field info.
         list = aggregate["classes"]["biome.list"]
-        lcf = classloader.load(list + ".class")
+        lcf = classloader[list]
 
         method = lcf.methods.find_one(name="<clinit>")
         biome_name = ""
@@ -373,7 +373,7 @@ class BiomeTopping(Topping):
         # Between 18w06a and 18w15a biomes set fields directly, instead of
         # using a builder (as was done before and after).
         for biome in six.itervalues(aggregate["biomes"]["biome"]):
-            cf = classloader.load(biome["class"] + ".class")
+            cf = classloader[biome["class"]]
             method = cf.methods.find_one(name="<init>")
 
             # Assume a specific order.  Also evil and may break if things change.
@@ -415,7 +415,7 @@ class BiomeTopping(Topping):
         for biome in six.itervalues(aggregate["biomes"]["biome"]):
             biome["name"] = aggregate["language"]["biome"]["minecraft." + biome["text_id"]]
 
-            cf = classloader.load(biome["class"] + ".class")
+            cf = classloader[biome["class"]]
             method = cf.methods.find_one(name="<init>")
             stack = []
             for ins in method.code.disassemble():

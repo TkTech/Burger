@@ -54,7 +54,7 @@ class BlocksTopping(Topping):
 
         # Shared logic: Go through the block list and add the field info.
         list = aggregate["classes"]["block.list"]
-        lcf = classloader.load(list + ".class")
+        lcf = classloader[list]
 
         blocks = aggregate["blocks"]
         block = blocks["block"]
@@ -83,7 +83,7 @@ class BlocksTopping(Topping):
     def _process_1point13(aggregate, classloader, verbose):
         # Handles versions after 1.13 (specifically >= 18w02a)
         superclass = aggregate["classes"]["block.superclass"]
-        cf = classloader.load(superclass + ".class")
+        cf = classloader[superclass]
 
         if "block" in aggregate["language"]:
             language = aggregate["language"]["block"]
@@ -94,7 +94,7 @@ class BlocksTopping(Topping):
         ctor = cf.methods.find_one(name="<init>")
         builder_class = ctor.args[0].name
 
-        builder_cf = classloader.load(builder_class + ".class")
+        builder_cf = classloader[builder_class]
         # Sets hardness and resistance
         hardness_setter = builder_cf.methods.find_one(args='FF')
         # There's also one that sets both to the same value
@@ -207,7 +207,7 @@ class BlocksTopping(Topping):
     def _process_1point12(aggregate, classloader, verbose):
         # Handles versions prior to 1.13
         superclass = aggregate["classes"]["block.superclass"]
-        cf = classloader.load(superclass + ".class")
+        cf = classloader[superclass]
 
         is_flattened = aggregate["version"]["is_flattened"]
         individual_textures = True #aggregate["version"]["protocol"] >= 52 # assume >1.5 http://wiki.vg/Protocol_History#1.5.x since don't read packets TODO

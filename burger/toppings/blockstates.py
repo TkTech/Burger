@@ -47,7 +47,7 @@ class BlockStateTopping(Topping):
         is_flattened = aggregate["version"]["is_flattened"]
 
         blockstatecontainer = aggregate["classes"]["blockstatecontainer"]
-        block_cf = classloader.load(aggregate["classes"]["block.superclass"] + ".class")
+        block_cf = classloader[aggregate["classes"]["block.superclass"]]
         plane = aggregate["classes"]["enumfacing.plane"]
 
         base_method = block_cf.methods.find_one(returns="L" + blockstatecontainer + ";", f=lambda m: m.access_flags.acc_protected)
@@ -68,7 +68,7 @@ class BlockStateTopping(Topping):
                 # Caching - avoid reading the same class multiple times
                 return properties_by_class[name]
 
-            cf = classloader.load(name + ".class")
+            cf = classloader[name]
             method = cf.methods.find_one(f=matches)
 
             if not method:
@@ -181,7 +181,7 @@ class BlockStateTopping(Topping):
         assert len(_property_types) == 4
         property_types = {}
         for type in _property_types:
-            cf = classloader.load(type + ".class")
+            cf = classloader[type]
             if cf.super_.name.value in _property_types:
                 property_types[type] = "direction"
             else:
@@ -206,7 +206,7 @@ class BlockStateTopping(Topping):
             if cls in is_enum_cache:
                 return is_enum_cache[cls]
 
-            cf = classloader.load(cls + ".class")
+            cf = classloader[cls]
             super = cf.super_.name.value
             if super == "java/lang/Enum":
                 is_enum_cache[cls] = True
@@ -235,7 +235,7 @@ class BlockStateTopping(Topping):
                 # Another scary case.  We don't want to parse all of the sound events.
                 return object()
 
-            cf = classloader.load(cls + ".class")
+            cf = classloader[cls]
 
             fields_by_class[cls] = {}
             super_name = cf.super_.name.value
@@ -469,7 +469,7 @@ class BlockStateTopping(Topping):
                     predicate_type = args[2]["dynamic_class"]
                     predicate_class = args[2]["dynamic_class"]
                 else:
-                    cf = classloader.load(args[2]["class"] + ".class")
+                    cf = classloader[args[2]["class"]]
                     if len(cf.interfaces) == 1:
                         predicate_type = cf.interfaces[0].name.value
                         predicate_class = args[2]["class"]
@@ -516,7 +516,7 @@ class BlockStateTopping(Topping):
                     predicate_type = args[1]["dynamic_class"]
                     predicate_class = args[1]["dynamic_class"]
                 else:
-                    cf = classloader.load(args[1]["class"] + ".class")
+                    cf = classloader[args[1]["class"]]
                     if len(cf.interfaces) == 1:
                         predicate_type = cf.interfaces[0].name.value
                         predicate_class = args[1]["class"]

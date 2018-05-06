@@ -43,7 +43,7 @@ class PacketsTopping(Topping):
     @staticmethod
     def act(aggregate, classloader, verbose=False):
         connectionstate = aggregate["classes"]["packet.connectionstate"]
-        cf = classloader.load(connectionstate + ".class")
+        cf = classloader[connectionstate]
 
         # Find the static constructor
         method = cf.methods.find_one(name="<clinit>")
@@ -92,7 +92,7 @@ class PacketsTopping(Topping):
             directions_by_field = {}
             NUM_DIRECTIONS = 2
 
-            direction_class_file = classloader.load(direction_class + ".class")
+            direction_class_file = classloader[direction_class]
             direction_init_method = direction_class_file.methods.find_one(name="<clinit>")
             for ins in direction_init_method.code.disassemble():
                 if ins.mnemonic == "new":
@@ -165,7 +165,7 @@ class PacketsTopping(Topping):
 
         for state_name in states:
             state = states[state_name] #TODO: Can I just iterate over the values directly?
-            cf = classloader.load(state["class"] + ".class")
+            cf = classloader[state["class"]]
             method = cf.methods.find_one(name="<init>")
             init_state()
             for ins in method.code.disassemble():

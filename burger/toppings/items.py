@@ -59,7 +59,7 @@ class ItemsTopping(Topping):
 
         # Go through the item list and add the field info.
         list = aggregate["classes"]["item.list"]
-        lcf = classloader.load(list + ".class")
+        lcf = classloader[list]
 
         # Find the static block, and load the fields for each.
         method = lcf.methods.find_one(name="<clinit>")
@@ -85,7 +85,7 @@ class ItemsTopping(Topping):
         blockclass = aggregate["classes"]["block.superclass"]
         blocklist = aggregate["classes"]["block.list"]
 
-        cf = classloader.load(superclass + ".class")
+        cf = classloader[superclass]
 
         if "item" in aggregate["language"]:
             language = aggregate["language"]["item"]
@@ -117,7 +117,7 @@ class ItemsTopping(Topping):
             elif '/' in name:
                 return False
 
-            cf = classloader.load(name + '.class')
+            cf = classloader[name]
             result = is_item_class(cf.super_.name.value)
             is_item_class_cache[name] = result
             return result
@@ -248,7 +248,7 @@ class ItemsTopping(Topping):
             if "display_name" in block:
                 item["display_name"] = block["display_name"]
 
-        cf = classloader.load(superclass + ".class")
+        cf = classloader[superclass]
 
         # Find the registration method
         method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
@@ -296,7 +296,7 @@ class ItemsTopping(Topping):
                 const = cf.constants.get(ins.operands[0].value)
                 class_name = const.name.value
 
-                class_file = classloader.load(class_name + ".class")
+                class_file = classloader[class_name]
                 if class_file.super_.name.value == "java/lang/Object":
                     # A function created for an item shouldn't be counted - we
                     # only want items, not Functions.

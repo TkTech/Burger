@@ -49,8 +49,8 @@ class VersionTopping(Topping):
     def get_protocol_version(aggregate, classloader, verbose):
         versions = aggregate.setdefault("version", {})
         if "nethandler.server" in aggregate["classes"]:
-            nethandler = aggregate["classes"]["nethandler.server"] + ".class"
-            cf = classloader.load(nethandler)
+            nethandler = aggregate["classes"]["nethandler.server"]
+            cf = classloader[nethandler]
             version = None
             looking_for_version_name = False
             for method in cf.methods:
@@ -80,8 +80,8 @@ class VersionTopping(Topping):
     @staticmethod
     def get_data_version(aggregate, classloader, verbose):
         if "anvilchunkloader" in aggregate["classes"]:
-            anvilchunkloader = aggregate["classes"]["anvilchunkloader"] + ".class"
-            cf = classloader.load(anvilchunkloader)
+            anvilchunkloader = aggregate["classes"]["anvilchunkloader"]
+            cf = classloader[anvilchunkloader]
 
             for method in cf.methods:
                 next_ins_is_version = False

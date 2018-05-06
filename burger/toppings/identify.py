@@ -159,7 +159,7 @@ def identify(classloader, class_file):
                 if cf.super_.name.value == "java/lang/Object":
                     cf = None
                     break
-                cf = classloader.load(cf.super_.name.value + ".class")
+                cf = classloader[cf.super_.name.value]
             if cf:
                 return 'position', cf.this.name.value
 

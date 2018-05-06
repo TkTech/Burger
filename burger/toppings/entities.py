@@ -62,7 +62,7 @@ class EntityTopping(Topping):
         entities = aggregate["entities"]
 
         for e in six.itervalues(entities["entity"]):
-            cf = classloader.load(e["class"] + ".class")
+            cf = classloader[e["class"]]
             size = EntityTopping.size(cf)
             if size:
                 e["width"], e["height"], texture = size
@@ -79,7 +79,7 @@ class EntityTopping(Topping):
             print("Using 1.13 entity format")
 
         superclass = aggregate["classes"]["entity.list"]
-        cf = classloader.load(superclass + ".class")
+        cf = classloader[superclass]
 
         entities = aggregate.setdefault("entities", {})
         entity = entities.setdefault("entity", {})
@@ -124,7 +124,7 @@ class EntityTopping(Topping):
             print("Using 1.11 entity format")
 
         superclass = aggregate["classes"]["entity.list"]
-        cf = classloader.load(superclass + ".class")
+        cf = classloader[superclass]
 
         entities = aggregate.setdefault("entities", {})
         entity = entities.setdefault("entity", {})
@@ -184,13 +184,13 @@ class EntityTopping(Topping):
             print("Using 1.10 entity format")
 
         superclass = aggregate["classes"]["entity.list"]
-        cf = classloader.load(superclass + ".class")
+        cf = classloader[superclass]
 
         method = cf.methods.find_one(name="<clinit>")
         mode = "starting"
 
         superclass = aggregate["classes"]["entity.list"]
-        cf = classloader.load(superclass + ".class")
+        cf = classloader[superclass]
 
         entities = aggregate.setdefault("entities", {})
         entity = entities.setdefault("entity", {})
@@ -265,7 +265,7 @@ class EntityTopping(Topping):
         minecart_types = minecart_info.setdefault("types", {})
         minecart_types_by_field = minecart_info.setdefault("types_by_field", {})
 
-        minecart_cf = classloader.load(classname + ".class")
+        minecart_cf = classloader[classname]
         init_method = minecart_cf.methods.find_one(name="<clinit>")
 
         already_has_minecart_name = False

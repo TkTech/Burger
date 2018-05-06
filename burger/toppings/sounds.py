@@ -121,7 +121,7 @@ class SoundTopping(Topping):
             return
 
         soundevent = aggregate["classes"]["sounds.event"]
-        cf = classloader.load(soundevent + ".class")
+        cf = classloader[soundevent]
 
         # Find the static sound registration method
         method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
@@ -169,7 +169,7 @@ class SoundTopping(Topping):
 
         # Get fields now
         soundlist = aggregate["classes"]["sounds.list"]
-        lcf = classloader.load(soundlist + ".class")
+        lcf = classloader[soundlist]
 
         method = lcf.methods.find_one(name="<clinit>")
         for ins in method.code.disassemble():
