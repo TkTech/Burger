@@ -225,8 +225,7 @@ if __name__ == "__main__":
     summary = []
 
     for path in jarlist:
-        classloader = ClassLoader(max_cache=0)
-        classloader.add_path(path)
+        classloader = ClassLoader(path, max_cache=0)
         names = classloader.path_map.keys()
         num_classes = sum(1 for name in names if name.endswith(".class"))
 
