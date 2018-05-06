@@ -23,7 +23,6 @@ THE SOFTWARE.
 from .topping import Topping
 
 from jawa.constants import *
-from jawa.transforms.simple_swap import simple_swap
 
 class VersionTopping(Topping):
     """Provides the protocol version."""
@@ -55,7 +54,7 @@ class VersionTopping(Topping):
             version = None
             looking_for_version_name = False
             for method in cf.methods:
-                for instr in method.code.disassemble(transforms=[simple_swap]):
+                for instr in method.code.disassemble():
                     if instr.mnemonic in ("bipush", "sipush"):
                         version = instr.operands[0].value
                     elif instr.mnemonic == "ldc" and version is not None:
@@ -86,7 +85,7 @@ class VersionTopping(Topping):
 
             for method in cf.methods:
                 next_ins_is_version = False
-                for ins in method.code.disassemble(transforms=[simple_swap]):
+                for ins in method.code.disassemble():
                     if ins.mnemonic in ("ldc", "ldc_w"):
                         const = cf.constants.get(ins.operands[0].value)
                         if isinstance(const, String):

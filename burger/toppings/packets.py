@@ -25,7 +25,6 @@ THE SOFTWARE.
 from .topping import Topping
 
 from jawa.constants import *
-from jawa.transforms.simple_swap import simple_swap
 
 class PacketsTopping(Topping):
     """Provides minimal information on all network packets."""
@@ -60,7 +59,7 @@ class PacketsTopping(Topping):
         # do it better, though.
         NUM_STATES = 4
 
-        for ins in method.code.disassemble(transforms=[simple_swap]):
+        for ins in method.code.disassemble():
             if ins.mnemonic == "new":
                 const = cf.constants.get(ins.operands[0].value)
                 state_class = const.name.value
@@ -95,7 +94,7 @@ class PacketsTopping(Topping):
 
             direction_class_file = classloader.load(direction_class + ".class")
             direction_init_method = direction_class_file.methods.find_one(name="<clinit>")
-            for ins in direction_init_method.code.disassemble(transforms=[simple_swap]):
+            for ins in direction_init_method.code.disassemble():
                 if ins.mnemonic == "new":
                     const = direction_class_file.constants.get(ins.operands[0].value)
                     dir_class = const.name.value
@@ -134,7 +133,7 @@ class PacketsTopping(Topping):
             directions_by_method = {}
 
             for method in register_methods:
-                for ins in method.code.disassemble(transforms=[simple_swap]):
+                for ins in method.code.disassemble():
                     if ins.mnemonic == "ldc":
                         const = cf.constants.get(ins.operands[0].value)
                         if isinstance(const, String):
@@ -169,7 +168,7 @@ class PacketsTopping(Topping):
             cf = classloader.load(state["class"] + ".class")
             method = cf.methods.find_one(name="<init>")
             init_state()
-            for ins in method.code.disassemble(transforms=[simple_swap]):
+            for ins in method.code.disassemble():
                 if ins.mnemonic == "getstatic":
                     const = cf.constants.get(ins.operands[0].value)
                     field = const.name_and_type.name.value

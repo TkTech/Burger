@@ -7,7 +7,6 @@ from .topping import Topping
 
 from jawa.constants import ConstantClass, String
 from burger.util import class_from_invokedynamic
-from jawa.transforms.simple_swap import simple_swap
 
 class TileEntityTopping(Topping):
     """Gets tile entity (block entity) types."""
@@ -58,7 +57,7 @@ class TileEntityTopping(Topping):
         tileentities = te.setdefault("tileentities", {})
         te_classes = te.setdefault("classes", {})
         tmp = {}
-        for ins in method.code.disassemble(transforms=[simple_swap]):
+        for ins in method.code.disassemble():
             if ins.mnemonic in ("ldc", "ldc_w"):
                 const = cf.constants.get(ins.operands[0].value)
                 if isinstance(const, ConstantClass):
@@ -90,7 +89,7 @@ class TileEntityTopping(Topping):
             assert num_maps in (1, 2)
 
             num_getstatic = 0
-            for ins in method.code.disassemble(transforms=[simple_swap]):
+            for ins in method.code.disassemble():
                 if ins.mnemonic == "getstatic":
                     num_getstatic += 1
                     assert num_getstatic <= num_maps
@@ -164,7 +163,7 @@ class TileEntityTopping(Topping):
                     args="L" + updatepacket_name + ";")
 
             value = None
-            for ins in method.code.disassemble(transforms=[simple_swap]):
+            for ins in method.code.disassemble():
                 if ins.mnemonic in ("bipush", "sipush"):
                     value = ins.operands[0].value
                 elif ins.mnemonic == "instanceof":

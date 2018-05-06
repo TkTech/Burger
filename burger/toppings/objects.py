@@ -28,7 +28,6 @@ from copy import copy
 from .topping import Topping
 
 from jawa.constants import *
-from jawa.transforms.simple_swap import simple_swap
 
 class ObjectTopping(Topping):
     """Gets most vehicle/object types."""
@@ -65,7 +64,7 @@ class ObjectTopping(Topping):
         item_entity_class = entities["entity"]["item"]["class"] if "item" in entities["entity"] else entities["entity"]["Item"]["class"]
 
         will_be_spawn_object_packet = False
-        for ins in createspawnpacket_method.code.disassemble(transforms=[simple_swap]):
+        for ins in createspawnpacket_method.code.disassemble():
             if ins.mnemonic == "instanceof":
                 # Check to make sure that it's a spawn packet for item entities
                 const = entitytrackerentry_cf.constants.get(ins.operands[0].value)
@@ -98,7 +97,7 @@ class ObjectTopping(Topping):
         potential_id = 0
         current_id = 0
 
-        for ins in method.code.disassemble(transforms=[simple_swap]):
+        for ins in method.code.disassemble():
             if ins.mnemonic == "if_icmpne":
                 current_id = potential_id
             elif ins.mnemonic in ("bipush", "sipush"):

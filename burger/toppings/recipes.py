@@ -26,7 +26,6 @@ from .topping import Topping
 
 from jawa.util.descriptor import method_descriptor
 from jawa.constants import *
-from jawa.transforms.simple_swap import simple_swap
 
 try:
     import json
@@ -311,7 +310,7 @@ class RecipesTopping(Topping):
 
         def find_recipes(classloader, cf, method, target_class, setter_names):
             # Go through all instructions.
-            itr = iter(method.code.disassemble(transforms=[simple_swap]))
+            itr = iter(method.code.disassemble())
             recipes = []
             try:
                 while True:

@@ -25,7 +25,6 @@ from .topping import Topping
 
 from jawa.constants import *
 from jawa.util.descriptor import method_descriptor
-from jawa.transforms.simple_swap import simple_swap
 
 from burger.util import WalkerCallback, walk_method
 
@@ -65,7 +64,7 @@ class ItemsTopping(Topping):
         # Find the static block, and load the fields for each.
         method = lcf.methods.find_one(name="<clinit>")
         item_name = ""
-        for ins in method.code.disassemble(transforms=[simple_swap]):
+        for ins in method.code.disassemble():
             if ins.mnemonic in ("ldc", "ldc_w"):
                 const = lcf.constants.get(ins.operands[0].value)
                 if isinstance(const, String):
@@ -100,7 +99,7 @@ class ItemsTopping(Topping):
         register_item_block_method = cf.methods.find_one(args='L' + blockclass + ';', returns="V")
         item_block_class = None
         # Find the class used that represents an item that is a block
-        for ins in register_item_block_method.code.disassemble(transforms=[simple_swap]):
+        for ins in register_item_block_method.code.disassemble():
             if ins.mnemonic == "new":
                 const = cf.constants.get(ins.operands[0].value)
                 item_block_class = const.name.value
@@ -278,7 +277,7 @@ class ItemsTopping(Topping):
 
         item_block_class = None
         # Find the class used that represents an item that is a block
-        for ins in register_item_block_method.code.disassemble(transforms=[simple_swap]):
+        for ins in register_item_block_method.code.disassemble():
             if ins.mnemonic == "new":
                 const = cf.constants.get(ins.operands[0].value)
                 item_block_class = const.name.value
@@ -291,7 +290,7 @@ class ItemsTopping(Topping):
         }
         tmp = []
 
-        for ins in method.code.disassemble(transforms=[simple_swap]):
+        for ins in method.code.disassemble():
             if ins.mnemonic == "new":
                 # The beginning of a new block definition
                 const = cf.constants.get(ins.operands[0].value)

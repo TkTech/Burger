@@ -5,7 +5,6 @@ from .topping import Topping
 
 from jawa.constants import *
 from jawa.util.descriptor import method_descriptor, field_descriptor
-from jawa.transforms.simple_swap import simple_swap
 
 import traceback
 import six
@@ -80,7 +79,7 @@ class BlockStateTopping(Topping):
             properties = None
             if_pos = None
             stack = []
-            for ins in method.code.disassemble(transforms=[simple_swap]):
+            for ins in method.code.disassemble():
                 # This could _almost_ just be checking for getstatic, but
                 # brewing stands use an array of properties as the field,
                 # so we need some stupid extra logic.
@@ -258,7 +257,7 @@ class BlockStateTopping(Topping):
             # go through and put None in, only looking at putstatic.
             ignore_remaining = False
 
-            for ins in init.code.disassemble(transforms=[simple_swap]):
+            for ins in init.code.disassemble():
                 if ins.mnemonic == "putstatic":
                     const = cf.constants.get(ins.operands[0].value)
                     name = const.name_and_type.name.value

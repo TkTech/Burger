@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 
 from jawa.constants import *
 from jawa.util.descriptor import method_descriptor
-from jawa.transforms.simple_swap import simple_swap
 
 import six.moves
 
@@ -92,7 +91,7 @@ def walk_method(cf, method, callback, verbose):
 
     stack = []
     locals = {}
-    for ins in method.code.disassemble(transforms=[simple_swap]):
+    for ins in method.code.disassemble():
         if ins.mnemonic in ("bipush", "sipush"):
             stack.append(ins.operands[0].value)
         elif ins.mnemonic.startswith("fconst") or ins.mnemonic.startswith("fconst") :

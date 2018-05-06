@@ -25,7 +25,6 @@ from .topping import Topping
 
 from jawa.constants import *
 from jawa.util.descriptor import method_descriptor
-from jawa.transforms.simple_swap import simple_swap
 
 from burger.util import WalkerCallback, walk_method
 
@@ -64,7 +63,7 @@ class BlocksTopping(Topping):
         # Find the static block, and load the fields for each.
         method = lcf.methods.find_one(name="<clinit>")
         blk_name = ""
-        for ins in method.code.disassemble(transforms=[simple_swap]):
+        for ins in method.code.disassemble():
             if ins.mnemonic in ("ldc", "ldc_w"):
                 const = lcf.constants.get(ins.operands[0].value)
                 if isinstance(const, String):
@@ -101,7 +100,7 @@ class BlocksTopping(Topping):
         # There's also one that sets both to the same value
         hardness_setter_2 = None
         for method in builder_cf.methods.find(args='F'):
-            for ins in method.code.disassemble(transforms=[simple_swap]):
+            for ins in method.code.disassemble():
                 if ins.mnemonic == "invokevirtual":
                     const = builder_cf.constants.get(ins.operands[0].value)
                     if (const.name_and_type.name.value == hardness_setter.name.value and
@@ -112,7 +111,7 @@ class BlocksTopping(Topping):
         # ... and one that sets them both to 0
         hardness_setter_3 = None
         for method in builder_cf.methods.find(args=''):
-            for ins in method.code.disassemble(transforms=[simple_swap]):
+            for ins in method.code.disassemble():
                 if ins.mnemonic == "invokevirtual":
                     const = builder_cf.constants.get(ins.operands[0].value)
                     if (const.name_and_type.name.value == hardness_setter_2.name.value and
@@ -230,7 +229,7 @@ class BlocksTopping(Topping):
 
         stack = []
         locals = {}
-        for ins in method.code.disassemble(transforms=[simple_swap]):
+        for ins in method.code.disassemble():
             if ins.mnemonic == "new":
                 # The beginning of a new block definition
                 const = cf.constants.get(ins.operands[0].value)
@@ -360,7 +359,7 @@ class BlocksTopping(Topping):
 
         for method in hardness_setters:
             fld = None
-            for ins in method.code.disassemble(transforms=[simple_swap]):
+            for ins in method.code.disassemble():
                 if ins.mnemonic == "putfield":
                     const = cf.constants.get(ins.operands[0].value)
                     fld = const.name_and_type.name.value
