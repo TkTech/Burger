@@ -71,7 +71,7 @@ MATCHES = (
 # class and we need to just depend on it coming first (bad!)
 IGNORE_DUPLICATES = [ "biome.superclass" ]
 
-def identify(classloader, class_file):
+def identify(classloader, path):
     """
     The first pass across the jar will identify all possible classes it
     can, maping them by the 'type' it implements.
@@ -80,7 +80,7 @@ def identify(classloader, class_file):
     check for known signatures and predictable constants. In the next pass,
     we'll have the initial mapping from this pass available to us.
     """
-    for c in class_file.constants.find(String):
+    for c in classloader.search_constant_pool(path=path, type_=String):
         value = c.string.value
         for match_list, match_name in MATCHES:
             exact = False
@@ -95,8 +95,10 @@ def identify(classloader, class_file):
                     if match not in value:
                         continue
 
+                class_file = classloader.load(path)
                 return match_name, class_file.this.name.value
         if 'BaseComponent' in value:
+            class_file = classloader.load(path)
             # We want the interface for chat components, but it has no
             # string constants, so we need to use the abstract class and then
             # get its first implemented interface.
@@ -104,6 +106,8 @@ def identify(classloader, class_file):
             const = class_file.interfaces[0]
             return 'chatcomponent', const.name.value
         if 'ambient.cave' in value:
+            class_file = classloader.load(path)
+
             # We _may_ have found the SoundEvent class, but there are several
             # other classes with this string constant.  So we need to check
             # for registration methods.
@@ -131,6 +135,8 @@ def identify(classloader, class_file):
                 return 'sounds.event', class_file.this.name.value
 
         if value == 'minecraft':
+            class_file = classloader.load(path)
+
             # Look for two protected final strings
             def is_protected_final(m):
                 return m.access_flags.acc_protected and m.access_flags.acc_final
@@ -153,7 +159,7 @@ def identify(classloader, class_file):
             # Also, this is the _only_ string constant available to us.
             # Finally, note that PooledMutableBlockPos was introduced in 1.9.
             # This technique will not work in 1.8.
-            cf = class_file
+            cf = classloader.load(path)
             logger_type = "Lorg/apache/logging/log4j/Logger;"
             while not cf.fields.find_one(type_=logger_type):
                 if cf.super_.name.value == "java/lang/Object":
@@ -205,8 +211,7 @@ class IdentifyTopping(Topping):
             if not path.endswith(".class"):
                 continue
 
-            cf = classloader.load(path)
-            result = identify(classloader, cf)
+            result = identify(classloader, path)
             if result:
                 if result[0] in classes:
                     if result[0] in IGNORE_DUPLICATES:
