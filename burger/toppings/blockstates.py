@@ -244,7 +244,7 @@ class BlockStateTopping(Topping):
                 # Add fields from superclass
                 fields_by_class[cls].update(find_field(super_name, None))
 
-            init = cf.methods.find_one("<clinit>")
+            init = cf.methods.find_one(name="<clinit>")
             if not init:
                 if field_name is not None:
                     return fields_by_class[cls][field_name]

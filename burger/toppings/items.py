@@ -94,7 +94,7 @@ class ItemsTopping(Topping):
             language = None
 
         # Figure out what the builder class is
-        ctor = cf.methods.find_one("<init>")
+        ctor = cf.methods.find_one(name="<init>")
         builder_class = ctor.args[0].name
 
         register_item_block_method = cf.methods.find_one(args='L' + blockclass + ';', returns="V")

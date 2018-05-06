@@ -84,7 +84,7 @@ class BiomeTopping(Topping):
                     make_mutated_method_desc = method.descriptor.value
                     make_mutated_method_name = method.name.value
 
-        method = cf.methods.find_one("<clinit>")
+        method = cf.methods.find_one(name="<clinit>")
         heights_by_field = {}
         tmp = None
         stack = None
@@ -375,7 +375,7 @@ class BiomeTopping(Topping):
         # using a builder (as was done before and after).
         for biome in six.itervalues(aggregate["biomes"]["biome"]):
             cf = classloader.load(biome["class"] + ".class")
-            method = cf.methods.find_one("<init>")
+            method = cf.methods.find_one(name="<init>")
 
             # Assume a specific order.  Also evil and may break if things change.
             str_count = 0
@@ -417,7 +417,7 @@ class BiomeTopping(Topping):
             biome["name"] = aggregate["language"]["biome"]["minecraft." + biome["text_id"]]
 
             cf = classloader.load(biome["class"] + ".class")
-            method = cf.methods.find_one("<init>")
+            method = cf.methods.find_one(name="<init>")
             stack = []
             for ins in method.code.disassemble(transforms=[simple_swap]):
                 if ins.mnemonic == "invokespecial":

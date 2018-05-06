@@ -92,7 +92,7 @@ class BlocksTopping(Topping):
             language = None
 
         # Figure out what the builder class is
-        ctor = cf.methods.find_one("<init>")
+        ctor = cf.methods.find_one(name="<init>")
         builder_class = ctor.args[0].name
 
         builder_cf = classloader.load(builder_class + ".class")

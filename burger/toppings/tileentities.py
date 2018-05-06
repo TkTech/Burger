@@ -45,7 +45,7 @@ class TileEntityTopping(Topping):
             has_separate_list =-False
         else:
             # It isn't, but we can figure it out by looking at the constructor's only parameter.
-            method = cf.methods.find_one("<init>")
+            method = cf.methods.find_one(name="<init>")
             assert len(method.args) == 1
             listclass = method.args[0].name
             cf = classloader.load(listclass + ".class")
@@ -53,7 +53,7 @@ class TileEntityTopping(Topping):
 
         aggregate["classes"]["tileentity.list"] = listclass
 
-        method = cf.methods.find_one("<clinit>")
+        method = cf.methods.find_one(name="<clinit>")
 
         tileentities = te.setdefault("tileentities", {})
         te_classes = te.setdefault("classes", {})
@@ -80,7 +80,7 @@ class TileEntityTopping(Topping):
             # Block entity tag matches block names to tile entities.
             tag = aggregate["classes"]["tileentity.blockentitytag"] + ".class"
             tag_cf = classloader.load(tag)
-            method = tag_cf.methods.find_one("<clinit>")
+            method = tag_cf.methods.find_one(name="<clinit>")
 
             stack = []
 

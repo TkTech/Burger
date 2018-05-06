@@ -85,7 +85,7 @@ class EntityTopping(Topping):
         entities = aggregate.setdefault("entities", {})
         entity = entities.setdefault("entity", {})
 
-        method = cf.methods.find_one("<clinit>")
+        method = cf.methods.find_one(name="<clinit>")
 
         stack = []
         numeric_id = 0
@@ -187,7 +187,7 @@ class EntityTopping(Topping):
         superclass = aggregate["classes"]["entity.list"]
         cf = classloader.load(superclass + ".class")
 
-        method = cf.methods.find_one("<clinit>")
+        method = cf.methods.find_one(name="<clinit>")
         mode = "starting"
 
         superclass = aggregate["classes"]["entity.list"]
@@ -267,7 +267,7 @@ class EntityTopping(Topping):
         minecart_types_by_field = minecart_info.setdefault("types_by_field", {})
 
         minecart_cf = classloader.load(classname + ".class")
-        init_method = minecart_cf.methods.find_one("<clinit>")
+        init_method = minecart_cf.methods.find_one(name="<clinit>")
 
         already_has_minecart_name = False
         for ins in init_method.code.disassemble(transforms=[simple_swap]):
@@ -302,7 +302,7 @@ class EntityTopping(Topping):
 
     @staticmethod
     def size(cf):
-        method = cf.methods.find_one("<init>")
+        method = cf.methods.find_one(name="<init>")
         if method is None:
             return
 

@@ -94,7 +94,7 @@ class PacketsTopping(Topping):
             NUM_DIRECTIONS = 2
 
             direction_class_file = classloader.load(direction_class + ".class")
-            direction_init_method = direction_class_file.methods.find_one("<clinit>")
+            direction_init_method = direction_class_file.methods.find_one(name="<clinit>")
             for ins in direction_init_method.code.disassemble(transforms=[simple_swap]):
                 if ins.mnemonic == "new":
                     const = direction_class_file.constants.get(ins.operands[0].value)
@@ -167,7 +167,7 @@ class PacketsTopping(Topping):
         for state_name in states:
             state = states[state_name] #TODO: Can I just iterate over the values directly?
             cf = classloader.load(state["class"] + ".class")
-            method = cf.methods.find_one("<init>")
+            method = cf.methods.find_one(name="<init>")
             init_state()
             for ins in method.code.disassemble(transforms=[simple_swap]):
                 if ins.mnemonic == "getstatic":
