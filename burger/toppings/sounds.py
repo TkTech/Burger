@@ -52,7 +52,11 @@ def get_version_meta(version):
     s3.amazonaws.com/Minecraft.Download pages.  This is done because e.g.
     older snapshots do not exist in the version manifest but do exist here.
     """
-    return load_json(VERSION_META % {'version': version})
+    HARDCODED = {
+        "18w19a": "https://launchermeta.mojang.com/mc/game/8cab0b2d8df90d8f21fd9c342b57fc1ac84ad52a/18w19a.json",
+        "18w19b": "https://launchermeta.mojang.com/mc/game/47fc76c26b3350cacf86d0e6d426a06d34917e1c/18w19b.json"
+    }
+    return load_json(VERSION_META % {'version': version} if version not in HARDCODED else HARDCODED[version])
 
 def get_asset_index(version_meta, verbose):
     """Downloads the Minecraft asset index"""
