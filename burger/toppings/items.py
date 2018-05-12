@@ -95,6 +95,19 @@ class ItemsTopping(Topping):
         # Figure out what the builder class is
         ctor = cf.methods.find_one(name="<init>")
         builder_class = ctor.args[0].name
+        builder_cf = classloader[builder_class]
+
+        # Find the max stack size method
+        max_stack_method = None
+        for method in builder_cf.methods.find(args='I'):
+            for ins in method.code.disassemble():
+                if ins.mnemonic in ("ldc", "ldc_w"):
+                    const = builder_cf.constants.get(ins.operands[0].value)
+                    if isinstance(const, String) and const.string.value == "Unable to have damage AND stack.":
+                        max_stack_method = method
+                        break
+        if not max_stack_method:
+            raise Exception("Couldn't find max stack size setter in " + builder_class)
 
         register_item_block_method = cf.methods.find_one(args='L' + blockclass + ';', returns="V")
         item_block_class = None
@@ -177,6 +190,8 @@ class ItemsTopping(Topping):
                         lang_key = "minecraft.%s" % text_id
                         if language != None and lang_key in language:
                             current_item["display_name"] = language[lang_key]
+                        if "max_stack_size" not in current_item:
+                            current_item["max_stack_size"] = 64
                         item_list[text_id] = current_item
                 else:
                     if method_name == "<init>":
@@ -185,8 +200,9 @@ class ItemsTopping(Topping):
                         idx = 0
                         for arg in desc.args:
                             if arg.name == builder_class:
-                                # obj.update(args[idx]) # there's nothing of value here
-                                pass
+                                # Update from the builder
+                                if "max_stack_size" in args[idx]:
+                                    obj["max_stack_size"] = args[idx]["max_stack_size"]
                             elif arg.name == blockclass and "text_id" not in obj:
                                 block = args[idx]
                                 obj["text_id"] = block["text_id"]
@@ -195,11 +211,17 @@ class ItemsTopping(Topping):
                                 if "display_name" in block:
                                     obj["display_name"] = block["display_name"]
                             idx += 1
+                    elif method_name == max_stack_method.name.value and method_desc == max_stack_method.descriptor.value:
+                        obj["max_stack_size"] = args[0]
 
                 if desc.returns.name != "void":
                     if desc.returns.name == builder_class or is_item_class(desc.returns.name):
-                        # Probably returning itself
-                        return obj
+                        if ins.mnemonic == "invokestatic":
+                            # Probably returning itself, but through a synthetic method
+                            return args[0]
+                        else:
+                            # Probably returning itself
+                            return obj
                     else:
                         return object()
 
@@ -263,12 +285,22 @@ class ItemsTopping(Topping):
         string_setter = cf.methods.find_one(returns="L" + superclass + ";",
                 args="Ljava/lang/String;",
                 f=lambda x: not x.access_flags.acc_static)
+        int_setter = cf.methods.find_one(returns="L" + superclass + ";",
+                args="I", f=lambda x: not x.access_flags.acc_static)
 
         if string_setter:
             # There will be 2, but the first one is the name setter
-            name_setter = string_setter.name.value + cf.constants.get(string_setter.descriptor.index).value
+            name_setter = string_setter.name.value + string_setter.descriptor.value
         else:
             name_setter = None
+
+        if int_setter:
+            # There are multiple; the first one sets max stack size and another
+            # sets max durability.  However, durability is called in the constructor,
+            # so we can't use it easily
+            stack_size_setter = int_setter.name.value + int_setter.descriptor.value
+        else:
+            stack_size_setter = None
 
         register_item_block_method = cf.methods.find_one(args='L' + blockclass + ';', returns="V")
         register_item_block_method_custom = cf.methods.find_one(args='L' + blockclass + ';L' + superclass + ';', returns="V")
@@ -421,6 +453,11 @@ class ItemsTopping(Topping):
 
             if name_setter in item["calls"]:
                 final["name"] = item["calls"][name_setter][0]
+
+            if stack_size_setter in item["calls"]:
+                final["max_stack_size"] = item["calls"][stack_size_setter][0]
+            else:
+                final["max_stack_size"] = 64
 
             if "name" in final:
                 lang_key = "%s.name" % final["name"]
