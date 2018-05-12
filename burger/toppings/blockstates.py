@@ -31,6 +31,7 @@ class BlockStateTopping(Topping):
 
     DEPENDS = [
         "blocks",
+        "version.data",
         "version.is_flattened",
         "identify.blockstatecontainer",
         "identify.sounds.list",
@@ -39,7 +40,6 @@ class BlockStateTopping(Topping):
 
     @staticmethod
     def act(aggregate, classloader, verbose=False):
-        return
         if "blockstatecontainer" not in aggregate["classes"]:
             if verbose:
                 print("blockstatecontainer not found; skipping blockstates")
@@ -51,7 +51,16 @@ class BlockStateTopping(Topping):
         block_cf = classloader[aggregate["classes"]["block.superclass"]]
         plane = aggregate["classes"]["enumfacing.plane"]
 
-        base_method = block_cf.methods.find_one(returns="L" + blockstatecontainer + ";", f=lambda m: m.access_flags.acc_protected)
+        # Part 1: build up a list of property fields, by class.  Also build a set of property types.
+        # 18w19a and above use a builder to register states; before that they just directly returned a container.
+        # Note that blockstatecontainer is the builder class in 18w19a.
+        is_18w19a = aggregate["version"]["data"] >= 1484
+        is_protected = lambda m: m.access_flags.acc_protected
+        if is_18w19a:
+            base_method = block_cf.methods.find_one(returns="V", args="L" + blockstatecontainer + ";", f=is_protected)
+        else:
+            base_method = block_cf.methods.find_one(returns="L" + blockstatecontainer + ";", args="",  f=is_protected)
+
         def matches(other_method):
             return (other_method.name.value == base_method.name.value and
                     other_method.descriptor.value == base_method.descriptor.value)
@@ -85,9 +94,13 @@ class BlockStateTopping(Topping):
                 # brewing stands use an array of properties as the field,
                 # so we need some stupid extra logic.
                 if ins.mnemonic == "new":
+                    assert not is_18w19a # In 18w19a this should be a parameter
                     const = cf.constants.get(ins.operands[0].value)
                     type_name = const.name.value
                     assert type_name == blockstatecontainer
+                    stack.append(object())
+                elif ins.mnemonic == "aload" and ins.operands[0].value == 1:
+                    assert is_18w19a # The parameter is only used in 18w19a and above
                     stack.append(object())
                 elif ins.mnemonic in ("sipush", "bipush"):
                     stack.append(ins.operands[0].value)
@@ -137,21 +150,36 @@ class BlockStateTopping(Topping):
                     #    set of properties, but other hacking is needed.
                     # We can differentiate these cases based off of the return
                     # type.
+                    # There is a third option post 18w19a:
+                    # 3. It's calling the state container's register method.
+                    # We can check this just by the type.
                     const = cf.constants.get(ins.operands[0].value)
                     desc = method_descriptor(const.name_and_type.descriptor.value)
 
-                    stack.pop()
-
-                    if desc.returns.name == "boolean":
+                    if const.class_.name.value == blockstatecontainer:
+                        # Case 3.
+                        assert properties == None
+                        properties = stack.pop()
+                        assert desc.returns.name == blockstatecontainer
+                        # Don't pop anything, since we'd just pop and re-add the builder
+                    elif desc.returns.name == "boolean":
+                        # Case 2.
                         properties = [None, None]
+                        stack.pop() # Target object
+                        # XXX shouldn't something be returned here?
                     else:
+                        # Case 1.
                         # Assume that the return type is the base interface
                         # for properties
+                        stack.pop() # Target object
                         stack.append(None)
                 elif ins.mnemonic == "ifeq":
                     assert if_pos is None
                     if_pos = ins.pos + ins.operands[0].value
+                elif ins.mnemonic == "pop":
+                    stack.pop()
                 elif ins.mnemonic == "areturn":
+                    assert not is_18w19a # In 18w19a we don't return a container
                     if if_pos == None:
                         assert properties == None
                         properties = stack.pop()
@@ -160,12 +188,20 @@ class BlockStateTopping(Topping):
                         index = 0 if ins.pos < if_pos else 1
                         assert properties[index] == None
                         properties[index] = stack.pop()
+                elif ins.mnemonic == "return":
+                    assert is_18w19a # We only return void in 18w19a
                 elif ins.mnemonic == "aload":
                     assert ins.operands[0].value == 0 # Should be aload_0 (this)
                     stack.append(object())
                 elif verbose:
                     print("%s createBlockState contains unimplemented ins %s" % (name, ins))
 
+            if properties is None:
+                # If we never set properties, warn; however, this is normal for
+                # the base implementation in Block in 18w19a
+                if verbose and name != aggregate["classes"]["block.superclass"]:
+                    print("Didn't find anything that set properties for %s" % name)
+                properties = []
             properties_by_class[name] = properties
             return properties
 
@@ -198,6 +234,7 @@ class BlockStateTopping(Topping):
                 elif verbose:
                     print("Unknown property type %s with signature %s" % (type, signature))
 
+        # Part 2: figure out what each field is.
         is_enum_cache = {}
         def is_enum(cls):
             """
@@ -410,6 +447,7 @@ class BlockStateTopping(Topping):
             else:
                 return fields_by_class[cls]
 
+        # Part 3: convert those fields into actual well-formed properties.
         # Property handlers.
         def base_handle_property(prop):
             field = prop["field"]
@@ -574,6 +612,7 @@ class BlockStateTopping(Topping):
                 elif verbose:
                     print("Skipping odd property %s (declared in %s)" % (property, cls))
 
+        # Part 4: attach that information to blocks.
         state_id = 0
         for block_id in aggregate["blocks"]["ordered_blocks"]:
             block = aggregate["blocks"]["block"][block_id]
