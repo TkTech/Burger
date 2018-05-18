@@ -133,7 +133,7 @@ class PacketInstructionsTopping(Topping):
         """Gets the instructions of the specified method"""
 
         # Find the writing method
-        cf = classloader.load(classname)
+        cf = classloader[classname[:-len(".class")]] # XXX triming a .class that has no reason to exist anyways
 
         if methodname is None and args is None:
             methods = list(cf.methods.find(returns="V", args="L" + classes["packet.packetbuffer"] + ";"))

@@ -33,7 +33,7 @@ except ImportError:
 
 from collections import deque
 
-from jawa.util.classloader import ClassLoader
+from jawa.classloader import ClassLoader
 from jawa.transforms.simple_swap import simple_swap
 
 from burger.website import Website

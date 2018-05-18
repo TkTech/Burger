@@ -136,7 +136,7 @@ class TileEntityTopping(Topping):
                         packet["state"] != "PLAY"):
                     continue
 
-                packet_cf = classloader.load(packet["class"])
+                packet_cf = classloader[packet["class"][:-len(".class")]] # XXX should we be including the .class sufix in the packet class if we just trim it everywhere we use it?
                 # Check if the packet has the expected fields in the class file
                 # for the update tile entity packet
                 if (len(packet_cf.fields) >= 3 and

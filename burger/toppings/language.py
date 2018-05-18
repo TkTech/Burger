@@ -76,7 +76,7 @@ class LanguageTopping(Topping):
     @staticmethod
     def load_language(aggregate, classloader, path, verbose=False, is_json=False):
         try:
-            with classloader.load_asset(path) as fin:
+            with classloader.open(path) as fin:
                 contents = fin.read().decode("utf-8")
         except:
             if verbose:

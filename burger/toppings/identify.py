@@ -95,10 +95,10 @@ def identify(classloader, path):
                     if match not in value:
                         continue
 
-                class_file = classloader.load(path)
+                class_file = classloader[path]
                 return match_name, class_file.this.name.value
         if 'BaseComponent' in value:
-            class_file = classloader.load(path)
+            class_file = classloader[path]
             # We want the interface for chat components, but it has no
             # string constants, so we need to use the abstract class and then
             # get its first implemented interface.
@@ -106,7 +106,7 @@ def identify(classloader, path):
             const = class_file.interfaces[0]
             return 'chatcomponent', const.name.value
         if 'ambient.cave' in value:
-            class_file = classloader.load(path)
+            class_file = classloader[path]
 
             # We _may_ have found the SoundEvent class, but there are several
             # other classes with this string constant.  So we need to check
@@ -135,7 +135,7 @@ def identify(classloader, path):
                 return 'sounds.event', class_file.this.name.value
 
         if value == 'minecraft':
-            class_file = classloader.load(path)
+            class_file = classloader[path]
 
             # Look for two protected final strings
             def is_protected_final(m):
@@ -159,7 +159,7 @@ def identify(classloader, path):
             # Also, this is the _only_ string constant available to us.
             # Finally, note that PooledMutableBlockPos was introduced in 1.9.
             # This technique will not work in 1.8.
-            cf = classloader.load(path)
+            cf = classloader[path]
             logger_type = "Lorg/apache/logging/log4j/Logger;"
             while not cf.fields.find_one(type_=logger_type):
                 if cf.super_.name.value == "java/lang/Object":
@@ -211,7 +211,7 @@ class IdentifyTopping(Topping):
             if not path.endswith(".class"):
                 continue
 
-            result = identify(classloader, path)
+            result = identify(classloader, path[:-len(".class")])
             if result:
                 if result[0] in classes:
                     if result[0] in IGNORE_DUPLICATES:

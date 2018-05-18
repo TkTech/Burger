@@ -23,7 +23,7 @@ class TagsTopping(Topping):
                 continue
             key = path[len(prefix):-len(suffix)]
             type, name = key.split("/", 2)
-            with classloader.load_asset(path) as fin:
+            with classloader.open(path) as fin:
                 data = json.load(fin)
             data["type"] = type
             data["name"] = name
