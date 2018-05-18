@@ -36,8 +36,16 @@ from .topping import Topping
 
 from jawa.constants import *
 
-VERSION_META = "https://s3.amazonaws.com/Minecraft.Download/versions/%(version)s/%(version)s.json"
+VERSION_MANIFEST = "https://launchermeta.mojang.com/mc/game/version_manifest.json"
+LEGACY_VERSION_META = "https://s3.amazonaws.com/Minecraft.Download/versions/%(version)s/%(version)s.json" # DEPRECATED
 RESOURCES_SITE = "http://resources.download.minecraft.net/%(short_hash)s/%(hash)s"
+HARDCODED = {
+    "18w19a": "https://launchermeta.mojang.com/mc/game/8cab0b2d8df90d8f21fd9c342b57fc1ac84ad52a/18w19a.json",
+    "18w19b": "https://launchermeta.mojang.com/mc/game/47fc76c26b3350cacf86d0e6d426a06d34917e1c/18w19b.json",
+    "18w20a": "https://launchermeta.mojang.com/mc/game/6a078865551f0d7732769c83c87d7cef1b2929a1/18w20a.json",
+    "18w20b": "https://launchermeta.mojang.com/mc/game/a37d0ee906d1acabf894f3d2d3b93207909fc3af/18w20b.json",
+    "18w20c": "https://launchermeta.mojang.com/mc/game/812951283c7120566e92f34dad4ee09e5a854d51/18w20c.json"
+}
 
 def load_json(url):
     stream = six.moves.urllib.request.urlopen(url)
@@ -46,17 +54,29 @@ def load_json(url):
     finally:
         stream.close()
 
-def get_version_meta(version):
+def get_version_meta(version, verbose):
     """
     Gets a version metadata file using the (deprecated)
     s3.amazonaws.com/Minecraft.Download pages.  This is done because e.g.
     older snapshots do not exist in the version manifest but do exist here.
     """
-    HARDCODED = {
-        "18w19a": "https://launchermeta.mojang.com/mc/game/8cab0b2d8df90d8f21fd9c342b57fc1ac84ad52a/18w19a.json",
-        "18w19b": "https://launchermeta.mojang.com/mc/game/47fc76c26b3350cacf86d0e6d426a06d34917e1c/18w19b.json"
-    }
-    return load_json(VERSION_META % {'version': version} if version not in HARDCODED else HARDCODED[version])
+    version_manifest = load_json(VERSION_MANIFEST)
+    for version_info in version_manifest["versions"]:
+        if version_info["id"] == version:
+            address = version_info["url"]
+            break
+    else:
+        if verbose:
+            print("Failed to find %s in the main version manifest" % version)
+        if version in HARDCODED:
+            print("Using hardcoded fallback")
+            address = HARDCODED[version]
+        else:
+            print("Using legacy site")
+            address = LEGACY_VERSION_META % {'version': version}
+    if verbose:
+        print("Loading version manifest for %s from %s" % (version, address))
+    return load_json(address)
 
 def get_asset_index(version_meta, verbose):
     """Downloads the Minecraft asset index"""
@@ -99,7 +119,7 @@ class SoundTopping(Topping):
     def act(aggregate, classloader, verbose=False):
         sounds = aggregate.setdefault('sounds', {})
         try:
-            version_meta = get_version_meta(aggregate["version"]["name"])
+            version_meta = get_version_meta(aggregate["version"]["name"], verbose)
         except Exception as e:
             if verbose:
                 print("Error: Failed to download version meta for sounds: %s" % e)
