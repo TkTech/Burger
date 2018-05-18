@@ -61,14 +61,14 @@ class PacketsTopping(Topping):
 
         for ins in method.code.disassemble():
             if ins.mnemonic == "new":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 state_class = const.name.value
             elif ins.mnemonic == "ldc":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 if isinstance(const, String):
                     state_name = const.string.value
             elif ins.mnemonic == "putstatic":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 state_field = const.name_and_type.name.value
                 
                 states[state_name] = {
@@ -96,14 +96,14 @@ class PacketsTopping(Topping):
             direction_init_method = direction_class_file.methods.find_one(name="<clinit>")
             for ins in direction_init_method.code.disassemble():
                 if ins.mnemonic == "new":
-                    const = direction_class_file.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     dir_class = const.name.value
                 elif ins.mnemonic == "ldc":
-                    const = direction_class_file.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     if isinstance(const, String):
                         dir_name = const.string.value
                 elif ins.mnemonic == "putstatic":
-                    const = direction_class_file.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     dir_field = const.name_and_type.name.value
 
                     directions[dir_name] = {
@@ -135,7 +135,7 @@ class PacketsTopping(Topping):
             for method in register_methods:
                 for ins in method.code.disassemble():
                     if ins.mnemonic == "ldc":
-                        const = cf.constants.get(ins.operands[0].value)
+                        const = ins.operands[0]
                         if isinstance(const, String):
                             if "Clientbound" in const.string.value:
                                 directions["CLIENTBOUND"] = {
@@ -170,18 +170,18 @@ class PacketsTopping(Topping):
             init_state()
             for ins in method.code.disassemble():
                 if ins.mnemonic == "getstatic":
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     field = const.name_and_type.name.value
                     stack.append(directions_by_field[field])
                 elif ins.mnemonic in ("bipush", "sipush"):
                     stack.append(ins.operands[0].value)
                 elif ins.mnemonic in ("ldc", "ldc_w"):
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     if isinstance(const, ConstantClass):
                         stack.append("%s.class" % const.name.value)
                 elif ins.mnemonic == "invokevirtual":
                     # TODO: Currently assuming that the method is the register one which seems to be correct but may be wrong
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     method_name = const.name_and_type.name.value
                     direction = get_direction(method_name)
                     id = get_id()

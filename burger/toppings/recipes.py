@@ -271,7 +271,7 @@ class RecipesTopping(Topping):
                 if ins.mnemonic in ("bipush", "sipush"):
                     stack.append(ins.operands[0].value)
                 elif ins.mnemonic == "getstatic":
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     clazz = const.class_.name.value
                     name = const.name_and_type.name.value
                     stack.append((clazz, name))
@@ -296,7 +296,7 @@ class RecipesTopping(Topping):
                     i1 = stack.pop()
                     stack.append(i1 - i2);
                 elif ins.mnemonic == "invokespecial":
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     if const.name_and_type.name.value == "<init>":
                         break
 
@@ -319,7 +319,7 @@ class RecipesTopping(Topping):
                         # Wait until an item starts
                         continue
                     # Start of another recipe - the ending item.
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     if const.name.value != itemstack:
                         # Or it could be another type; irrelevant
                         continue
@@ -351,19 +351,19 @@ class RecipesTopping(Topping):
                             array.append(data)
                             data = None
                         elif ins.mnemonic in ("ldc", "ldc_w"):
-                            const = cf.constants.get(ins.operands[0].value)
+                            const = ins.operands[0]
                             # Separate into a list of characters, to disambiguate (see below)
                             data = list(const.string.value)
                         if ins.mnemonic in ("bipush", "sipush"):
                             data = ins.operands[0].value
                         elif ins.mnemonic == "invokestatic":
-                            const = cf.constants.get(ins.operands[0].value)
+                            const = ins.operands[0]
                             if const.class_.name.value == "java/lang/Character" and const.name_and_type.name.value == "valueOf":
                                 data = chr(data)
                             else:
                                 raise Exception("Unknown method invocation: " + repr(const))
                         elif ins.mnemonic == "getstatic":
-                            const = cf.constants.get(ins.operands[0].value)
+                            const = ins.operands[0]
                             clazz = const.class_.name.value
                             field = const.name_and_type.name.value
                             data = get_material(clazz, field)
@@ -372,7 +372,7 @@ class RecipesTopping(Topping):
 
                     ins = itr.next()
                     assert ins.mnemonic == "invokevirtual"
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
 
                     recipe_data = {}
                     if const.name_and_type.name.value == setter_names[0]:

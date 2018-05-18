@@ -66,11 +66,11 @@ class ItemsTopping(Topping):
         item_name = ""
         for ins in method.code.disassemble():
             if ins.mnemonic in ("ldc", "ldc_w"):
-                const = lcf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 if isinstance(const, String):
                     item_name = const.string.value
             elif ins.mnemonic == "putstatic":
-                const = lcf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 field = const.name_and_type.name.value
                 if item_name in item_list:
                     item_list[item_name]["field"] = field
@@ -102,7 +102,7 @@ class ItemsTopping(Topping):
         for method in builder_cf.methods.find(args='I'):
             for ins in method.code.disassemble():
                 if ins.mnemonic in ("ldc", "ldc_w"):
-                    const = builder_cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     if isinstance(const, String) and const.string.value == "Unable to have damage AND stack.":
                         max_stack_method = method
                         break
@@ -114,7 +114,7 @@ class ItemsTopping(Topping):
         # Find the class used that represents an item that is a block
         for ins in register_item_block_method.code.disassemble():
             if ins.mnemonic == "new":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 item_block_class = const.name.value
                 break
 
@@ -311,7 +311,7 @@ class ItemsTopping(Topping):
         # Find the class used that represents an item that is a block
         for ins in register_item_block_method.code.disassemble():
             if ins.mnemonic == "new":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 item_block_class = const.name.value
                 break
 
@@ -325,7 +325,7 @@ class ItemsTopping(Topping):
         for ins in method.code.disassemble():
             if ins.mnemonic == "new":
                 # The beginning of a new block definition
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 class_name = const.name.value
 
                 class_file = classloader[class_name]
@@ -362,7 +362,7 @@ class ItemsTopping(Topping):
             elif ins.mnemonic in ("bipush", "sipush"):
                 stack.append(ins.operands[0].value)
             elif ins.mnemonic in ("ldc", "ldc_w"):
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
 
                 if isinstance(const, ConstantClass):
                     stack.append("%s.class" % const.name.value)
@@ -372,19 +372,19 @@ class ItemsTopping(Topping):
                     stack.append(const.value)
             elif ins.mnemonic in ("invokevirtual", "invokespecial"):
                 # A method invocation
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 method_name = const.name_and_type.name.value
                 method_desc = const.name_and_type.descriptor.value
                 current_item["calls"][method_name] = stack
                 current_item["calls"][method_name + method_desc] = stack
                 stack = []
             elif ins.mnemonic == "getstatic":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 #TODO: Is this the right way to represent a field on the stack?
                 stack.append({"class": const.class_.name.value,
                         "name": const.name_and_type.name.value})
             elif ins.mnemonic == "invokestatic":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 name_index = const.name_and_type.name.index
                 descriptor_index = const.name_and_type.descriptor.index
                 if name_index == register_item_block_method.name.index and descriptor_index == register_item_block_method.descriptor.index:

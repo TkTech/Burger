@@ -67,11 +67,11 @@ class ObjectTopping(Topping):
         for ins in createspawnpacket_method.code.disassemble():
             if ins.mnemonic == "instanceof":
                 # Check to make sure that it's a spawn packet for item entities
-                const = entitytrackerentry_cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 if const.name.value == item_entity_class:
                     will_be_spawn_object_packet = True
             elif ins.mnemonic == "new" and will_be_spawn_object_packet:
-                const = entitytrackerentry_cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 packet_class_name = const.name.value
                 break
 
@@ -103,7 +103,7 @@ class ObjectTopping(Topping):
             elif ins.mnemonic in ("bipush", "sipush"):
                 potential_id = ins.operands[0].value
             elif ins.mnemonic == "new":
-                const = nethandler_cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 tmp = {"id": current_id, "class": const.name.value}
                 objects[tmp["id"]] = tmp
 

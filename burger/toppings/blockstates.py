@@ -95,7 +95,7 @@ class BlockStateTopping(Topping):
                 # so we need some stupid extra logic.
                 if ins.mnemonic == "new":
                     assert not is_18w19a # In 18w19a this should be a parameter
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     type_name = const.name.value
                     assert type_name == blockstatecontainer
                     stack.append(object())
@@ -109,7 +109,7 @@ class BlockStateTopping(Topping):
                     val = [None] * length
                     stack.append(val)
                 elif ins.mnemonic == "getstatic":
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     prop = {
                         "field_name": const.name_and_type.name.value
                     }
@@ -130,7 +130,7 @@ class BlockStateTopping(Topping):
                 elif ins.mnemonic == "dup":
                     stack.append(stack[-1])
                 elif ins.mnemonic == "invokespecial":
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     assert const.name_and_type.name.value == "<init>"
                     desc = method_descriptor(const.name_and_type.descriptor.value)
                     assert len(desc.args) == 2
@@ -153,7 +153,7 @@ class BlockStateTopping(Topping):
                     # There is a third option post 18w19a:
                     # 3. It's calling the state container's register method.
                     # We can check this just by the type.
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     desc = method_descriptor(const.name_and_type.descriptor.value)
 
                     if const.class_.name.value == blockstatecontainer:
@@ -297,7 +297,7 @@ class BlockStateTopping(Topping):
 
             for ins in init.code.disassemble():
                 if ins.mnemonic == "putstatic":
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     name = const.name_and_type.name.value
                     if ignore_remaining:
                         value = None
@@ -322,7 +322,7 @@ class BlockStateTopping(Topping):
                 elif ignore_remaining:
                     continue
                 elif ins.mnemonic == "getstatic":
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     target = const.class_.name.value
                     type = field_descriptor(const.name_and_type.descriptor.value).name
                     name = const.name_and_type.name.value
@@ -331,7 +331,7 @@ class BlockStateTopping(Topping):
                     else:
                         stack.append(object())
                 elif ins.mnemonic in ("ldc", "ldc_w", "ldc2_w"):
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
 
                     if isinstance(const, ConstantClass):
                         stack.append("%s.class" % const.name.value)
@@ -366,11 +366,11 @@ class BlockStateTopping(Topping):
                     stack.append(stack[-1])
                 elif ins.mnemonic == "invokedynamic":
                     # Try to get the class that's being created
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     desc = method_descriptor(const.name_and_type.descriptor.value)
                     stack.append({"dynamic_class": desc.returns.name, "class": cls})
                 elif ins.mnemonic.startswith("invoke"):
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     desc = method_descriptor(const.name_and_type.descriptor.value)
                     num_args = len(desc.args)
                     args = [stack.pop() for _ in six.moves.range(num_args)]
@@ -424,7 +424,7 @@ class BlockStateTopping(Topping):
                     # Load other than array load
                     stack.append(locals[ins.operands[0].value])
                 elif ins.mnemonic == "new":
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     type_name = const.name.value
                     obj = {
                         "class": type_name,

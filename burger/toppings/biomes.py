@@ -101,7 +101,7 @@ class BiomeTopping(Topping):
                 store_biome_if_valid(tmp)
 
                 stack = []
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 tmp = {
                     "rainfall": 0.5,
                     "height": [0.1, 0.2],
@@ -111,7 +111,7 @@ class BiomeTopping(Topping):
             elif tmp is None:
                 continue
             elif ins.mnemonic == "invokespecial":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 name = const.name_and_type.name.value
                 if len(stack) == 2 and (isinstance(stack[1], float) or isinstance(stack[0], float)):
                     # Height constructor
@@ -123,7 +123,7 @@ class BiomeTopping(Topping):
                 elif name != "<init>":
                     tmp["rainfall"] = 0
             elif ins.mnemonic == "invokevirtual":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 name = const.name_and_type.name.value
                 desc = const.name_and_type.descriptor.value
                 if name == mutate_method_name and desc == mutate_method_desc:
@@ -152,7 +152,7 @@ class BiomeTopping(Topping):
                     tmp["rainfall"] = stack.pop()
                     tmp["temperature"] = stack.pop()
             elif ins.mnemonic == "putstatic":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 field = const.name_and_type.name.value
                 if "height" in tmp and not "name" in tmp:
                     # Actually creating a height
@@ -161,7 +161,7 @@ class BiomeTopping(Topping):
                     tmp["field"] = field
             elif ins.mnemonic == "getstatic":
                 # Loading a height map or preparing to mutate a biome
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 field = const.name_and_type.name.value
                 if field in heights_by_field:
                     # Heightmap
@@ -173,7 +173,7 @@ class BiomeTopping(Topping):
                         tmp = biomes[biome_fields[field]]
             # numeric values & constants
             elif ins.mnemonic in ("ldc", "ldc_w"):
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 if isinstance(const, String):
                     tmp["name"] = const.string.value
                 if isinstance(const, (Integer, Float)):
@@ -217,7 +217,7 @@ class BiomeTopping(Topping):
                     # is the biome properties.  There's some info that is only
                     # stored on the first new (well, actually, beforehand)
                     # that we want to save.
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
 
                     text_id = stack.pop()
                     numeric_id = stack.pop()
@@ -246,7 +246,7 @@ class BiomeTopping(Topping):
 
                 stack = []
             elif ins.mnemonic == "invokevirtual":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 name = const.name_and_type.name.value
                 desc = method_descriptor(const.name_and_type.descriptor.value)
 
@@ -267,7 +267,7 @@ class BiomeTopping(Topping):
                         biome["mutated_from"] = stack.pop()
             # numeric values & constants
             elif ins.mnemonic in ("ldc", "ldc_w"):
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 if isinstance(const, String):
                     stack.append(const.string.value)
                 if isinstance(const, (Integer, Float)):
@@ -287,13 +287,13 @@ class BiomeTopping(Topping):
         biome_name = ""
         for ins in method.code.disassemble():
             if ins.mnemonic in ("ldc", "ldc_w"):
-                const = lcf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 if isinstance(const, String):
                     biome_name = const.string.value
             elif ins.mnemonic == "putstatic":
                 if biome_name is None or biome_name == "Accessed Biomes before Bootstrap!":
                     continue
-                const = lcf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 field = const.name_and_type.name.value
                 biomes[biome_name]["field"] = field
                 biome_fields[field] = biome_name
@@ -316,11 +316,11 @@ class BiomeTopping(Topping):
             if ins.mnemonic in ("bipush", "sipush"):
                 stack.append(ins.operands[0].value)
             elif ins.mnemonic in ("ldc", "ldc_w"):
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 if isinstance(const, String):
                     stack.append(const.string.value)
             elif ins.mnemonic == "new":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 stack.append(const.name.value)
             elif ins.mnemonic == "invokestatic":
                 # Registration
@@ -356,13 +356,13 @@ class BiomeTopping(Topping):
         biome_name = ""
         for ins in method.code.disassemble():
             if ins.mnemonic in ("ldc", "ldc_w"):
-                const = lcf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 if isinstance(const, String):
                     biome_name = const.string.value
             elif ins.mnemonic == "putstatic":
                 if biome_name is None or biome_name == "Accessed Biomes before Bootstrap!":
                     continue
-                const = lcf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 field = const.name_and_type.name.value
                 biomes[biome_name]["field"] = field
                 biome_fields[field] = biome_name
@@ -382,7 +382,7 @@ class BiomeTopping(Topping):
             last = None
             for ins in method.code.disassemble():
                 if ins.mnemonic in ("ldc", "ldc_w"):
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     if isinstance(const, String):
                         last = const.string.value
                     else:
@@ -420,13 +420,13 @@ class BiomeTopping(Topping):
             stack = []
             for ins in method.code.disassemble():
                 if ins.mnemonic == "invokespecial":
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     name = const.name_and_type.name.value
                     if const.class_.name.value == cf.super_.name.value and name == "<init>":
                         # Calling biome init; we're done
                         break
                 elif ins.mnemonic == "invokevirtual":
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     name = const.name_and_type.name.value
                     desc = method_descriptor(const.name_and_type.descriptor.value)
 
@@ -450,7 +450,7 @@ class BiomeTopping(Topping):
                     stack = []
                 # Constants
                 elif ins.mnemonic in ("ldc", "ldc_w"):
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     if isinstance(const, String):
                         stack.append(const.string.value)
                     if isinstance(const, (Integer, Float)):

@@ -58,7 +58,7 @@ class VersionTopping(Topping):
                     if instr.mnemonic in ("bipush", "sipush"):
                         version = instr.operands[0].value
                     elif instr.mnemonic == "ldc" and version is not None:
-                        constant = cf.constants.get(instr.operands[0].value)
+                        constant = instr.operands[0]
                         if isinstance(constant, String):
                             str = constant.string.value
 
@@ -87,7 +87,7 @@ class VersionTopping(Topping):
                 next_ins_is_version = False
                 for ins in method.code.disassemble():
                     if ins.mnemonic in ("ldc", "ldc_w"):
-                        const = cf.constants.get(ins.operands[0].value)
+                        const = ins.operands[0]
                         if isinstance(const, String):
                             if const.string.value == "DataVersion":
                                 next_ins_is_version = True

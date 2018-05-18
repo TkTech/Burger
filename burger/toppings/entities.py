@@ -90,7 +90,7 @@ class EntityTopping(Topping):
         numeric_id = 0
         for ins in method.code.disassemble():
             if ins.mnemonic in ("ldc", "ldc_w"):
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 if isinstance(const, ConstantClass):
                     stack.append(const.name.value)
                 elif isinstance(const, String):
@@ -135,7 +135,7 @@ class EntityTopping(Topping):
         minecart_info = {}
         for ins in method.code.disassemble():
             if ins.mnemonic in ("ldc", "ldc_w"):
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 if isinstance(const, ConstantClass):
                     stack.append(const.name.value)
                 elif isinstance(const, String):
@@ -146,7 +146,7 @@ class EntityTopping(Topping):
                 stack.append(ins.operands[0].value)
             elif ins.mnemonic == "getstatic":
                 # Minecarts use an enum for their data - assume that this is that enum
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 if not "types_by_field" in minecart_info:
                     EntityTopping._load_minecart_enum(classloader, const.class_.name.value, minecart_info)
                 # This technically happens when invokevirtual is called, but do it like this for simplicity
@@ -209,7 +209,7 @@ class EntityTopping(Topping):
             # elif is not used here because we need to handle modes changing
             if mode != "starting":
                 if ins.mnemonic in ("ldc", "ldc_w"):
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     if isinstance(const, ConstantClass):
                         stack.append(const.name.value)
                     elif isinstance(const, String):
@@ -222,11 +222,11 @@ class EntityTopping(Topping):
                     # Entity aliases (for lack of a better term) start with 'new's.
                     # Switch modes (this operation will be processed there)
                     mode = "aliases"
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     stack.append(const.name.value)
                 elif ins.mnemonic == "getstatic":
                     # Minecarts use an enum for their data - assume that this is that enum
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     if not "types_by_field" in minecart_info:
                         EntityTopping._load_minecart_enum(classloader, const.class_.name.value, minecart_info)
                     # This technically happens when invokevirtual is called, but do it like this for simplicity
@@ -271,10 +271,10 @@ class EntityTopping(Topping):
         already_has_minecart_name = False
         for ins in init_method.code.disassemble():
             if ins.mnemonic == "new":
-                const = minecart_cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 minecart_class = const.name.value
             elif ins.mnemonic == "ldc":
-                const = minecart_cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 if isinstance(const, String):
                     if already_has_minecart_name:
                         minecart_type = const.string.value
@@ -282,7 +282,7 @@ class EntityTopping(Topping):
                         already_has_minecart_name = True
                         minecart_name = const.string.value
             elif ins.mnemonic == "putstatic":
-                const = minecart_cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 if const.name_and_type.descriptor.value != "L" + classname + ";":
                     # Other parts of the enum initializer (values array) that we don't care about
                     continue
@@ -312,7 +312,7 @@ class EntityTopping(Topping):
             if ins.mnemonic == "aload" and ins.operands[0].value == 0 and stage == 0:
                 stage = 1
             elif ins.mnemonic in ("ldc", "ldc_w"):
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 if isinstance(const, Float) and stage in (1, 2):
                     tmp.append(round(const.value, 2))
                     stage += 1

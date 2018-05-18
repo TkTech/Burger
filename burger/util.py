@@ -10,7 +10,7 @@ def class_from_invokedynamic(ins, cf):
     Gets the class type for an invokedynamic instruction that
     calls a constructor.
     """
-    const = cf.constants.get(ins.operands[0].value)
+    const = ins.operands[0]
     bootstrap = cf.bootstrap_methods[const.method_attr_index]
     method = cf.constants.get(bootstrap.method_ref)
     # Make sure this is a reference to LambdaMetafactory
@@ -99,7 +99,7 @@ def walk_method(cf, method, callback, verbose):
         elif ins.mnemonic == "aconst_null":
             stack.append(None)
         elif ins.mnemonic in ("ldc", "ldc_w"):
-            const = cf.constants.get(ins.operands[0].value)
+            const = ins.operands[0]
 
             if isinstance(const, ConstantClass):
                 stack.append("%s.class" % const.name.value)
@@ -108,14 +108,14 @@ def walk_method(cf, method, callback, verbose):
             else:
                 stack.append(const.value)
         elif ins.mnemonic == "new":
-            const = cf.constants.get(ins.operands[0].value)
+            const = ins.operands[0]
 
             try:
                 stack.append(callback.on_new(ins, const))
             except StopIteration:
                 break
         elif ins.mnemonic in ("getfield", "getstatic"):
-            const = cf.constants.get(ins.operands[0].value)
+            const = ins.operands[0]
             if ins.mnemonic != "getstatic":
                 obj = stack.pop()
             else:
@@ -126,7 +126,7 @@ def walk_method(cf, method, callback, verbose):
             except StopIteration:
                 break
         elif ins.mnemonic in ("putfield", "putstatic"):
-            const = cf.constants.get(ins.operands[0].value)
+            const = ins.operands[0]
             value = stack.pop()
             if ins.mnemonic != "putstatic":
                 obj = stack.pop()
@@ -138,7 +138,7 @@ def walk_method(cf, method, callback, verbose):
             except StopIteration:
                 break
         elif ins.mnemonic in ("invokevirtual", "invokespecial", "invokeinterface", "invokestatic"):
-            const = cf.constants.get(ins.operands[0].value)
+            const = ins.operands[0]
             method_desc = const.name_and_type.descriptor.value
             desc = method_descriptor(method_desc)
             num_args = len(desc.args)

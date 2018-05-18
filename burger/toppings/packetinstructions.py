@@ -32,6 +32,7 @@ from types import LambdaType
 
 from jawa.util.descriptor import method_descriptor, parse_descriptor
 from jawa.constants import *
+from jawa.transforms.simple_swap import simple_swap
 
 from .topping import Topping
 
@@ -163,7 +164,10 @@ class PacketInstructionsTopping(Topping):
         shortif_pos = None
         shortif_cond = None
 
-        for instruction in method.code.disassemble():
+        # NOTE: we only use the simple_swap transform here due to the
+        # expand_constants transform making it hard to use InstructionField
+        # InstructionField should probably be cleaned up first
+        for instruction in method.code.disassemble(transforms=[simple_swap]):
             if skip_until != -1:
                 if instruction.pos == skip_until:
                     skip_until = -1

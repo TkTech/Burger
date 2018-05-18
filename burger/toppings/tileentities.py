@@ -59,7 +59,7 @@ class TileEntityTopping(Topping):
         tmp = {}
         for ins in method.code.disassemble():
             if ins.mnemonic in ("ldc", "ldc_w"):
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 if isinstance(const, ConstantClass):
                     # Used before 1.13
                     tmp["class"] = const.name.value
@@ -94,7 +94,7 @@ class TileEntityTopping(Topping):
                     num_getstatic += 1
                     assert num_getstatic <= num_maps
                 elif ins.mnemonic in ("ldc", "ldc_w") and num_getstatic != 0:
-                    const = tag_cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     if isinstance(const, String):
                         stack.append(const.string.value)
                 elif ins.mnemonic == "invokeinterface":
@@ -171,7 +171,7 @@ class TileEntityTopping(Topping):
                         # Ensure the command block callback is not counted
                         continue
 
-                    const = nethandler_cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     te_name = te_classes[const.name.value]
                     tileentities[te_name]["network_id"] = value
                     value = None

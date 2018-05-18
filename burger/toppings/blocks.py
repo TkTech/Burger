@@ -65,13 +65,13 @@ class BlocksTopping(Topping):
         blk_name = ""
         for ins in method.code.disassemble():
             if ins.mnemonic in ("ldc", "ldc_w"):
-                const = lcf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 if isinstance(const, String):
                     blk_name = const.string.value
             elif ins.mnemonic == "putstatic":
                 if blk_name is None or blk_name == "Accessed Blocks before Bootstrap!":
                     continue
-                const = lcf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 field = const.name_and_type.name.value
                 if blk_name in block:
                     block[blk_name]["field"] = field
@@ -102,7 +102,7 @@ class BlocksTopping(Topping):
         for method in builder_cf.methods.find(args='F'):
             for ins in method.code.disassemble():
                 if ins.mnemonic == "invokevirtual":
-                    const = builder_cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     if (const.name_and_type.name.value == hardness_setter.name.value and
                             const.name_and_type.descriptor.value == hardness_setter.descriptor.value):
                         hardness_setter_2 = method
@@ -113,7 +113,7 @@ class BlocksTopping(Topping):
         for method in builder_cf.methods.find(args=''):
             for ins in method.code.disassemble():
                 if ins.mnemonic == "invokevirtual":
-                    const = builder_cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     if (const.name_and_type.name.value == hardness_setter_2.name.value and
                             const.name_and_type.descriptor.value == hardness_setter_2.descriptor.value):
                         hardness_setter_3 = method
@@ -232,7 +232,7 @@ class BlocksTopping(Topping):
         for ins in method.code.disassemble():
             if ins.mnemonic == "new":
                 # The beginning of a new block definition
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 class_name = const.name.value
                 current_block = {
                     "class": class_name,
@@ -255,7 +255,7 @@ class BlocksTopping(Topping):
                 else:
                     stack.append({"numerator": num, "denominator": den})
             elif ins.mnemonic in ("ldc", "ldc_w"):
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
 
                 if isinstance(const, ConstantClass):
                     stack.append("%s.class" % const.name.value)
@@ -264,14 +264,14 @@ class BlocksTopping(Topping):
                 else:
                     stack.append(const.value)
             elif ins.mnemonic == "getstatic":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 if const.class_.name.value == superclass:
                     # Probably getting the static AIR resource location
                     stack.append("air")
                 else:
                     stack.append({"obj": None, "field": repr(const)})
             elif ins.mnemonic == "getfield":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 obj = stack.pop()
                 if "text_id" in obj:
                     stack.append({
@@ -283,7 +283,7 @@ class BlocksTopping(Topping):
                     stack.append({"obj": obj, "field": repr(const)})
             elif ins.mnemonic in ("invokevirtual", "invokespecial", "invokeinterface"):
                 # A method invocation
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 method_name = const.name_and_type.name.value
                 method_desc = const.name_and_type.descriptor.value
                 desc = method_descriptor(method_desc)
@@ -309,7 +309,7 @@ class BlocksTopping(Topping):
                         stack.append({"obj": obj, "method": const, "args": args})
             elif ins.mnemonic == "invokestatic":
                 # Call to the registration method
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 desc = method_descriptor(const.name_and_type.descriptor.value)
                 num_args = len(desc.args)
 
@@ -361,7 +361,7 @@ class BlocksTopping(Topping):
             fld = None
             for ins in method.code.disassemble():
                 if ins.mnemonic == "putfield":
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     fld = const.name_and_type.name.value
                 elif ins.mnemonic == "ifge":
                     const = cf.constants.get(method.descriptor.index)

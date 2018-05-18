@@ -35,6 +35,7 @@ from collections import deque
 
 from jawa.classloader import ClassLoader
 from jawa.transforms.simple_swap import simple_swap
+from jawa.transforms.expand_constants import expand_constants
 
 from burger.website import Website
 from burger.roundedfloats import transform_floats
@@ -226,7 +227,7 @@ if __name__ == "__main__":
     summary = []
 
     for path in jarlist:
-        classloader = ClassLoader(path, max_cache=0, bytecode_transforms=[simple_swap])
+        classloader = ClassLoader(path, max_cache=0, bytecode_transforms=[simple_swap, expand_constants])
         names = classloader.path_map.keys()
         num_classes = sum(1 for name in names if name.endswith(".class"))
 
