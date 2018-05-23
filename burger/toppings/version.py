@@ -85,23 +85,32 @@ class VersionTopping(Topping):
 
             for method in cf.methods:
                 next_ins_is_version = False
+                found_version = None
                 for ins in method.code.disassemble():
                     if ins.mnemonic in ("ldc", "ldc_w"):
                         const = ins.operands[0]
                         if isinstance(const, String):
                             if const.string.value == "DataVersion":
                                 next_ins_is_version = True
+                            elif const.string.value == "hasLegacyStructureData":
+                                # In 18w21a+, there are two places that reference DataVersion,
+                                # one which is querying it and one which is saving it.
+                                # We don't want the one that's querying it;
+                                # if "hasLegacyStructureData" is present then we're in the
+                                # querying one so break and try the next method
+                                found_version = None
+                                break
                         elif isinstance(const, Integer):
                             if next_ins_is_version:
-                                aggregate["version"]["data"] = const.value
+                                found_version = const.value
                             break
                     elif not next_ins_is_version:
                         pass
                     elif ins.mnemonic in ("bipush", "sipush"):
-                        aggregate["version"]["data"] = ins.operands[0].value
-                        break
+                        found_version = ins.operands[0].value
 
-                if next_ins_is_version:
+                if found_version is not None:
+                    aggregate["version"]["data"] = found_version
                     break
         elif verbose:
             print("Unable to determine data version")
