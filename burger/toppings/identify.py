@@ -64,7 +64,7 @@ MATCHES = (
         'anvilchunkloader'
     ),
     (['has invalidly named property'], 'blockstatecontainer'),
-    (['Someone\'s been tampering with the universe!'], 'enumfacing.plane')
+    ((['HORIZONTAL'], True), 'enumfacing.plane')
 )
 
 # In some cases there really isn't a good way to verify that it's a specific

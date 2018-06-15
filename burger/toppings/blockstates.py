@@ -512,6 +512,11 @@ class BlockStateTopping(Topping):
                     if len(cf.interfaces) == 1:
                         predicate_type = cf.interfaces[0].name.value
                         predicate_class = args[2]["class"]
+                    else:
+                        if verbose:
+                            print("Could not find predicate class for args %s and interfaces %s" % (args, cf.interfaces))
+                        predicate_type = None
+                        predicate_class = None
 
                 if predicate_type in PREDICATE_CLASSES:
                     ret["predicate"] = predicate_class
@@ -559,6 +564,11 @@ class BlockStateTopping(Topping):
                     if len(cf.interfaces) == 1:
                         predicate_type = cf.interfaces[0].name.value
                         predicate_class = args[1]["class"]
+                    else:
+                        if verbose:
+                            print("Could not find predicate class for args %s and interfaces %s" % (args, cf.interfaces))
+                        predicate_type = None
+                        predicate_class = None
 
                 if predicate_type in PREDICATE_CLASSES:
                     ret["predicate"] = predicate_class
