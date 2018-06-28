@@ -32,7 +32,7 @@ import traceback
 # looking for consistent strings.
 MATCHES = (
     (['Accessed Biomes before Bootstrap!'], 'biome.list'),  # 1.9 only
-    ((['Ice Plains', 'mutated_ice_flats'], True), 'biome.superclass'),
+    ((['Ice Plains', 'mutated_ice_flats', 'ice_spikes'], True), 'biome.superclass'),
     (['Accessed Blocks before Bootstrap!'], 'block.list'),
     (['lightgem', 'Block{'], 'block.superclass'),
     (['Skipping Entity with id'], 'entity.list'),

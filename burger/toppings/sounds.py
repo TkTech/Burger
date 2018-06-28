@@ -51,7 +51,10 @@ HARDCODED = {
     "18w22b": "https://launchermeta.mojang.com/mc/game/a93133e085caa8211034e8c10ba4840c49c2857f/18w22b.json",
     "18w22c": "https://launchermeta.mojang.com/mc/game/2bb76d3183471e759a250225116dff75e52e9aa8/18w22c.json",
     "1.13-pre1": "https://launchermeta.mojang.com/mc/game/8dbe24cb291acdf402a110ec922a15ec59d02a22/1.13-pre1.json",
-    "1.13-pre2": "https://launchermeta.mojang.com/mc/game/6b31fc4f3cf1672bd4cf49d2f1fc39facc2af4f3/1.13-pre2.json"
+    "1.13-pre2": "https://launchermeta.mojang.com/mc/game/6b31fc4f3cf1672bd4cf49d2f1fc39facc2af4f3/1.13-pre2.json",
+    "1.13-pre3": "https://launchermeta.mojang.com/mc/game/f703320e27cb311c757cf320deb1ae96d8cf78b2/1.13-pre3.json",
+    "1.13-pre4": "https://launchermeta.mojang.com/mc/game/5dd6bac3d40c95db2fe8718ab0bb507f74ad4c00/1.13-pre4.json",
+    "1.13-pre5": "https://launchermeta.mojang.com/mc/game/1bc3bb4054ddac170c970c936975cc4a7e4d8855/1.13-pre5.json"
 }
 
 def load_json(url):

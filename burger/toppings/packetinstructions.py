@@ -293,7 +293,9 @@ class PacketInstructionsTopping(Topping):
                             operations.append(Operation(instruction.pos, "write",
                                                         type="identifier",
                                                         field=field))
-                        elif arg_type == classes["position"]:
+                        elif "position" not in classes or arg_type == classes["position"]:
+                            if verbose and "position" not in classes:
+                                print("Assuming", arg_type, "is the position class")
                             operations.append(Operation(instruction.pos,
                                                         "write", type="position",
                                                         field=field))
