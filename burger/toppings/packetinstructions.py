@@ -117,7 +117,7 @@ class PacketInstructionsTopping(Topping):
         for key, packet in six.iteritems(aggregate["packets"]["packet"]):
             operations = None
             try:
-                operations = _PIT.operations(classloader, packet["class"], aggregate["classes"])
+                operations = _PIT.operations(classloader, packet["class"], aggregate["classes"], verbose)
                 packet.update(_PIT.format(operations))
             except Exception as e:
                 if verbose:
@@ -129,7 +129,7 @@ class PacketInstructionsTopping(Topping):
                     print()
 
     @staticmethod
-    def operations(classloader, classname, classes, args=None,
+    def operations(classloader, classname, classes, verbose, args=None,
                    methodname=None, arg_names=("this", "packetbuffer")):
         """Gets the instructions of the specified method"""
 
@@ -143,7 +143,7 @@ class PacketInstructionsTopping(Topping):
                 method = methods[1]
             else:
                 if cf.super_.name.value != "java/lang/Object":
-                    return _PIT.operations(classloader, cf.super_.name.value + ".class", classes)
+                    return _PIT.operations(classloader, cf.super_.name.value + ".class", classes, verbose)
                 else:
                     raise Exception("Failed to find method in class or superclass")
         elif methodname is None:
@@ -344,7 +344,7 @@ class PacketInstructionsTopping(Topping):
                                     # method that writes to the buffer, so we need to
                                     # check it.
                                     operations += _PIT.sub_operations(
-                                        classloader, cf, classes, instruction, operands[0],
+                                        classloader, cf, classes, instruction, verbose, operands[0],
                                         [obj] + arguments if not is_static else arguments
                                     )
                                 else:
@@ -595,7 +595,7 @@ class PacketInstructionsTopping(Topping):
         return sorted(operations, key=lambda op: op.position)
 
     @staticmethod
-    def sub_operations(classloader, cf, classes, instruction,
+    def sub_operations(classloader, cf, classes, instruction, verbose,
                        operand, arg_names=[""]):
         """Gets the instructions of a different class"""
         invoked_class = operand.c + ".class"
@@ -609,7 +609,7 @@ class PacketInstructionsTopping(Topping):
             cache = _PIT.CACHE[cache_key]
             operations = [op.clone() for op in cache]
         else:
-            operations = _PIT.operations(classloader, invoked_class, classes,
+            operations = _PIT.operations(classloader, invoked_class, classes, verbose,
                                          args, name, arg_names)
 
         position = 0
