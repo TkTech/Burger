@@ -227,11 +227,11 @@ class PacketInstructionsTopping(Topping):
                     # Checking len(name) == 1 is used to see if it's a Minecraft
                     # method (due to obfuscation).  Netty methods have real
                     # (and thus longer) names.
-                    assert num_arguments == 1
+                    assert num_arguments >= 1
                     arg_type = descriptor.args[0].name
                     field = arguments[0]
 
-                    if descriptor.args[0].dimensions == 1:
+                    if descriptor.args[0].dimensions == 1 and num_arguments == 1:
                         # Array methods, which prefix a length
                         operations.append(Operation(instruction.pos, "write",
                                                     type="varint",
@@ -250,9 +250,10 @@ class PacketInstructionsTopping(Topping):
                                                         field=field))
                         else:
                             raise Exception("Unexpected array type: " + arg_type)
-                    else:
+                    elif num_arguments == 1:
                         assert descriptor.args[0].dimensions == 0
                         if arg_type == "java/lang/String":
+                            max_length = 32767 # not using this at the time
                             operations.append(Operation(instruction.pos, "write",
                                                         type="string",
                                                         field=field))
@@ -301,6 +302,16 @@ class PacketInstructionsTopping(Topping):
                                                         field=field))
                         else:
                             raise Exception("Unexpected type: " + arg_type)
+                    elif num_arguments == 2:
+                        if arg_type == "java/lang/String" and descriptor.args[1].name == "int":
+                            max_length = arguments[1] # not using this at the time
+                            operations.append(Operation(instruction.pos, "write",
+                                                        type="string",
+                                                        field=field))
+                        else:
+                            raise Exception("Unexpected descriptor " + desc)
+                    else:
+                        raise Exception("Unexpected num_arguments: " + str(num_arguments) + " - desc " + desc)
                     # Return the buffer back to the stack.
                     assert descriptor.returns.name == classes["packet.packetbuffer"]
                     stack.append(obj)
