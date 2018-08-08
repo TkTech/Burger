@@ -34,8 +34,7 @@ except ImportError:
 from collections import deque
 
 from jawa.classloader import ClassLoader
-from jawa.transforms.simple_swap import simple_swap
-from jawa.transforms.expand_constants import expand_constants
+from jawa.transforms import simple_swap, expand_constants
 
 from burger.website import Website
 from burger.roundedfloats import transform_floats

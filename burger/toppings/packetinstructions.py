@@ -32,7 +32,7 @@ from types import LambdaType
 
 from jawa.util.descriptor import method_descriptor, parse_descriptor
 from jawa.constants import *
-from jawa.transforms.simple_swap import simple_swap
+from jawa.transforms import simple_swap
 
 from .topping import Topping
 
