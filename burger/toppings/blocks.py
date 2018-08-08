@@ -40,6 +40,7 @@ class BlocksTopping(Topping):
     DEPENDS = [
         "identify.block.superclass",
         "identify.block.list",
+        "identify.identifier",
         "language",
         "version.data",
         "version.is_flattened"
@@ -188,6 +189,9 @@ class BlocksTopping(Topping):
 
                     if desc.returns.name == builder_class:
                         return obj
+                    elif desc.returns.name == aggregate["classes"]["identifier"]:
+                        # Probably getting the air identifier from the registry
+                        return "air"
                     elif desc.returns.name != "void":
                         return object()
 

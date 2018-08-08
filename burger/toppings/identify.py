@@ -184,6 +184,7 @@ class IdentifyTopping(Topping):
         "identify.entity.list",
         "identify.entity.trackerentry",
         "identify.enumfacing.plane",
+        "identify.identifier",
         "identify.item.list",
         "identify.item.superclass",
         "identify.itemstack",
