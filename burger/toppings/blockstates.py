@@ -243,6 +243,9 @@ class BlockStateTopping(Topping):
             """
             if cls in is_enum_cache:
                 return is_enum_cache[cls]
+            if cls not in classloader:
+                is_enum_cache[cls] = False
+                return False
 
             cf = classloader[cls]
             super = cf.super_.name.value
