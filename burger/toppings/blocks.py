@@ -173,13 +173,13 @@ class BlocksTopping(Topping):
 
                     if method_name == hardness_setter.name.value and method_desc == hardness_setter.descriptor.value:
                         obj["hardness"] = args[0]
-                        # resistance is args[1]
+                        obj["resistance"] = args[1]
                     elif method_name == hardness_setter_2.name.value and method_desc == hardness_setter_2.descriptor.value:
                         obj["hardness"] = args[0]
-                        # resistance is args[0]
+                        obj["resistance"] = args[0]
                     elif method_name == hardness_setter_3.name.value and method_desc == hardness_setter_3.descriptor.value:
                         obj["hardness"] = 0.0
-                        # resistance is 0.0
+                        obj["resistance"] = 0.0
                     elif method_name == "<init>":
                         # Call to the constructor for the block
                         # We can't hardcode index 0 because sand has an extra parameter, so use the last one
@@ -355,11 +355,11 @@ class BlocksTopping(Topping):
             name_setter = None
 
         #NOTE: There are a bunch more of these now...
-        hardness_setters = cf.methods.find(
+        hardness_setters = list(cf.methods.find(
             returns="L" + superclass + ";",
             args="F",
             f=lambda x: x.access_flags.acc_protected
-        )
+        ))
 
         for method in hardness_setters:
             fld = None
@@ -372,6 +372,19 @@ class BlocksTopping(Topping):
                     hardness_setter = method.name.value + const.value
                     hardness_field = fld
                     break
+
+        for method in hardness_setters:
+            # Look for the resistance setter, which multiplies by 3.
+            is_resistance = False
+            for ins in method.code.disassemble():
+                if ins.mnemonic in ("ldc", "ldc_w"):
+                    is_resistance = (ins.operands[0].value == 3.0)
+                elif ins.mnemonic == "fmul" and is_resistance:
+                    const = cf.constants.get(method.descriptor.index)
+                    resistance_setter = method.name.value + const.value
+                    break
+                else:
+                    is_resistance = False
 
         if is_flattened:
             # Current IDs are incremental, manually track them
@@ -409,6 +422,7 @@ class BlocksTopping(Topping):
             if language and lang_key in language:
                 final["display_name"] = language[lang_key]
 
+            final["resistance"] = 0.0
             if hardness_setter not in blk["calls"]:
                 final["hardness"] = 0.00
             else:
@@ -426,6 +440,15 @@ class BlocksTopping(Topping):
                         assert hardness["block"] in block
                         hardness = block[hardness["block"]]["hardness"] * hardness["scale"]
                     final["hardness"] = hardness
+                    if final["resistance"] < hardness:
+                        # NOTE: vanilla multiples this value by 5, but then divides by 5 later
+                        # Just ignore that multiplication to avoid confusion.
+                        final["resistance"] = hardness
+
+            if resistance_setter in blk["calls"]:
+                # The * 3 is also present in vanilla, strange logic
+                # Division to normalize for the multiplication/division by 5.
+                final["resistance"] = blk["calls"][resistance_setter][0] * 3.0 / 5.0
 
             ordered_blocks.append(final["text_id"])
             block[final["text_id"]] = final
