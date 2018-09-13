@@ -121,6 +121,8 @@ class BlocksTopping(Topping):
                         break
         assert hardness_setter_3 != None
 
+        light_setter = builder_cf.methods.find_one(args='I')
+
         blocks = aggregate.setdefault("blocks", {})
         block = blocks.setdefault("block", {})
         ordered_blocks = blocks.setdefault("ordered_blocks", [])
@@ -180,6 +182,8 @@ class BlocksTopping(Topping):
                     elif method_name == hardness_setter_3.name.value and method_desc == hardness_setter_3.descriptor.value:
                         obj["hardness"] = 0.0
                         obj["resistance"] = 0.0
+                    elif method_name == light_setter.name.value and method_desc == light_setter.descriptor.value:
+                        obj["light"] = args[0]
                     elif method_name == "<init>":
                         # Call to the constructor for the block
                         # We can't hardcode index 0 because sand has an extra parameter, so use the last one
@@ -354,37 +358,48 @@ class BlocksTopping(Topping):
         else:
             name_setter = None
 
-        #NOTE: There are a bunch more of these now...
-        hardness_setters = list(cf.methods.find(
+        float_setters = list(cf.methods.find(
             returns="L" + superclass + ";",
             args="F",
             f=lambda x: x.access_flags.acc_protected
         ))
 
-        for method in hardness_setters:
+        for method in float_setters:
             fld = None
             for ins in method.code.disassemble():
                 if ins.mnemonic == "putfield":
                     const = ins.operands[0]
                     fld = const.name_and_type.name.value
                 elif ins.mnemonic == "ifge":
-                    const = cf.constants.get(method.descriptor.index)
-                    hardness_setter = method.name.value + const.value
+                    hardness_setter = method.name.value + method.descriptor.value
                     hardness_field = fld
                     break
 
-        for method in hardness_setters:
+        for method in float_setters:
             # Look for the resistance setter, which multiplies by 3.
             is_resistance = False
             for ins in method.code.disassemble():
                 if ins.mnemonic in ("ldc", "ldc_w"):
                     is_resistance = (ins.operands[0].value == 3.0)
                 elif ins.mnemonic == "fmul" and is_resistance:
-                    const = cf.constants.get(method.descriptor.index)
-                    resistance_setter = method.name.value + const.value
+                    resistance_setter = method.name.value + method.descriptor.value
                     break
                 else:
                     is_resistance = False
+
+        for method in float_setters:
+            # Look for the light setter, which multiplies by 15, but 15 is the first value (15 * val)
+            is_light = False
+            for ins in method.code.disassemble():
+                if ins.mnemonic in ("ldc", "ldc_w"):
+                    is_light = (ins.operands[0].value == 15.0)
+                elif ins.mnemonic.startswith("fload"):
+                    pass
+                elif ins.mnemonic == "fmul" and is_light:
+                    light_setter = method.name.value + method.descriptor.value
+                    break
+                else:
+                    is_light = False
 
         if is_flattened:
             # Current IDs are incremental, manually track them
@@ -422,15 +437,16 @@ class BlocksTopping(Topping):
             if language and lang_key in language:
                 final["display_name"] = language[lang_key]
 
-            final["resistance"] = 0.0
             if hardness_setter not in blk["calls"]:
-                final["hardness"] = 0.00
+                final["hardness"] = 0.0
+                final["resistance"] = 0.0
             else:
                 stack = blk["calls"][hardness_setter]
                 if len(stack) == 0:
                     if verbose:
                         print("%s: Broken hardness value" % final["text_id"])
-                    final["hardness"] = 0.00
+                    final["hardness"] = 0.0
+                    final["resistance"] = 0.0
                 else:
                     hardness = blk["calls"][hardness_setter][0]
                     if isinstance(hardness, dict) and "field" in hardness:
@@ -440,15 +456,18 @@ class BlocksTopping(Topping):
                         assert hardness["block"] in block
                         hardness = block[hardness["block"]]["hardness"] * hardness["scale"]
                     final["hardness"] = hardness
-                    if final["resistance"] < hardness:
-                        # NOTE: vanilla multiples this value by 5, but then divides by 5 later
-                        # Just ignore that multiplication to avoid confusion.
-                        final["resistance"] = hardness
+                    # NOTE: vanilla multiples this value by 5, but then divides by 5 later
+                    # Just ignore that multiplication to avoid confusion.
+                    final["resistance"] = hardness
 
             if resistance_setter in blk["calls"]:
                 # The * 3 is also present in vanilla, strange logic
                 # Division to normalize for the multiplication/division by 5.
                 final["resistance"] = blk["calls"][resistance_setter][0] * 3.0 / 5.0
+            # Already set in the hardness area, so no need for an else clause
+
+            if light_setter in blk["calls"]:
+                final["light"] = int(blk["calls"][light_setter][0] * 15)
 
             ordered_blocks.append(final["text_id"])
             block[final["text_id"]] = final
