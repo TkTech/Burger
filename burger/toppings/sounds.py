@@ -64,7 +64,11 @@ HARDCODED = {
     "18w30a": "https://launchermeta.mojang.com/mc/game/7fc78b1de5a9d288a7279524aa071bef2c5160dd/18w30a.json",
     "18w30b": "https://launchermeta.mojang.com/mc/game/9e0841c5a5db7efdef2f8ebe6147440dfad38a70/18w30b.json",
     "18w31a": "https://launchermeta.mojang.com/mc/game/824b860a1f3b8a7e6d4b433a73e787be57a66f16/18w31a.json",
-    "18w32a": "https://launchermeta.mojang.com/mc/game/7eb858d300e55e2240ab92abbb0179656ac8f710/18w32a.json"
+    "18w32a": "https://launchermeta.mojang.com/mc/game/7eb858d300e55e2240ab92abbb0179656ac8f710/18w32a.json",
+    "18w33a": "https://launchermeta.mojang.com/mc/game/fc14fd826663b025e2d4600523aa5b50bcf62a94/18w33a.json",
+    "1.13.1-pre1": "https://launchermeta.mojang.com/mc/game/7fb773e6efc7a15322f0e433809224f8fad6ac89/1.13.1-pre1.json",
+    "1.13.1-pre2": "https://launchermeta.mojang.com/mc/game/4f2100e24eb32ab94447de5808b96fdade6badd3/1.13.1-pre2.json",
+    "1.13.1": "https://launchermeta.mojang.com/mc/game/6ff0d266e92bd52e97e1cc4adf339b1445870141/1.13.1.json"
 }
 
 def load_json(url):
