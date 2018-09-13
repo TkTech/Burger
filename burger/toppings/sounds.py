@@ -39,37 +39,6 @@ from jawa.constants import *
 VERSION_MANIFEST = "https://launchermeta.mojang.com/mc/game/version_manifest.json"
 LEGACY_VERSION_META = "https://s3.amazonaws.com/Minecraft.Download/versions/%(version)s/%(version)s.json" # DEPRECATED
 RESOURCES_SITE = "http://resources.download.minecraft.net/%(short_hash)s/%(hash)s"
-HARDCODED = {
-    "18w19a": "https://launchermeta.mojang.com/mc/game/8cab0b2d8df90d8f21fd9c342b57fc1ac84ad52a/18w19a.json",
-    "18w19b": "https://launchermeta.mojang.com/mc/game/47fc76c26b3350cacf86d0e6d426a06d34917e1c/18w19b.json",
-    "18w20a": "https://launchermeta.mojang.com/mc/game/6a078865551f0d7732769c83c87d7cef1b2929a1/18w20a.json",
-    "18w20b": "https://launchermeta.mojang.com/mc/game/a37d0ee906d1acabf894f3d2d3b93207909fc3af/18w20b.json",
-    "18w20c": "https://launchermeta.mojang.com/mc/game/812951283c7120566e92f34dad4ee09e5a854d51/18w20c.json",
-    "18w21a": "https://launchermeta.mojang.com/mc/game/8086f166a4ff022bf3a41523938e7dc3692c017f/18w21a.json",
-    "18w21b": "https://launchermeta.mojang.com/mc/game/9ed07f1fcd93eb32979d5c367a63820628616412/18w21b.json",
-    "18w22a": "https://launchermeta.mojang.com/mc/game/debf733624cfe568c56e4cdb42b39dc959df713c/18w22a.json",
-    "18w22b": "https://launchermeta.mojang.com/mc/game/a93133e085caa8211034e8c10ba4840c49c2857f/18w22b.json",
-    "18w22c": "https://launchermeta.mojang.com/mc/game/2bb76d3183471e759a250225116dff75e52e9aa8/18w22c.json",
-    "1.13-pre1": "https://launchermeta.mojang.com/mc/game/8dbe24cb291acdf402a110ec922a15ec59d02a22/1.13-pre1.json",
-    "1.13-pre2": "https://launchermeta.mojang.com/mc/game/6b31fc4f3cf1672bd4cf49d2f1fc39facc2af4f3/1.13-pre2.json",
-    "1.13-pre3": "https://launchermeta.mojang.com/mc/game/f703320e27cb311c757cf320deb1ae96d8cf78b2/1.13-pre3.json",
-    "1.13-pre4": "https://launchermeta.mojang.com/mc/game/5dd6bac3d40c95db2fe8718ab0bb507f74ad4c00/1.13-pre4.json",
-    "1.13-pre5": "https://launchermeta.mojang.com/mc/game/1bc3bb4054ddac170c970c936975cc4a7e4d8855/1.13-pre5.json",
-    "1.13-pre6": "https://launchermeta.mojang.com/mc/game/0815eae6f719740cc0ea69be6e2b715ae15191fb/1.13-pre6.json",
-    "1.13-pre7": "https://launchermeta.mojang.com/mc/game/4aa225abb7ac2763f683aa7490226660c3462341/1.13-pre7.json",
-    "1.13-pre8": "https://launchermeta.mojang.com/mc/game/934629cee90d584c649c8d288d3737ae558f3405/1.13-pre8.json",
-    "1.13-pre9": "https://launchermeta.mojang.com/mc/game/cb10cf2c867006d90e91044edde94eeea95f710f/1.13-pre9.json",
-    "1.13-pre10": "https://launchermeta.mojang.com/mc/game/d47ad89224d8bf79d6cd71619e9699ad4083f47c/1.13-pre10.json",
-    "1.13": "https://launchermeta.mojang.com/mc/game/3132596cced9f9d6f1ca97aeec75651e6a9df0bc/1.13.json",
-    "18w30a": "https://launchermeta.mojang.com/mc/game/7fc78b1de5a9d288a7279524aa071bef2c5160dd/18w30a.json",
-    "18w30b": "https://launchermeta.mojang.com/mc/game/9e0841c5a5db7efdef2f8ebe6147440dfad38a70/18w30b.json",
-    "18w31a": "https://launchermeta.mojang.com/mc/game/824b860a1f3b8a7e6d4b433a73e787be57a66f16/18w31a.json",
-    "18w32a": "https://launchermeta.mojang.com/mc/game/7eb858d300e55e2240ab92abbb0179656ac8f710/18w32a.json",
-    "18w33a": "https://launchermeta.mojang.com/mc/game/fc14fd826663b025e2d4600523aa5b50bcf62a94/18w33a.json",
-    "1.13.1-pre1": "https://launchermeta.mojang.com/mc/game/7fb773e6efc7a15322f0e433809224f8fad6ac89/1.13.1-pre1.json",
-    "1.13.1-pre2": "https://launchermeta.mojang.com/mc/game/4f2100e24eb32ab94447de5808b96fdade6badd3/1.13.1-pre2.json",
-    "1.13.1": "https://launchermeta.mojang.com/mc/game/6ff0d266e92bd52e97e1cc4adf339b1445870141/1.13.1.json"
-}
 
 def load_json(url):
     stream = six.moves.urllib.request.urlopen(url)
@@ -80,9 +49,9 @@ def load_json(url):
 
 def get_version_meta(version, verbose):
     """
-    Gets a version metadata file using the (deprecated)
-    s3.amazonaws.com/Minecraft.Download pages.  This is done because e.g.
-    older snapshots do not exist in the version manifest but do exist here.
+    Gets a version JSON file, first attempting the to use the version manifest
+    and then falling back to the legacy site if that fails.
+    Note that the main manifest should include all versions as of august 2018.
     """
     version_manifest = load_json(VERSION_MANIFEST)
     for version_info in version_manifest["versions"]:
@@ -91,12 +60,7 @@ def get_version_meta(version, verbose):
             break
     else:
         if verbose:
-            print("Failed to find %s in the main version manifest" % version)
-        if version in HARDCODED:
-            print("Using hardcoded fallback")
-            address = HARDCODED[version]
-        else:
-            print("Using legacy site")
+            print("Failed to find %s in the main version manifest; using legacy site" % version)
             address = LEGACY_VERSION_META % {'version': version}
     if verbose:
         print("Loading version manifest for %s from %s" % (version, address))
