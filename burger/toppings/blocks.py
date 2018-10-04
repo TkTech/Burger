@@ -383,6 +383,9 @@ class BlocksTopping(Topping):
                     is_resistance = (ins.operands[0].value == 3.0)
                 elif ins.mnemonic == "fmul" and is_resistance:
                     resistance_setter = method.name.value + method.descriptor.value
+                elif ins.mnemonic == "putfield" and is_resistance:
+                    const = ins.operands[0]
+                    resistance_field = const.name_and_type.name.value
                     break
                 else:
                     is_resistance = False
@@ -461,9 +464,16 @@ class BlocksTopping(Topping):
                     final["resistance"] = hardness
 
             if resistance_setter in blk["calls"]:
+                resistance = blk["calls"][resistance_setter][0]
+                if isinstance(resistance, dict) and "field" in resistance:
+                    # Repair field info
+                    assert resistance["field"] == resistance_field
+                    assert "block" in resistance
+                    assert resistance["block"] in block
+                    resistance = block[resistance["block"]]["resistance"] * resistance["scale"]
                 # The * 3 is also present in vanilla, strange logic
                 # Division to normalize for the multiplication/division by 5.
-                final["resistance"] = blk["calls"][resistance_setter][0] * 3.0 / 5.0
+                final["resistance"] = resistance * 3.0 / 5.0
             # Already set in the hardness area, so no need for an else clause
 
             if light_setter in blk["calls"]:
