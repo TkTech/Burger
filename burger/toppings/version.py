@@ -23,19 +23,16 @@ THE SOFTWARE.
 from .topping import Topping
 
 from jawa.constants import *
-from jawa.cf import ClassFile
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 
 class VersionTopping(Topping):
     """Provides the protocol version."""
 
     PROVIDES = [
         "version.protocol",
-        "version.name"
+        "version.name",
+        "version.data",
+        "version.is_flattened",
+        "version.entity_format"
     ]
 
     DEPENDS = [
@@ -44,27 +41,25 @@ class VersionTopping(Topping):
     ]
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
-        VersionTopping.get_protocol_version(aggregate, jar, verbose)
-        VersionTopping.get_data_version(aggregate, jar, verbose)
+    def act(aggregate, classloader, verbose=False):
+        VersionTopping.get_protocol_version(aggregate, classloader, verbose)
+        VersionTopping.get_data_version(aggregate, classloader, verbose)
 
     @staticmethod
-    def get_protocol_version(aggregate, jar, verbose):
+    def get_protocol_version(aggregate, classloader, verbose):
         versions = aggregate.setdefault("version", {})
         if "nethandler.server" in aggregate["classes"]:
-            nethandler = aggregate["classes"]["nethandler.server"] + ".class"
-            cf = ClassFile(StringIO(jar.read(nethandler)))
+            nethandler = aggregate["classes"]["nethandler.server"]
+            cf = classloader[nethandler]
             version = None
             looking_for_version_name = False
             for method in cf.methods:
                 for instr in method.code.disassemble():
                     if instr.mnemonic in ("bipush", "sipush"):
                         version = instr.operands[0].value
-                    elif instr.mnemonic.startswith("iconst"):
-                        version = int(instr.mnemonic[-1])
                     elif instr.mnemonic == "ldc" and version is not None:
-                        constant = cf.constants.get(instr.operands[0].value)
-                        if isinstance(constant, ConstantString):
+                        constant = instr.operands[0]
+                        if isinstance(constant, String):
                             str = constant.string.value
 
                             if "multiplayer.disconnect.outdated_client" in str:
@@ -80,36 +75,59 @@ class VersionTopping(Topping):
                                     str[len("Outdated server! I'm still on "):]
                                 return
         elif verbose:
-            print "Unable to determine protocol version"
+            print("Unable to determine protocol version")
 
     @staticmethod
-    def get_data_version(aggregate, jar, verbose):
+    def get_data_version(aggregate, classloader, verbose):
         if "anvilchunkloader" in aggregate["classes"]:
-            anvilchunkloader = aggregate["classes"]["anvilchunkloader"] + ".class"
-            cf = ClassFile(StringIO(jar.read(anvilchunkloader)))
+            anvilchunkloader = aggregate["classes"]["anvilchunkloader"]
+            cf = classloader[anvilchunkloader]
 
             for method in cf.methods:
                 next_ins_is_version = False
+                found_version = None
                 for ins in method.code.disassemble():
                     if ins.mnemonic in ("ldc", "ldc_w"):
-                        const = cf.constants.get(ins.operands[0].value)
-                        if isinstance(const, ConstantString):
+                        const = ins.operands[0]
+                        if isinstance(const, String):
                             if const.string.value == "DataVersion":
                                 next_ins_is_version = True
-                        elif isinstance(const, ConstantInteger):
+                            elif const.string.value == "hasLegacyStructureData":
+                                # In 18w21a+, there are two places that reference DataVersion,
+                                # one which is querying it and one which is saving it.
+                                # We don't want the one that's querying it;
+                                # if "hasLegacyStructureData" is present then we're in the
+                                # querying one so break and try the next method
+                                found_version = None
+                                break
+                        elif isinstance(const, Integer):
                             if next_ins_is_version:
-                                aggregate["version"]["data"] = const.value
+                                found_version = const.value
                             break
                     elif not next_ins_is_version:
                         pass
                     elif ins.mnemonic in ("bipush", "sipush"):
-                        aggregate["version"]["data"] = ins.operands[0].value
-                        break
-                    elif ins.mnemonic.startswith("iconst"):
-                        aggregate["version"]["data"] = int(ins.mnemonic[-1])
-                        break
+                        found_version = ins.operands[0].value
 
-                if next_ins_is_version:
+                if found_version is not None:
+                    aggregate["version"]["data"] = found_version
                     break
         elif verbose:
-            print "Unable to determine data version"
+            print("Unable to determine data version")
+
+        if "data" in aggregate["version"]:
+            data_version = aggregate["version"]["data"]
+            # Versions after 17w46a (1449) are flattened
+            aggregate["version"]["is_flattened"] = (data_version > 1449)
+            if data_version >= 1461:
+                # 1.13 (18w02a and above, 1461) uses yet another entity format
+                aggregate["version"]["entity_format"] = "1.13"
+            elif data_version >= 800:
+                # 1.11 versions (16w32a and above, 800) use one entity format
+                aggregate["version"]["entity_format"] = "1.11"
+            else:
+                # Old entity format
+                aggregate["version"]["entity_format"] = "1.10"
+        else:
+            aggregate["version"]["is_flattened"] = False
+            aggregate["version"]["entity_format"] = "1.10"

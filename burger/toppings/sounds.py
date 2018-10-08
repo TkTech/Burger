@@ -22,7 +22,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 
-import urllib
 try:
     import json
 except ImportError:
@@ -30,33 +29,42 @@ except ImportError:
 
 import traceback
 
+import six
+import six.moves.urllib.request
+
 from .topping import Topping
 
 from jawa.constants import *
-from jawa.cf import ClassFile
 
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
-
-VERSION_META = "https://s3.amazonaws.com/Minecraft.Download/versions/%(version)s/%(version)s.json"
+VERSION_MANIFEST = "https://launchermeta.mojang.com/mc/game/version_manifest.json"
+LEGACY_VERSION_META = "https://s3.amazonaws.com/Minecraft.Download/versions/%(version)s/%(version)s.json" # DEPRECATED
 RESOURCES_SITE = "http://resources.download.minecraft.net/%(short_hash)s/%(hash)s"
 
 def load_json(url):
-    stream = urllib.urlopen(url)
+    stream = six.moves.urllib.request.urlopen(url)
     try:
         return json.load(stream)
     finally:
         stream.close()
 
-def get_version_meta(version):
+def get_version_meta(version, verbose):
     """
-    Gets a version metadata file using the (deprecated)
-    s3.amazonaws.com/Minecraft.Download pages.  This is done because e.g.
-    older snapshots do not exist in the version manifest but do exist here.
+    Gets a version JSON file, first attempting the to use the version manifest
+    and then falling back to the legacy site if that fails.
+    Note that the main manifest should include all versions as of august 2018.
     """
-    return load_json(VERSION_META % {'version': version})
+    version_manifest = load_json(VERSION_MANIFEST)
+    for version_info in version_manifest["versions"]:
+        if version_info["id"] == version:
+            address = version_info["url"]
+            break
+    else:
+        if verbose:
+            print("Failed to find %s in the main version manifest; using legacy site" % version)
+            address = LEGACY_VERSION_META % {'version': version}
+    if verbose:
+        print("Loading version manifest for %s from %s" % (version, address))
+    return load_json(address)
 
 def get_asset_index(version_meta, verbose):
     """Downloads the Minecraft asset index"""
@@ -64,7 +72,7 @@ def get_asset_index(version_meta, verbose):
         raise Exception("No asset index defined in the version meta")
     asset_index = version_meta["assetIndex"]
     if verbose:
-        print "Assets: id %(id)s, url %(url)s" % asset_index
+        print("Assets: id %(id)s, url %(url)s" % asset_index)
     return load_json(asset_index["url"])
 
 def get_sounds(asset_index, resources_site=RESOURCES_SITE):
@@ -73,7 +81,7 @@ def get_sounds(asset_index, resources_site=RESOURCES_SITE):
     short_hash = hash[0:2]
     sounds_url = resources_site % {'hash': hash, 'short_hash': short_hash}
 
-    sounds_file = urllib.urlopen(sounds_url)
+    sounds_file = six.moves.urllib.request.urlopen(sounds_url)
 
     try:
         return json.load(sounds_file)
@@ -96,27 +104,27 @@ class SoundTopping(Topping):
     ]
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
+    def act(aggregate, classloader, verbose=False):
         sounds = aggregate.setdefault('sounds', {})
         try:
-            version_meta = get_version_meta(aggregate["version"]["name"])
+            version_meta = get_version_meta(aggregate["version"]["name"], verbose)
         except Exception as e:
             if verbose:
-                print "Error: Failed to download version meta for sounds: %s" % e
+                print("Error: Failed to download version meta for sounds: %s" % e)
                 traceback.print_exc()
             return
         try:
             assets = get_asset_index(version_meta, verbose)
         except Exception as e:
             if verbose:
-                print "Error: Failed to download asset index for sounds: %s" % e
+                print("Error: Failed to download asset index for sounds: %s" % e)
                 traceback.print_exc()
             return
         try:
             sounds_json = get_sounds(assets)
         except Exception as e:
             if verbose:
-                print "Error: Failed to download sound list: %s" % e
+                print("Error: Failed to download sound list: %s" % e)
                 traceback.print_exc()
             return
 
@@ -125,7 +133,7 @@ class SoundTopping(Topping):
             return
 
         soundevent = aggregate["classes"]["sounds.event"]
-        cf = ClassFile(StringIO(jar.read(soundevent + ".class")))
+        cf = classloader[soundevent]
 
         # Find the static sound registration method
         method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
@@ -134,7 +142,7 @@ class SoundTopping(Topping):
         sound_id = 0
         for ins in method.code.disassemble():
             if ins.mnemonic in ('ldc', 'ldc_w'):
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 sound_name = const.string.value
             elif ins.mnemonic == 'invokestatic':
                 sound = {
@@ -149,7 +157,7 @@ class SoundTopping(Topping):
                         sound["sounds"] = []
                         for value in json_sound["sounds"]:
                             data = {}
-                            if isinstance(value, basestring):
+                            if isinstance(value, six.string_types):
                                 data["name"] = value
                                 path = value
                             elif isinstance(value, dict):
@@ -173,16 +181,16 @@ class SoundTopping(Topping):
 
         # Get fields now
         soundlist = aggregate["classes"]["sounds.list"]
-        lcf = ClassFile(StringIO(jar.read(soundlist + ".class")))
+        lcf = classloader[soundlist]
 
         method = lcf.methods.find_one(name="<clinit>")
         for ins in method.code.disassemble():
             if ins.mnemonic in ('ldc', 'ldc_w'):
-                const = lcf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 sound_name = const.string.value
             elif ins.mnemonic == "putstatic":
                 if sound_name is None or sound_name == "Accessed Sounds before Bootstrap!":
                     continue
-                const = lcf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 field = const.name_and_type.name.value
                 sounds[sound_name]["field"] = field

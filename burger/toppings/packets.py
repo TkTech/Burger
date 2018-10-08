@@ -25,12 +25,6 @@ THE SOFTWARE.
 from .topping import Topping
 
 from jawa.constants import *
-from jawa.cf import ClassFile
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 
 class PacketsTopping(Topping):
     """Provides minimal information on all network packets."""
@@ -47,9 +41,9 @@ class PacketsTopping(Topping):
     ]
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
+    def act(aggregate, classloader, verbose=False):
         connectionstate = aggregate["classes"]["packet.connectionstate"]
-        cf = ClassFile(StringIO(jar.read(connectionstate + ".class")))
+        cf = classloader[connectionstate]
 
         # Find the static constructor
         method = cf.methods.find_one(name="<clinit>")
@@ -67,14 +61,14 @@ class PacketsTopping(Topping):
 
         for ins in method.code.disassemble():
             if ins.mnemonic == "new":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 state_class = const.name.value
             elif ins.mnemonic == "ldc":
-                const = cf.constants.get(ins.operands[0].value)
-                if isinstance(const, ConstantString):
+                const = ins.operands[0]
+                if isinstance(const, String):
                     state_name = const.string.value
             elif ins.mnemonic == "putstatic":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 state_field = const.name_and_type.name.value
                 
                 states[state_name] = {
@@ -98,18 +92,18 @@ class PacketsTopping(Topping):
             directions_by_field = {}
             NUM_DIRECTIONS = 2
 
-            direction_class_file = ClassFile(StringIO(jar.read(direction_class + ".class")))
-            direction_init_method = direction_class_file.methods.find_one("<clinit>")
+            direction_class_file = classloader[direction_class]
+            direction_init_method = direction_class_file.methods.find_one(name="<clinit>")
             for ins in direction_init_method.code.disassemble():
                 if ins.mnemonic == "new":
-                    const = direction_class_file.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     dir_class = const.name.value
                 elif ins.mnemonic == "ldc":
-                    const = direction_class_file.constants.get(ins.operands[0].value)
-                    if isinstance(const, ConstantString):
+                    const = ins.operands[0]
+                    if isinstance(const, String):
                         dir_name = const.string.value
                 elif ins.mnemonic == "putstatic":
-                    const = direction_class_file.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     dir_field = const.name_and_type.name.value
 
                     directions[dir_name] = {
@@ -141,8 +135,8 @@ class PacketsTopping(Topping):
             for method in register_methods:
                 for ins in method.code.disassemble():
                     if ins.mnemonic == "ldc":
-                        const = cf.constants.get(ins.operands[0].value)
-                        if isinstance(const, ConstantString):
+                        const = ins.operands[0]
+                        if isinstance(const, String):
                             if "Clientbound" in const.string.value:
                                 directions["CLIENTBOUND"] = {
                                     "register_method": method.name.value,
@@ -171,25 +165,23 @@ class PacketsTopping(Topping):
 
         for state_name in states:
             state = states[state_name] #TODO: Can I just iterate over the values directly?
-            cf = ClassFile(StringIO(jar.read(state["class"] + ".class")))
-            method = cf.methods.find_one("<init>")
+            cf = classloader[state["class"]]
+            method = cf.methods.find_one(name="<init>")
             init_state()
             for ins in method.code.disassemble():
                 if ins.mnemonic == "getstatic":
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     field = const.name_and_type.name.value
                     stack.append(directions_by_field[field])
-                elif ins.mnemonic.startswith("iconst"):
-                    stack.append(ins.mnemonic[-1])
-                elif ins.mnemonic == "bipush":
+                elif ins.mnemonic in ("bipush", "sipush"):
                     stack.append(ins.operands[0].value)
                 elif ins.mnemonic in ("ldc", "ldc_w"):
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     if isinstance(const, ConstantClass):
                         stack.append("%s.class" % const.name.value)
                 elif ins.mnemonic == "invokevirtual":
                     # TODO: Currently assuming that the method is the register one which seems to be correct but may be wrong
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     method_name = const.name_and_type.name.value
                     direction = get_direction(method_name)
                     id = get_id()

@@ -33,7 +33,8 @@ except ImportError:
 
 from collections import deque
 
-from zipfile import ZipFile
+from jawa.classloader import ClassLoader
+from jawa.transforms import simple_swap, expand_constants
 
 from burger.website import Website
 from burger.roundedfloats import transform_floats
@@ -70,9 +71,9 @@ def import_toppings():
         subclasses = list([o for o in current if o not in last])
         last = Topping.__subclasses__()
         if len(subclasses) == 0:
-            print "Topping '%s' contains no topping" % topping
+            print("Topping '%s' contains no topping" % topping)
         elif len(subclasses) >= 2:
-            print "Topping '%s' contains more than one topping" % topping
+            print("Topping '%s' contains more than one topping" % topping)
         else:
             toppings[topping] = subclasses[0]
 
@@ -96,8 +97,8 @@ if __name__ == "__main__":
                 "source="
             ]
         )
-    except getopt.GetoptError, err:
-        print str(err)
+    except getopt.GetoptError as err:
+        print(str(err))
         sys.exit(1)
 
     # Default options
@@ -115,7 +116,7 @@ if __name__ == "__main__":
         if o in ("-t", "--toppings"):
             toppings = a.split(",")
         elif o in ("-o", "--output"):
-            output = open(a, "ab")
+            output = open(a, "a")
         elif o in ("-v", "--verbose"):
             verbose = True
         elif o in ("-c", "--compact"):
@@ -138,9 +139,9 @@ if __name__ == "__main__":
     # as well as their docstring if available.
     if list_toppings:
         for topping in all_toppings:
-            print "%s" % topping
+            print("%s" % topping)
             if all_toppings[topping].__doc__:
-                print " -- %s\n" % all_toppings[topping].__doc__
+                print(" -- %s\n" % all_toppings[topping].__doc__)
         sys.exit(0)
 
     # Get the toppings we want
@@ -150,7 +151,7 @@ if __name__ == "__main__":
         loaded_toppings = []
         for topping in toppings:
             if topping not in all_toppings:
-                print "Topping '%s' doesn't exist" % topping
+                print("Topping '%s' doesn't exist" % topping)
             else:
                 loaded_toppings.append(all_toppings[topping])
 
@@ -188,7 +189,7 @@ if __name__ == "__main__":
     for topping in topping_nodes:
         for dependency in topping.depends:
             if not dependency in topping_provides:
-                print "(%s) requires (%s)" % (topping, dependency)
+                print("(%s) requires (%s)" % (topping, dependency))
                 sys.exit(1)
             if not topping_provides[dependency] in topping.childs:
                 topping.childs.append(topping_provides[dependency])
@@ -206,7 +207,7 @@ if __name__ == "__main__":
                 to_be_run.append(topping.topping)
                 topping_nodes.remove(topping)
         if stuck:
-            print "Can't resolve dependencies"
+            print("Can't resolve dependencies")
             sys.exit(1)
 
     jarlist = args
@@ -225,23 +226,21 @@ if __name__ == "__main__":
     summary = []
 
     for path in jarlist:
-        jar = ZipFile(path, "r")
-        num_classes = 0
-        for name in jar.namelist():
-            if name.endswith(".class"):
-                num_classes = num_classes + 1
+        classloader = ClassLoader(path, max_cache=0, bytecode_transforms=[simple_swap, expand_constants])
+        names = classloader.path_map.keys()
+        num_classes = sum(1 for name in names if name.endswith(".class"))
 
         aggregate = {
             "source": {
                 "file": path,
                 "classes": num_classes,
-                "other": len(jar.namelist()),
+                "other": len(names),
                 "size": os.path.getsize(path)
             }
         }
 
         for topping in to_be_run:
-            topping.act(aggregate, jar, verbose)
+            topping.act(aggregate, classloader, verbose)
 
         summary.append(aggregate)
 

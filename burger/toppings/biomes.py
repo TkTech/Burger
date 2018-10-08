@@ -22,18 +22,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 
+import six
 from .topping import Topping
-import types
 
 from jawa.util.descriptor import method_descriptor
 
 from jawa.constants import *
-from jawa.cf import ClassFile
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 
 class BiomeTopping(Topping):
     """Gets most biome types."""
@@ -44,27 +38,32 @@ class BiomeTopping(Topping):
 
     DEPENDS = [
         "identify.biome.superclass",
-        "identify.biome.list"
+        "identify.biome.list",
+        "version.data",
+        "language"
     ]
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
+    def act(aggregate, classloader, verbose=False):
         if "biome.superclass" not in aggregate["classes"]:
             return
         if "biome.list" in aggregate["classes"]:
-            BiomeTopping.process_19(aggregate, jar, verbose)
+            if "data" in aggregate["version"] and aggregate["version"]["data"] >= 1466: # snapshot 18w06a
+                BiomeTopping._process_113(aggregate, classloader, verbose)
+            else:
+                BiomeTopping._process_19(aggregate, classloader, verbose)
         else:
-            BiomeTopping.process_18(aggregate, jar, verbose)
+            BiomeTopping._process_18(aggregate, classloader, verbose)
 
     @staticmethod
-    def process_18(aggregate, jar, verbose):
-        """Processes biomes for Minecraft 1.8"""
+    def _process_18(aggregate, classloader, verbose):
+        # Processes biomes for Minecraft 1.8 and below
         biomes_base = aggregate.setdefault("biomes", {})
         biomes = biomes_base.setdefault("biome", {})
         biome_fields = biomes_base.setdefault("biome_fields", {})
 
         superclass = aggregate["classes"]["biome.superclass"]
-        cf = ClassFile(StringIO(jar.read(superclass + ".class")))
+        cf = classloader[superclass]
         
         mutate_method_desc = None
         mutate_method_name = None
@@ -84,7 +83,7 @@ class BiomeTopping(Topping):
                     make_mutated_method_desc = method.descriptor.value
                     make_mutated_method_name = method.name.value
 
-        method = cf.methods.find_one("<clinit>")
+        method = cf.methods.find_one(name="<clinit>")
         heights_by_field = {}
         tmp = None
         stack = None
@@ -102,7 +101,7 @@ class BiomeTopping(Topping):
                 store_biome_if_valid(tmp)
 
                 stack = []
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 tmp = {
                     "rainfall": 0.5,
                     "height": [0.1, 0.2],
@@ -112,19 +111,19 @@ class BiomeTopping(Topping):
             elif tmp is None:
                 continue
             elif ins.mnemonic == "invokespecial":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 name = const.name_and_type.name.value
-                if len(stack) == 2 and (type(stack[1]) == types.FloatType or type(stack[0]) == types.FloatType):
+                if len(stack) == 2 and (isinstance(stack[1], float) or isinstance(stack[0], float)):
                     # Height constructor
                     tmp["height"] = [stack[0], stack[1]]
                     stack = []
-                elif len(stack) >= 1 and type(stack[0]) == types.IntType: # 1, 2, 3-argument beginning with int = id
+                elif len(stack) >= 1 and isinstance(stack[0], int): # 1, 2, 3-argument beginning with int = id
                     tmp["id"] = stack[0]
                     stack = []
                 elif name != "<init>":
                     tmp["rainfall"] = 0
             elif ins.mnemonic == "invokevirtual":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 name = const.name_and_type.name.value
                 desc = const.name_and_type.descriptor.value
                 if name == mutate_method_name and desc == mutate_method_desc:
@@ -153,7 +152,7 @@ class BiomeTopping(Topping):
                     tmp["rainfall"] = stack.pop()
                     tmp["temperature"] = stack.pop()
             elif ins.mnemonic == "putstatic":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 field = const.name_and_type.name.value
                 if "height" in tmp and not "name" in tmp:
                     # Actually creating a height
@@ -162,7 +161,7 @@ class BiomeTopping(Topping):
                     tmp["field"] = field
             elif ins.mnemonic == "getstatic":
                 # Loading a height map or preparing to mutate a biome
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 field = const.name_and_type.name.value
                 if field in heights_by_field:
                     # Heightmap
@@ -174,32 +173,28 @@ class BiomeTopping(Topping):
                         tmp = biomes[biome_fields[field]]
             # numeric values & constants
             elif ins.mnemonic in ("ldc", "ldc_w"):
-                const = cf.constants.get(ins.operands[0].value)
-                if isinstance(const, ConstantString):
+                const = ins.operands[0]
+                if isinstance(const, String):
                     tmp["name"] = const.string.value
-                if isinstance(const, (ConstantInteger, ConstantFloat)):
+                if isinstance(const, (Integer, Float)):
                     stack.append(const.value)
 
-            elif ins.opcode <= 8 and ins.opcode >= 2:  # iconst
-                stack.append(ins.opcode - 3)
-            elif ins.opcode >= 0xb and ins.opcode <= 0xd:  # fconst
-                stack.append(ins.opcode - 0xb)
-            elif ins.mnemonic == "bipush":
-                stack.append(ins.operands[0].value)
-            elif ins.mnemonic == "sipush":
+            elif ins.mnemonic.startswith("fconst"):
+                stack.append(float(ins.mnemonic[-1]))
+            elif ins.mnemonic in ("bipush", "sipush"):
                 stack.append(ins.operands[0].value)
 
         store_biome_if_valid(tmp)
 
     @staticmethod
-    def process_19(aggregate, jar, verbose):
-        """Processes biomes for Minecraft 1.9"""
+    def _process_19(aggregate, classloader, verbose):
+        # Processes biomes for Minecraft 1.9 through 1.12
         biomes_base = aggregate.setdefault("biomes", {})
         biomes = biomes_base.setdefault("biome", {})
         biome_fields = biomes_base.setdefault("biome_fields", {})
 
         superclass = aggregate["classes"]["biome.superclass"]
-        cf = ClassFile(StringIO(jar.read(superclass + ".class")))
+        cf = classloader[superclass]
 
         method = cf.methods.find_one(returns="V", args="", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
         heights_by_field = {}
@@ -222,7 +217,7 @@ class BiomeTopping(Topping):
                     # is the biome properties.  There's some info that is only
                     # stored on the first new (well, actually, beforehand)
                     # that we want to save.
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
 
                     text_id = stack.pop()
                     numeric_id = stack.pop()
@@ -251,7 +246,7 @@ class BiomeTopping(Topping):
 
                 stack = []
             elif ins.mnemonic == "invokevirtual":
-                const = cf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 name = const.name_and_type.name.value
                 desc = method_descriptor(const.name_and_type.descriptor.value)
 
@@ -272,37 +267,198 @@ class BiomeTopping(Topping):
                         biome["mutated_from"] = stack.pop()
             # numeric values & constants
             elif ins.mnemonic in ("ldc", "ldc_w"):
-                const = cf.constants.get(ins.operands[0].value)
-                if isinstance(const, ConstantString):
+                const = ins.operands[0]
+                if isinstance(const, String):
                     stack.append(const.string.value)
-                if isinstance(const, (ConstantInteger, ConstantFloat)):
+                if isinstance(const, (Integer, Float)):
                     stack.append(const.value)
 
-            elif ins.opcode <= 8 and ins.opcode >= 2:  # iconst
-                stack.append(ins.opcode - 3)
-            elif ins.opcode >= 0xb and ins.opcode <= 0xd:  # fconst
-                stack.append(ins.opcode - 0xb)
-            elif ins.mnemonic == "bipush":
-                stack.append(ins.operands[0].value)
-            elif ins.mnemonic == "sipush":
+            elif ins.mnemonic.startswith("fconst"):
+                stack.append(float(ins.mnemonic[-1]))
+            elif ins.mnemonic in ("bipush", "sipush"):
                 stack.append(ins.operands[0].value)
 
-        # Go through the block list and add the field info.
+        # Go through the biome list and add the field info.
         list = aggregate["classes"]["biome.list"]
-        lcf = ClassFile(StringIO(jar.read(list + ".class")))
-        
+        lcf = classloader[list]
+
         # Find the static block, and load the fields for each.
         method = lcf.methods.find_one(name="<clinit>")
         biome_name = ""
         for ins in method.code.disassemble():
             if ins.mnemonic in ("ldc", "ldc_w"):
-                const = lcf.constants.get(ins.operands[0].value)
-                if isinstance(const, ConstantString):
+                const = ins.operands[0]
+                if isinstance(const, String):
                     biome_name = const.string.value
             elif ins.mnemonic == "putstatic":
                 if biome_name is None or biome_name == "Accessed Biomes before Bootstrap!":
                     continue
-                const = lcf.constants.get(ins.operands[0].value)
+                const = ins.operands[0]
                 field = const.name_and_type.name.value
                 biomes[biome_name]["field"] = field
                 biome_fields[field] = biome_name
+
+    @staticmethod
+    def _process_113(aggregate, classloader, verbose):
+        # Processes biomes for Minecraft 1.13 and above
+        biomes_base = aggregate.setdefault("biomes", {})
+        biomes = biomes_base.setdefault("biome", {})
+        biome_fields = biomes_base.setdefault("biome_fields", {})
+
+        superclass = aggregate["classes"]["biome.superclass"]
+        cf = classloader[superclass]
+
+        method = cf.methods.find_one(returns="V", args="", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
+
+        # First pass: identify all the biomes.
+        stack = []
+        for ins in method.code.disassemble():
+            if ins.mnemonic in ("bipush", "sipush"):
+                stack.append(ins.operands[0].value)
+            elif ins.mnemonic in ("ldc", "ldc_w"):
+                const = ins.operands[0]
+                if isinstance(const, String):
+                    stack.append(const.string.value)
+            elif ins.mnemonic == "new":
+                const = ins.operands[0]
+                stack.append(const.name.value)
+            elif ins.mnemonic == "invokestatic":
+                # Registration
+                assert len(stack) == 3
+                # NOTE: the default values there aren't present
+                # in the actual code
+                biomes[stack[1]] = {
+                    "id": stack[0],
+                    "text_id": stack[1],
+                    "rainfall": 0.5,
+                    "height": [0.1, 0.2],
+                    "temperature": 0.5,
+                    "class": stack[2]
+                }
+                stack = []
+            elif ins.mnemonic == "anewarray":
+                # End of biome initialization; now creating the list of biomes
+                # for the explore all biomes achievement but we don't need
+                # that info.
+                break
+
+        # Second pass: check the biome constructors and fill in data from there.
+        if aggregate["version"]["data"] >= 1483: # 18w16a
+            BiomeTopping._process_113_classes_new(aggregate, classloader, verbose)
+        else:
+            BiomeTopping._process_113_classes_old(aggregate, classloader, verbose)
+
+        # 3rd pass: go through the biome list and add the field info.
+        list = aggregate["classes"]["biome.list"]
+        lcf = classloader[list]
+
+        method = lcf.methods.find_one(name="<clinit>")
+        biome_name = ""
+        for ins in method.code.disassemble():
+            if ins.mnemonic in ("ldc", "ldc_w"):
+                const = ins.operands[0]
+                if isinstance(const, String):
+                    biome_name = const.string.value
+            elif ins.mnemonic == "putstatic":
+                if biome_name is None or biome_name == "Accessed Biomes before Bootstrap!":
+                    continue
+                const = ins.operands[0]
+                field = const.name_and_type.name.value
+                biomes[biome_name]["field"] = field
+                biome_fields[field] = biome_name
+
+
+    @staticmethod
+    def _process_113_classes_old(aggregate, classloader, verbose):
+        # Between 18w06a and 18w15a biomes set fields directly, instead of
+        # using a builder (as was done before and after).
+        for biome in six.itervalues(aggregate["biomes"]["biome"]):
+            cf = classloader[biome["class"]]
+            method = cf.methods.find_one(name="<init>")
+
+            # Assume a specific order.  Also evil and may break if things change.
+            str_count = 0
+            float_count = 0
+            last = None
+            for ins in method.code.disassemble():
+                if ins.mnemonic in ("ldc", "ldc_w"):
+                    const = ins.operands[0]
+                    if isinstance(const, String):
+                        last = const.string.value
+                    else:
+                        last = const.value
+                elif ins.mnemonic.startswith("fconst_"):
+                    last = float(ins.mnemonic[-1])
+                elif ins.mnemonic == "putfield" and last != None:
+                    if isinstance(last, float):
+                        if float_count == 0:
+                            biome["height"][0] = last
+                        elif float_count == 1:
+                            biome["height"][1] = last
+                        elif float_count == 2:
+                            biome["temperature"] = last
+                        elif float_count == 3:
+                            biome["rainfall"] = last
+                        float_count += 1
+                    elif isinstance(last, six.string_types):
+                        if str_count == 0:
+                            biome["name"] = last
+                        elif str_count == 1:
+                            biome["mutated_from"] = last
+                        str_count += 1
+                    last = None
+
+    @staticmethod
+    def _process_113_classes_new(aggregate, classloader, verbose):
+        # After 18w16a, biomes used a builder again.  The name is now also translatable.
+
+        for biome in six.itervalues(aggregate["biomes"]["biome"]):
+            biome["name"] = aggregate["language"]["biome"]["minecraft." + biome["text_id"]]
+
+            cf = classloader[biome["class"]]
+            method = cf.methods.find_one(name="<init>")
+            stack = []
+            for ins in method.code.disassemble():
+                if ins.mnemonic == "invokespecial":
+                    const = ins.operands[0]
+                    name = const.name_and_type.name.value
+                    if const.class_.name.value == cf.super_.name.value and name == "<init>":
+                        # Calling biome init; we're done
+                        break
+                elif ins.mnemonic == "invokevirtual":
+                    const = ins.operands[0]
+                    name = const.name_and_type.name.value
+                    desc = method_descriptor(const.name_and_type.descriptor.value)
+
+                    if len(desc.args) == 1:
+                        if desc.args[0].name == "float":
+                            # Ugly portion - different methods with different names
+                            # Hopefully the order doesn't change
+                            if name == "a":
+                                biome["height"][0] = stack.pop()
+                            elif name == "b":
+                                biome["height"][1] = stack.pop()
+                            elif name == "c":
+                                biome["temperature"] = stack.pop()
+                            elif name == "d":
+                                biome["rainfall"] = stack.pop()
+                        elif desc.args[0].name == "java/lang/String":
+                            val = stack.pop()
+                            if val is not None:
+                                biome["mutated_from"] = val
+
+                    stack = []
+                # Constants
+                elif ins.mnemonic in ("ldc", "ldc_w"):
+                    const = ins.operands[0]
+                    if isinstance(const, String):
+                        stack.append(const.string.value)
+                    if isinstance(const, (Integer, Float)):
+                        stack.append(const.value)
+
+                elif ins.mnemonic.startswith("fconst"):
+                    stack.append(float(ins.mnemonic[-1]))
+                elif ins.mnemonic in ("bipush", "sipush"):
+                    stack.append(ins.operands[0].value)
+                elif ins.mnemonic == "aconst_null":
+                    stack.append(None)

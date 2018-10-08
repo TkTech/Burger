@@ -26,18 +26,13 @@ from .topping import Topping
 
 from jawa.util.descriptor import method_descriptor
 from jawa.constants import *
-from jawa.cf import ClassFile
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 
 try:
     import json
 except ImportError:
     import simplejson as json
 
+import six
 import copy
 
 class RecipesTopping(Topping):
@@ -52,15 +47,18 @@ class RecipesTopping(Topping):
         "identify.block.list",
         "identify.item.list",
         "blocks",
-        "items"
+        "items",
+        "tags"
     ]
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
-        if "assets/minecraft/recipes/stick.json" in jar.namelist():
-            recipe_list = RecipesTopping.find_from_json(aggregate, jar, verbose)
+    def act(aggregate, classloader, verbose=False):
+        if "assets/minecraft/recipes/stick.json" in classloader.path_map:
+            recipe_list = RecipesTopping.find_from_json(aggregate, classloader, "assets/minecraft/recipes/", verbose)
+        elif "data/minecraft/recipes/stick.json" in classloader.path_map:
+            recipe_list = RecipesTopping.find_from_json(aggregate, classloader, "data/minecraft/recipes/", verbose)
         else:
-            recipe_list = RecipesTopping.find_from_jar(aggregate, jar, verbose)
+            recipe_list = RecipesTopping.find_from_jar(aggregate, classloader, verbose)
 
         recipes = aggregate.setdefault("recipes", {})
 
@@ -71,9 +69,9 @@ class RecipesTopping(Topping):
             recipes_for_item.append(recipe)
 
     @staticmethod
-    def find_from_json(aggregate, jar, verbose):
+    def find_from_json(aggregate, classloader, prefix, verbose):
         if verbose:
-            print "Extracting recipes from JSON"
+            print("Extracting recipes from JSON")
 
         recipes = []
 
@@ -88,24 +86,32 @@ class RecipesTopping(Topping):
                     return [parse_item(entry) for entry in blob]
                 else:
                     raise Exception("A list of items is not allowed in this context")
+            elif "tag" in blob:
+                if allow_lists:
+                    res = []
+                    tag = blob["tag"]
+                    if tag.startswith("minecraft:"):
+                        tag = tag[len("minecraft:"):]
+                    for id in aggregate["tags"]["items/" + tag]["values"]:
+                        res.append(parse_item({"item": id}))
+                    return res
+                else:
+                    raise Exception("A tag is not allowed in this context")
             # There's some wierd stuff regarding 0 or 32767 here; I'm not worrying about it though
             # Probably 0 is the default for results, and 32767 means "any" for ingredients
             assert "item" in blob
-            result = {}
+            result = {
+                "type": "item"
+            }
 
             id = blob["item"]
             if id.startswith("minecraft:"):
                 id = id[len("minecraft:"):] # TODO: In the future, we don't want to strip namespaces
 
+            if verbose and id not in aggregate["items"]["item"]:
+                print("A recipe references item %s but that doesn't exist" % id)
+
             result["name"] = id
-            # TODO: Do we need the type and data fields anymore?  They're fairly redundant (and don't reflect ingame behavior anymore)
-            # Check if it's a block
-            if id in aggregate["blocks"]["block"]:
-                result["data"] = aggregate["blocks"]["block"][id]
-                result["type"] = "block"
-            else:
-                result["data"] = aggregate["items"]["item"][id]
-                result["type"] = "item"
 
             if "data" in blob:
                 result["metadata"] = blob["data"]
@@ -114,14 +120,14 @@ class RecipesTopping(Topping):
 
             return result
 
-        for name in jar.namelist():
-            if name.startswith("assets/minecraft/recipes/") and name.endswith(".json"):
+        for name in classloader.path_map.keys():
+            if name.startswith(prefix) and name.endswith(".json"):
+                recipe_id = "minecraft:" + name[len(prefix):-len(".json")]
                 try:
-                    data = json.loads(jar.read(name))
-                    recipe_id = "minecraft:" + name[len("assets/minecraft/recipes/"):-len(".json")]
+                    with classloader.open(name) as fin:
+                        data = json.load(fin)
 
                     assert "type" in data
-                    assert "result" in data
 
                     recipe = {}
                     recipe["id"] = recipe_id # new for 1.12, but used ingame
@@ -129,6 +135,16 @@ class RecipesTopping(Topping):
                     if "group" in data:
                         recipe["group"] = data["group"]
 
+                    if data["type"] not in ("crafting_shaped", "crafting_shapeless"):
+                        if data["type"] == "smelting":
+                            # Just not yet implemented
+                            continue
+                        if verbose:
+                            print("Unrecognized recipe type %s for %s" % (data["type"], recipe_id))
+                        continue
+
+
+                    assert "result" in data
                     recipe["makes"] = parse_item(data["result"], False)
                     if "count" not in recipe["makes"]:
                         recipe["makes"]["count"] = 1 # default, TODO should we keep specifying this?
@@ -165,7 +181,7 @@ class RecipesTopping(Topping):
                             "rows": pattern,
                             "subs": {}
                         }
-                        for (id, value) in data["key"].iteritems():
+                        for (id, value) in six.iteritems(data["key"]):
                             item = parse_item(value)
                             if isinstance(item, list):
                                 tmp = []
@@ -190,24 +206,22 @@ class RecipesTopping(Topping):
                                         shape_row.append(None)
                                 shape.append(shape_row)
                             recipe_choice["shape"] = shape
-                    else:
-                        raise Exception("Unknown or invalid recipe type", data[type], "for recipe", recipe_id)
 
                     recipes.extend(matching_recipes)
                 except Exception as e:
-                    print "Failed to parse %s: %s" % (recipe_id, e)
+                    print("Failed to parse %s: %s" % (recipe_id, e))
                     raise
 
         return recipes
 
     @staticmethod
-    def find_from_jar(aggregate, jar, verbose):
+    def find_from_jar(aggregate, classloader, verbose):
         superclass = aggregate["classes"]["recipe.superclass"]
 
         if verbose:
-            print "Extracting recipes from", superclass
+            print("Extracting recipes from %s" % superclass)
 
-        cf = ClassFile(StringIO(jar.read(superclass + ".class")))
+        cf = classloader[superclass]
 
         # Find the constructor
         method = cf.methods.find_one(
@@ -231,22 +245,18 @@ class RecipesTopping(Topping):
             if clazz == aggregate["classes"]["block.list"]:
                 if field in aggregate["blocks"]["block_fields"]:
                     name = aggregate["blocks"]["block_fields"][field]
-                    data = aggregate["blocks"]["block"][name]
                     return {
                         'type': 'block',
-                        'name': name,
-                        'data': data
+                        'name': name
                     }
                 else:
                     raise Exception("Unknown block with field " + field)
             elif clazz == aggregate["classes"]["item.list"]:
                 if field in aggregate["items"]["item_fields"]:
                     name = aggregate["items"]["item_fields"][field]
-                    data = aggregate["items"]["item"][name]
                     return {
                         'type': 'item',
-                        'name': name,
-                        'data': data
+                        'name': name
                     }
                 else:
                     raise Exception("Unknown item with field " + field)
@@ -258,12 +268,10 @@ class RecipesTopping(Topping):
             stack = []
             while True:
                 ins = itr.next()
-                if ins.mnemonic.startswith("iconst_"):
-                    stack.append(int(ins.mnemonic[-1]))
-                elif ins.mnemonic == "bipush":
+                if ins.mnemonic in ("bipush", "sipush"):
                     stack.append(ins.operands[0].value)
                 elif ins.mnemonic == "getstatic":
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     clazz = const.class_.name.value
                     name = const.name_and_type.name.value
                     stack.append((clazz, name))
@@ -288,7 +296,7 @@ class RecipesTopping(Topping):
                     i1 = stack.pop()
                     stack.append(i1 - i2);
                 elif ins.mnemonic == "invokespecial":
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     if const.name_and_type.name.value == "<init>":
                         break
 
@@ -300,7 +308,7 @@ class RecipesTopping(Topping):
                 item['count'] = stack[1]
             return item
 
-        def find_recipes(jar, cf, method, target_class, setter_names):
+        def find_recipes(classloader, cf, method, target_class, setter_names):
             # Go through all instructions.
             itr = iter(method.code.disassemble())
             recipes = []
@@ -311,7 +319,7 @@ class RecipesTopping(Topping):
                         # Wait until an item starts
                         continue
                     # Start of another recipe - the ending item.
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
                     if const.name.value != itemstack:
                         # Or it could be another type; irrelevant
                         continue
@@ -320,9 +328,7 @@ class RecipesTopping(Topping):
 
                     ins = itr.next()
                     # Size of the parameter array
-                    if ins.mnemonic.startswith("iconst_"):
-                        param_count = int(ins.mnemonic[-1])
-                    elif ins.mnemonic == "bipush":
+                    if ins.mnemonic in ("bipush", "sipush"):
                         param_count = ins.operands[0].value
                     else:
                         raise Exception('Unexpected instruction: expected int constant, got ' + str(ins))
@@ -336,25 +342,28 @@ class RecipesTopping(Topping):
                         # though.  Also, note that the array index is pushed,
                         # but we overwrite it with the second value and just
                         # add in order instead.
+                        #
+                        # The weirdness here is because characters and strings are
+                        # mixed; for example jukebox looks like this:
+                        # new Object[] {"###", "#X#", "###", '#', Blocks.PLANKS, 'X', Items.DIAMOND}
                         if ins.mnemonic == "aastore":
                             num_astore += 1
                             array.append(data)
                             data = None
                         elif ins.mnemonic in ("ldc", "ldc_w"):
-                            const = cf.constants.get(ins.operands[0].value)
-                            data = const.string.value
-                        elif ins.mnemonic.startswith("iconst_"):
-                            data = int(ins.mnemonic[-1])
-                        elif ins.mnemonic == "bipush":
+                            const = ins.operands[0]
+                            # Separate into a list of characters, to disambiguate (see below)
+                            data = list(const.string.value)
+                        if ins.mnemonic in ("bipush", "sipush"):
                             data = ins.operands[0].value
                         elif ins.mnemonic == "invokestatic":
-                            const = cf.constants.get(ins.operands[0].value)
+                            const = ins.operands[0]
                             if const.class_.name.value == "java/lang/Character" and const.name_and_type.name.value == "valueOf":
                                 data = chr(data)
                             else:
                                 raise Exception("Unknown method invocation: " + repr(const))
                         elif ins.mnemonic == "getstatic":
-                            const = cf.constants.get(ins.operands[0].value)
+                            const = ins.operands[0]
                             clazz = const.class_.name.value
                             field = const.name_and_type.name.value
                             data = get_material(clazz, field)
@@ -363,7 +372,7 @@ class RecipesTopping(Topping):
 
                     ins = itr.next()
                     assert ins.mnemonic == "invokevirtual"
-                    const = cf.constants.get(ins.operands[0].value)
+                    const = ins.operands[0]
 
                     recipe_data = {}
                     if const.name_and_type.name.value == setter_names[0]:
@@ -372,19 +381,17 @@ class RecipesTopping(Topping):
                         recipe_data['makes'] = crafted_item
                         rows = []
                         subs = {}
-                        # TODO: Is there a better way to distinguish chars
-                        # and strings?  Right now, chars seem to be strings,
-                        # except that the strings that come from jawa are
-                        # unicode ones and the ones that come from chr() are
-                        # just 'str'...
+                        # Keys are a list while values are a single character;
+                        # we make the keys a list merely as a way to disambiguate
+                        # and rejoin it later (hacky :/)
                         try:
                             itr2 = iter(array)
                             while True:
                                 obj = itr2.next()
-                                if isinstance(obj, unicode):
+                                if isinstance(obj, list):
                                     # Pattern
-                                    rows.append(obj)
-                                elif isinstance(obj, str):
+                                    rows.append("".join(obj))
+                                elif isinstance(obj, six.string_types):
                                     # Character
                                     item = itr2.next()
                                     subs[obj] = item
@@ -417,4 +424,4 @@ class RecipesTopping(Topping):
                 pass
             return recipes
 
-        return find_recipes(jar, cf, method, target_class, setter_names)
+        return find_recipes(classloader, cf, method, target_class, setter_names)

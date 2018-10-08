@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 from .topping import Topping
-
+import six
 
 class StatsTopping(Topping):
     """Gets all statistics and statistic related strings."""
@@ -37,12 +37,12 @@ class StatsTopping(Topping):
     ]
 
     @staticmethod
-    def act(aggregate, jar, verbose=False):
+    def act(aggregate, classloader, verbose=False):
         stats = aggregate.setdefault("stats", {})
         if "stat" in aggregate["language"]:
             stat_lang = aggregate["language"]["stat"]
 
-            for sk, sv in stat_lang.iteritems():
+            for sk, sv in six.iteritems(stat_lang):
                 item = stats.setdefault(sk, {})
                 item["desc"] = sv
 
@@ -50,7 +50,7 @@ class StatsTopping(Topping):
         if "achievement" in aggregate["language"]:
             achievement_lang = aggregate["language"]["achievement"]
 
-            for ak, av in achievement_lang.iteritems():
+            for ak, av in six.iteritems(achievement_lang):
                 real_name = ak[:-5] if ak.endswith(".desc") else ak
                 item = achievements.setdefault(real_name, {})
                 if ak.endswith(".desc"):
