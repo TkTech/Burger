@@ -65,11 +65,11 @@ class BlocksTopping(Topping):
         method = lcf.methods.find_one(name="<clinit>")
         blk_name = ""
         for ins in method.code.disassemble():
-            if ins.mnemonic in ("ldc", "ldc_w"):
+            if ins in ("ldc", "ldc_w"):
                 const = ins.operands[0]
                 if isinstance(const, String):
                     blk_name = const.string.value
-            elif ins.mnemonic == "putstatic":
+            elif ins == "putstatic":
                 if blk_name is None or blk_name == "Accessed Blocks before Bootstrap!":
                     continue
                 const = ins.operands[0]
@@ -102,7 +102,7 @@ class BlocksTopping(Topping):
         hardness_setter_2 = None
         for method in builder_cf.methods.find(args='F'):
             for ins in method.code.disassemble():
-                if ins.mnemonic == "invokevirtual":
+                if ins == "invokevirtual":
                     const = ins.operands[0]
                     if (const.name_and_type.name.value == hardness_setter.name.value and
                             const.name_and_type.descriptor.value == hardness_setter.descriptor.value):
@@ -113,7 +113,7 @@ class BlocksTopping(Topping):
         hardness_setter_3 = None
         for method in builder_cf.methods.find(args=''):
             for ins in method.code.disassemble():
-                if ins.mnemonic == "invokevirtual":
+                if ins == "invokevirtual":
                     const = ins.operands[0]
                     if (const.name_and_type.name.value == hardness_setter_2.name.value and
                             const.name_and_type.descriptor.value == hardness_setter_2.descriptor.value):
@@ -143,7 +143,7 @@ class BlocksTopping(Topping):
                 method_desc = const.name_and_type.descriptor.value
                 desc = method_descriptor(method_desc)
 
-                if ins.mnemonic == "invokestatic":
+                if ins == "invokestatic":
                     if const.class_.name.value == superclass:
                         # Call to the static register method.
                         text_id = args[0]
@@ -238,7 +238,7 @@ class BlocksTopping(Topping):
         stack = []
         locals = {}
         for ins in method.code.disassemble():
-            if ins.mnemonic == "new":
+            if ins == "new":
                 # The beginning of a new block definition
                 const = ins.operands[0]
                 class_name = const.name.value
@@ -250,11 +250,11 @@ class BlocksTopping(Topping):
                 stack.append(current_block)
             elif ins.mnemonic.startswith("fconst"):
                 stack.append(float(ins.mnemonic[-1]))
-            elif ins.mnemonic == "aconst_null":
+            elif ins == "aconst_null":
                 stack.append(None)
-            elif ins.mnemonic in ("bipush", "sipush"):
+            elif ins in ("bipush", "sipush"):
                 stack.append(ins.operands[0].value)
-            elif ins.mnemonic == "fdiv":
+            elif ins == "fdiv":
                 den = stack.pop()
                 num = stack.pop()
                 if isinstance(den, (float, int)) and isinstance(num, dict) and "scale" in num:
@@ -262,7 +262,7 @@ class BlocksTopping(Topping):
                     stack.append(num)
                 else:
                     stack.append({"numerator": num, "denominator": den})
-            elif ins.mnemonic in ("ldc", "ldc_w"):
+            elif ins in ("ldc", "ldc_w"):
                 const = ins.operands[0]
 
                 if isinstance(const, ConstantClass):
@@ -271,14 +271,14 @@ class BlocksTopping(Topping):
                     stack.append(const.string.value)
                 else:
                     stack.append(const.value)
-            elif ins.mnemonic == "getstatic":
+            elif ins == "getstatic":
                 const = ins.operands[0]
                 if const.class_.name.value == superclass:
                     # Probably getting the static AIR resource location
                     stack.append("air")
                 else:
                     stack.append({"obj": None, "field": repr(const)})
-            elif ins.mnemonic == "getfield":
+            elif ins == "getfield":
                 const = ins.operands[0]
                 obj = stack.pop()
                 if "text_id" in obj:
@@ -289,7 +289,7 @@ class BlocksTopping(Topping):
                     })
                 else:
                     stack.append({"obj": obj, "field": repr(const)})
-            elif ins.mnemonic in ("invokevirtual", "invokespecial", "invokeinterface"):
+            elif ins in ("invokevirtual", "invokespecial", "invokeinterface"):
                 # A method invocation
                 const = ins.operands[0]
                 method_name = const.name_and_type.name.value
@@ -315,7 +315,7 @@ class BlocksTopping(Topping):
                         stack.append(obj)
                     else:
                         stack.append({"obj": obj, "method": const, "args": args})
-            elif ins.mnemonic == "invokestatic":
+            elif ins == "invokestatic":
                 # Call to the registration method
                 const = ins.operands[0]
                 desc = method_descriptor(const.name_and_type.descriptor.value)
@@ -331,13 +331,13 @@ class BlocksTopping(Topping):
                     current_block["text_id"] = stack.pop()
 
                 tmp.append(current_block)
-            elif ins.mnemonic == "astore":
+            elif ins == "astore":
                 locals[ins.operands[0].value] = stack.pop()
-            elif ins.mnemonic == "aload":
+            elif ins == "aload":
                 stack.append(locals[ins.operands[0].value])
-            elif ins.mnemonic == "dup":
+            elif ins == "dup":
                 stack.append(stack[-1])
-            elif ins.mnemonic == "checkcast":
+            elif ins == "checkcast":
                 pass
             elif verbose:
                 print("Unknown instruction %s: stack is %s" % (ins, stack))
@@ -367,10 +367,10 @@ class BlocksTopping(Topping):
         for method in float_setters:
             fld = None
             for ins in method.code.disassemble():
-                if ins.mnemonic == "putfield":
+                if ins == "putfield":
                     const = ins.operands[0]
                     fld = const.name_and_type.name.value
-                elif ins.mnemonic == "ifge":
+                elif ins == "ifge":
                     hardness_setter = method.name.value + method.descriptor.value
                     hardness_field = fld
                     break
@@ -379,11 +379,11 @@ class BlocksTopping(Topping):
             # Look for the resistance setter, which multiplies by 3.
             is_resistance = False
             for ins in method.code.disassemble():
-                if ins.mnemonic in ("ldc", "ldc_w"):
+                if ins in ("ldc", "ldc_w"):
                     is_resistance = (ins.operands[0].value == 3.0)
-                elif ins.mnemonic == "fmul" and is_resistance:
+                elif ins == "fmul" and is_resistance:
                     resistance_setter = method.name.value + method.descriptor.value
-                elif ins.mnemonic == "putfield" and is_resistance:
+                elif ins == "putfield" and is_resistance:
                     const = ins.operands[0]
                     resistance_field = const.name_and_type.name.value
                     break
@@ -394,11 +394,11 @@ class BlocksTopping(Topping):
             # Look for the light setter, which multiplies by 15, but 15 is the first value (15 * val)
             is_light = False
             for ins in method.code.disassemble():
-                if ins.mnemonic in ("ldc", "ldc_w"):
+                if ins in ("ldc", "ldc_w"):
                     is_light = (ins.operands[0].value == 15.0)
                 elif ins.mnemonic.startswith("fload"):
                     pass
-                elif ins.mnemonic == "fmul" and is_light:
+                elif ins == "fmul" and is_light:
                     light_setter = method.name.value + method.descriptor.value
                     break
                 else:

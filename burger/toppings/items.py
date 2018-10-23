@@ -65,11 +65,11 @@ class ItemsTopping(Topping):
         method = lcf.methods.find_one(name="<clinit>")
         item_name = ""
         for ins in method.code.disassemble():
-            if ins.mnemonic in ("ldc", "ldc_w"):
+            if ins in ("ldc", "ldc_w"):
                 const = ins.operands[0]
                 if isinstance(const, String):
                     item_name = const.string.value
-            elif ins.mnemonic == "putstatic":
+            elif ins == "putstatic":
                 const = ins.operands[0]
                 field = const.name_and_type.name.value
                 if item_name in item_list:
@@ -101,7 +101,7 @@ class ItemsTopping(Topping):
         max_stack_method = None
         for method in builder_cf.methods.find(args='I'):
             for ins in method.code.disassemble():
-                if ins.mnemonic in ("ldc", "ldc_w"):
+                if ins in ("ldc", "ldc_w"):
                     const = ins.operands[0]
                     if isinstance(const, String) and const.string.value == "Unable to have damage AND stack.":
                         max_stack_method = method
@@ -113,7 +113,7 @@ class ItemsTopping(Topping):
         item_block_class = None
         # Find the class used that represents an item that is a block
         for ins in register_item_block_method.code.disassemble():
-            if ins.mnemonic == "new":
+            if ins == "new":
                 const = ins.operands[0]
                 item_block_class = const.name.value
                 break
@@ -150,7 +150,7 @@ class ItemsTopping(Topping):
                 method_desc = const.name_and_type.descriptor.value
                 desc = method_descriptor(method_desc)
 
-                if ins.mnemonic == "invokestatic":
+                if ins == "invokestatic":
                     if const.class_.name.value == superclass:
                         current_item = {}
 
@@ -216,7 +216,7 @@ class ItemsTopping(Topping):
 
                 if desc.returns.name != "void":
                     if desc.returns.name == builder_class or is_item_class(desc.returns.name):
-                        if ins.mnemonic == "invokestatic":
+                        if ins == "invokestatic":
                             # Probably returning itself, but through a synthetic method
                             return args[0]
                         else:
@@ -310,7 +310,7 @@ class ItemsTopping(Topping):
         item_block_class = None
         # Find the class used that represents an item that is a block
         for ins in register_item_block_method.code.disassemble():
-            if ins.mnemonic == "new":
+            if ins == "new":
                 const = ins.operands[0]
                 item_block_class = const.name.value
                 break
@@ -323,7 +323,7 @@ class ItemsTopping(Topping):
         tmp = []
 
         for ins in method.code.disassemble():
-            if ins.mnemonic == "new":
+            if ins == "new":
                 # The beginning of a new block definition
                 const = ins.operands[0]
                 class_name = const.name.value
@@ -359,9 +359,9 @@ class ItemsTopping(Topping):
                 stack = []
             elif ins.mnemonic.startswith("fconst"):
                 stack.append(float(ins.mnemonic[-1]))
-            elif ins.mnemonic in ("bipush", "sipush"):
+            elif ins in ("bipush", "sipush"):
                 stack.append(ins.operands[0].value)
-            elif ins.mnemonic in ("ldc", "ldc_w"):
+            elif ins in ("ldc", "ldc_w"):
                 const = ins.operands[0]
 
                 if isinstance(const, ConstantClass):
@@ -370,7 +370,7 @@ class ItemsTopping(Topping):
                     stack.append(const.string.value)
                 else:
                     stack.append(const.value)
-            elif ins.mnemonic in ("invokevirtual", "invokespecial"):
+            elif ins in ("invokevirtual", "invokespecial"):
                 # A method invocation
                 const = ins.operands[0]
                 method_name = const.name_and_type.name.value
@@ -378,12 +378,12 @@ class ItemsTopping(Topping):
                 current_item["calls"][method_name] = stack
                 current_item["calls"][method_name + method_desc] = stack
                 stack = []
-            elif ins.mnemonic == "getstatic":
+            elif ins == "getstatic":
                 const = ins.operands[0]
                 #TODO: Is this the right way to represent a field on the stack?
                 stack.append({"class": const.class_.name.value,
                         "name": const.name_and_type.name.value})
-            elif ins.mnemonic == "invokestatic":
+            elif ins == "invokestatic":
                 const = ins.operands[0]
                 name_index = const.name_and_type.name.index
                 descriptor_index = const.name_and_type.descriptor.index
