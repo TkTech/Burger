@@ -103,7 +103,7 @@ class ItemsTopping(Topping):
             for ins in method.code.disassemble():
                 if ins in ("ldc", "ldc_w"):
                     const = ins.operands[0]
-                    if isinstance(const, String) and const.string.value == "Unable to have damage AND stack.":
+                    if isinstance(const, String) and const == "Unable to have damage AND stack.":
                         max_stack_method = method
                         break
         if not max_stack_method:
@@ -151,7 +151,7 @@ class ItemsTopping(Topping):
                 desc = method_descriptor(method_desc)
 
                 if ins == "invokestatic":
-                    if const.class_.name.value == superclass:
+                    if const.class_.name == superclass:
                         current_item = {}
 
                         text_id = None
@@ -226,7 +226,7 @@ class ItemsTopping(Topping):
                         return object()
 
             def on_get_field(self, ins, const, obj):
-                if const.class_.name.value == blocklist:
+                if const.class_.name == blocklist:
                     # Getting a block; put it on the stack.
                     block_name = aggregate["blocks"]["block_fields"][const.name_and_type.name.value]
                     if block_name not in aggregate["blocks"]["block"]:
@@ -329,7 +329,7 @@ class ItemsTopping(Topping):
                 class_name = const.name.value
 
                 class_file = classloader[class_name]
-                if class_file.super_.name.value == "java/lang/Object":
+                if class_file.super_.name == "java/lang/Object":
                     # A function created for an item shouldn't be counted - we
                     # only want items, not Functions.
                     # I would check directly against the interface but I can't

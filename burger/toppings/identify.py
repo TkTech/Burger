@@ -162,7 +162,7 @@ def identify(classloader, path):
             cf = classloader[path]
             logger_type = "Lorg/apache/logging/log4j/Logger;"
             while not cf.fields.find_one(type_=logger_type):
-                if cf.super_.name.value == "java/lang/Object":
+                if cf.super_.name == "java/lang/Object":
                     cf = None
                     break
                 cf = classloader[cf.super_.name.value]

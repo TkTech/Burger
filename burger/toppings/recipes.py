@@ -297,7 +297,7 @@ class RecipesTopping(Topping):
                     stack.append(i1 - i2);
                 elif ins == "invokespecial":
                     const = ins.operands[0]
-                    if const.name_and_type.name.value == "<init>":
+                    if const.name_and_type.name == "<init>":
                         break
 
             item = get_material(*stack[0])
@@ -358,7 +358,7 @@ class RecipesTopping(Topping):
                             data = ins.operands[0].value
                         elif ins == "invokestatic":
                             const = ins.operands[0]
-                            if const.class_.name.value == "java/lang/Character" and const.name_and_type.name.value == "valueOf":
+                            if const.class_.name == "java/lang/Character" and const.name_and_type.name == "valueOf":
                                 data = chr(data)
                             else:
                                 raise Exception("Unknown method invocation: " + repr(const))
@@ -375,7 +375,7 @@ class RecipesTopping(Topping):
                     const = ins.operands[0]
 
                     recipe_data = {}
-                    if const.name_and_type.name.value == setter_names[0]:
+                    if const.name_and_type.name == setter_names[0]:
                         # Shaped
                         recipe_data['type'] = 'shape'
                         recipe_data['makes'] = crafted_item

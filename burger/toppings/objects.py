@@ -68,7 +68,7 @@ class ObjectTopping(Topping):
             if ins == "instanceof":
                 # Check to make sure that it's a spawn packet for item entities
                 const = ins.operands[0]
-                if const.name.value == item_entity_class:
+                if const.name == item_entity_class:
                     will_be_spawn_object_packet = True
             elif ins == "new" and will_be_spawn_object_packet:
                 const = ins.operands[0]

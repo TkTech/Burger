@@ -144,7 +144,7 @@ class BlocksTopping(Topping):
                 desc = method_descriptor(method_desc)
 
                 if ins == "invokestatic":
-                    if const.class_.name.value == superclass:
+                    if const.class_.name == superclass:
                         # Call to the static register method.
                         text_id = args[0]
                         current_block = args[1]
@@ -156,7 +156,7 @@ class BlocksTopping(Topping):
                             current_block["display_name"] = language[lang_key]
                         block[text_id] = current_block
                         ordered_blocks.append(text_id)
-                    elif const.class_.name.value == builder_class:
+                    elif const.class_.name == builder_class:
                         if desc.args[0].name == superclass: # Copy constructor
                             copy = dict(args[0])
                             del copy["text_id"]
@@ -173,16 +173,16 @@ class BlocksTopping(Topping):
                         # (and have started iterating over registry keys)
                         raise StopIteration()
 
-                    if method_name == hardness_setter.name.value and method_desc == hardness_setter.descriptor.value:
+                    if method_name == hardness_setter.name and method_desc == hardness_setter.descriptor:
                         obj["hardness"] = args[0]
                         obj["resistance"] = args[1]
-                    elif method_name == hardness_setter_2.name.value and method_desc == hardness_setter_2.descriptor.value:
+                    elif method_name == hardness_setter_2.name and method_desc == hardness_setter_2.descriptor:
                         obj["hardness"] = args[0]
                         obj["resistance"] = args[0]
-                    elif method_name == hardness_setter_3.name.value and method_desc == hardness_setter_3.descriptor.value:
+                    elif method_name == hardness_setter_3.name and method_desc == hardness_setter_3.descriptor:
                         obj["hardness"] = 0.0
                         obj["resistance"] = 0.0
-                    elif method_name == light_setter.name.value and method_desc == light_setter.descriptor.value:
+                    elif method_name == light_setter.name and method_desc == light_setter.descriptor:
                         obj["light"] = args[0]
                     elif method_name == "<init>":
                         # Call to the constructor for the block
@@ -200,7 +200,7 @@ class BlocksTopping(Topping):
                         return object()
 
             def on_get_field(self, ins, const, obj):
-                if const.class_.name.value == superclass:
+                if const.class_.name == superclass:
                     # Probably getting the static AIR resource location
                     return "air"
                 else:
@@ -273,7 +273,7 @@ class BlocksTopping(Topping):
                     stack.append(const.value)
             elif ins == "getstatic":
                 const = ins.operands[0]
-                if const.class_.name.value == superclass:
+                if const.class_.name == superclass:
                     # Probably getting the static AIR resource location
                     stack.append("air")
                 else:

@@ -131,7 +131,7 @@ class BlockStateTopping(Topping):
                     stack.append(stack[-1])
                 elif ins == "invokespecial":
                     const = ins.operands[0]
-                    assert const.name_and_type.name.value == "<init>"
+                    assert const.name_and_type.name == "<init>"
                     desc = method_descriptor(const.name_and_type.descriptor.value)
                     assert len(desc.args) == 2
 
@@ -156,7 +156,7 @@ class BlockStateTopping(Topping):
                     const = ins.operands[0]
                     desc = method_descriptor(const.name_and_type.descriptor.value)
 
-                    if const.class_.name.value == blockstatecontainer:
+                    if const.class_.name == blockstatecontainer:
                         # Case 3.
                         assert properties == None
                         properties = stack.pop()
@@ -396,13 +396,13 @@ class BlockStateTopping(Topping):
                             "args": args
                         }
                         stack.append(prop)
-                    elif const.name_and_type.name.value == "<init>":
+                    elif const.name_and_type.name == "<init>":
                         if obj["is_enum"]:
                             obj["enum_name"] = args[0]
                             obj["enum_ordinal"] = args[1]
                         else:
                             obj["args"] = args
-                    elif const.name_and_type.name.value == "values":
+                    elif const.name_and_type.name == "values":
                         # Enum values
                         fields = find_field(const.class_.name.value, None)
                         stack.append([fld for fld in fields

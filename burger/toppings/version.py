@@ -90,9 +90,9 @@ class VersionTopping(Topping):
                     if ins in ("ldc", "ldc_w"):
                         const = ins.operands[0]
                         if isinstance(const, String):
-                            if const.string.value == "DataVersion":
+                            if const == "DataVersion":
                                 next_ins_is_version = True
-                            elif const.string.value == "hasLegacyStructureData":
+                            elif const == "hasLegacyStructureData":
                                 # In 18w21a+, there are two places that reference DataVersion,
                                 # one which is querying it and one which is saving it.
                                 # We don't want the one that's querying it;
