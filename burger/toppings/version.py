@@ -84,22 +84,29 @@ class VersionTopping(Topping):
             cf = classloader[anvilchunkloader]
 
             for method in cf.methods:
+                can_be_correct = True
+                for ins in method.code.disassemble():
+                    if ins in ("ldc", "ldc_w"):
+                        const = ins.operands[0]
+                        if isinstance(const, String) and const == "hasLegacyStructureData":
+                            # In 18w21a+, there are two places that reference DataVersion,
+                            # one which is querying it and one which is saving it.
+                            # We don't want the one that's querying it;
+                            # if "hasLegacyStructureData" is present then we're in the
+                            # querying one so break and try the next method
+                            can_be_correct = False
+                            break
+
+                if not can_be_correct:
+                    continue
+
                 next_ins_is_version = False
                 found_version = None
                 for ins in method.code.disassemble():
                     if ins in ("ldc", "ldc_w"):
                         const = ins.operands[0]
-                        if isinstance(const, String):
-                            if const == "DataVersion":
-                                next_ins_is_version = True
-                            elif const == "hasLegacyStructureData":
-                                # In 18w21a+, there are two places that reference DataVersion,
-                                # one which is querying it and one which is saving it.
-                                # We don't want the one that's querying it;
-                                # if "hasLegacyStructureData" is present then we're in the
-                                # querying one so break and try the next method
-                                found_version = None
-                                break
+                        if isinstance(const, String) and const == "DataVersion":
+                            next_ins_is_version = True
                         elif isinstance(const, Integer):
                             if next_ins_is_version:
                                 found_version = const.value
@@ -108,6 +115,7 @@ class VersionTopping(Topping):
                         pass
                     elif ins in ("bipush", "sipush"):
                         found_version = ins.operands[0].value
+                        break
 
                 if found_version is not None:
                     aggregate["version"]["data"] = found_version
