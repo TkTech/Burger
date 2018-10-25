@@ -25,6 +25,7 @@ import os
 import sys
 import getopt
 import urllib
+import traceback
 
 try:
     import json
@@ -239,8 +240,23 @@ if __name__ == "__main__":
             }
         }
 
+        available = []
         for topping in to_be_run:
-            topping.act(aggregate, classloader, verbose)
+            missing = [dep for dep in topping.DEPENDS if dep not in available]
+            if len(missing) != 0:
+                if verbose:
+                    print("Dependencies failed for %s: Missing %s" % (topping, missing))
+                continue
+
+            orig_aggregate = aggregate.copy()
+            try:
+                topping.act(aggregate, classloader, verbose)
+                available.extend(topping.PROVIDES)
+            except:
+                aggregate = orig_aggregate # If the topping failed, don't leave things in an incomplete state
+                if verbose:
+                    print("Failed to run %s" % topping)
+                    traceback.print_exc()
 
         summary.append(aggregate)
 
