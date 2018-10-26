@@ -92,15 +92,19 @@ class SoundTopping(Topping):
                 traceback.print_exc()
             return
 
-        if not 'sounds.list' in aggregate["classes"]:
+        if 'sounds.event' not in aggregate["classes"]:
             # 1.8 - TODO implement this for 1.8
+            if verbose:
+                print("Not enough information to run sounds topping; missing sounds.event")
             return
+        if 'sounds.list' not in aggregate["classes"]:
+            aggregate["classes"]["sounds.list"] = aggregate["classes"]["sounds.event"]
 
         soundevent = aggregate["classes"]["sounds.event"]
         cf = classloader[soundevent]
 
         # Find the static sound registration method
-        method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
+        method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_static)
 
         sound_name = None
         sound_id = 0

@@ -52,7 +52,6 @@ MATCHES = (
     ),
     (['Data value id is too big'], 'metadata'),
     (['X#X'], 'recipe.superclass'),
-    (['Accessed Sounds before Bootstrap!'], 'sounds.list'),
     (['Skipping BlockEntity with id '], 'tileentity.superclass'),
     (
         ['Unable to resolve BlockEntity for ItemInstance:',
@@ -105,33 +104,16 @@ def identify(classloader, path):
             assert len(class_file.interfaces) == 1
             const = class_file.interfaces[0]
             return 'chatcomponent', const.name.value
-        if 'ambient.cave' in value:
+        if value == 'ambient.cave':
+            # This is found in both the sounds list class and sounds event class.
+            # However, the sounds list class also has a constant specific to it.
+            # Note that this method will not work in 1.8, but the list class doesn't exist then either.
             class_file = classloader[path]
 
-            # We _may_ have found the SoundEvent class, but there are several
-            # other classes with this string constant.  So we need to check
-            # for registration methods.
-            def is_public_static(m):
-                return m.access_flags.acc_public and m.access_flags.acc_static
-
-            def is_private_static(m):
-                return m.access_flags.acc_private and m.access_flags.acc_static
-
-            pub_args = {
-                "args": "",
-                "returns": "V",
-                "f": is_public_static
-            }
-            priv_args = {
-                "args": "Ljava/lang/String;",
-                "returns": "V",
-                "f": is_private_static
-            }
-
-            public_register_method = class_file.methods.find_one(**pub_args)
-            private_register_method = class_file.methods.find_one(**priv_args)
-
-            if public_register_method and private_register_method:
+            for c2 in class_file.constants.find(type_=String):
+                if c2 == 'Accessed Sounds before Bootstrap!':
+                    return 'sounds.list', class_file.this.name.value
+            else:
                 return 'sounds.event', class_file.this.name.value
 
         if value == 'minecraft':
