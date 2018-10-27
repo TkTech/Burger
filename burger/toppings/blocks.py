@@ -48,7 +48,11 @@ class BlocksTopping(Topping):
 
     @staticmethod
     def act(aggregate, classloader, verbose=False):
-        if "data" in aggregate["version"] and aggregate["version"]["data"] >= 1461: # 18w02a
+        data_version = aggregate["version"]["data"] if "data" in aggregate["version"] else -1
+        if data_version >= 1901: # 18w43a
+            BlocksTopping._process_1point14(aggregate, classloader, verbose)
+            return # This also adds classes
+        elif data_version >= 1461: # 18w02a
             BlocksTopping._process_1point13(aggregate, classloader, verbose)
         else:
             BlocksTopping._process_1point12(aggregate, classloader, verbose)
@@ -79,6 +83,148 @@ class BlocksTopping(Topping):
                 elif verbose:
                     print("Cannot find a block matching %s for field %s" % (blk_name, field))
                 block_fields[field] = blk_name
+
+    @staticmethod
+    def _process_1point14(aggregate, classloader, verbose):
+        # Handles versions after 1.14 (specifically >= 18w43a)
+        # All of the registration happens in the list class in this version,
+        # which we end up identifying incorrectly as the superclass.  Things are a bit messy, as such.
+        listclass = aggregate["classes"]["block.superclass"]
+        lcf = classloader[listclass]
+        superclass = next(lcf.fields.find()).type.name
+        cf = classloader[superclass]
+        aggregate["classes"]["block.superclass"] = superclass
+        aggregate["classes"]["block.list"] = listclass
+
+        if "block" in aggregate["language"]:
+            language = aggregate["language"]["block"]
+        else:
+            language = None
+
+        # Figure out what the builder class is
+        ctor = cf.methods.find_one(name="<init>")
+        builder_class = ctor.args[0].name
+
+        builder_cf = classloader[builder_class]
+        # Sets hardness and resistance
+        hardness_setter = builder_cf.methods.find_one(args='FF')
+        # There's also one that sets both to the same value
+        hardness_setter_2 = None
+        for method in builder_cf.methods.find(args='F'):
+            for ins in method.code.disassemble():
+                if ins.mnemonic == "invokevirtual":
+                    const = ins.operands[0]
+                    if (const.name_and_type.name.value == hardness_setter.name.value and
+                            const.name_and_type.descriptor.value == hardness_setter.descriptor.value):
+                        hardness_setter_2 = method
+                        break
+        assert hardness_setter_2 != None
+        # ... and one that sets them both to 0
+        hardness_setter_3 = None
+        for method in builder_cf.methods.find(args=''):
+            for ins in method.code.disassemble():
+                if ins.mnemonic == "invokevirtual":
+                    const = ins.operands[0]
+                    if (const.name_and_type.name.value == hardness_setter_2.name.value and
+                            const.name_and_type.descriptor.value == hardness_setter_2.descriptor.value):
+                        hardness_setter_3 = method
+                        break
+        assert hardness_setter_3 != None
+
+        light_setter = builder_cf.methods.find_one(args='I')
+
+        blocks = aggregate.setdefault("blocks", {})
+        block = blocks.setdefault("block", {})
+        ordered_blocks = blocks.setdefault("ordered_blocks", [])
+        block_fields = blocks.setdefault("block_fields", {})
+
+        # Find the static block registration method
+        method = lcf.methods.find_one(name='<clinit>')
+
+        class Walker(WalkerCallback):
+            def __init__(self):
+                self.cur_id = 0
+
+            def on_new(self, ins, const):
+                class_name = const.name.value
+                return {"class": class_name}
+
+            def on_invoke(self, ins, const, obj, args):
+                method_name = const.name_and_type.name.value
+                method_desc = const.name_and_type.descriptor.value
+                desc = method_descriptor(method_desc)
+
+                if ins.mnemonic == "invokestatic":
+                    if const.class_.name.value == listclass:
+                        # Call to the static register method.
+                        text_id = args[0]
+                        current_block = args[1]
+                        current_block["text_id"] = text_id
+                        current_block["numeric_id"] = self.cur_id
+                        self.cur_id += 1
+                        lang_key = "minecraft.%s" % text_id
+                        if language != None and lang_key in language:
+                            current_block["display_name"] = language[lang_key]
+                        block[text_id] = current_block
+                        ordered_blocks.append(text_id)
+                        return current_block
+                    elif const.class_.name.value == builder_class:
+                        if desc.args[0].name == superclass: # Copy constructor
+                            copy = dict(args[0])
+                            del copy["text_id"]
+                            del copy["numeric_id"]
+                            del copy["class"]
+                            if "display_name" in copy:
+                                del copy["display_name"]
+                            return copy
+                        else:
+                            return {} # Append current block
+                else:
+                    if method_name == "hasNext":
+                        # We've reached the end of block registration
+                        # (and have started iterating over registry keys)
+                        raise StopIteration()
+
+                    if method_name == hardness_setter.name.value and method_desc == hardness_setter.descriptor.value:
+                        obj["hardness"] = args[0]
+                        obj["resistance"] = args[1]
+                    elif method_name == hardness_setter_2.name.value and method_desc == hardness_setter_2.descriptor.value:
+                        obj["hardness"] = args[0]
+                        obj["resistance"] = args[0]
+                    elif method_name == hardness_setter_3.name.value and method_desc == hardness_setter_3.descriptor.value:
+                        obj["hardness"] = 0.0
+                        obj["resistance"] = 0.0
+                    elif method_name == light_setter.name.value and method_desc == light_setter.descriptor.value:
+                        obj["light"] = args[0]
+                    elif method_name == "<init>":
+                        # Call to the constructor for the block
+                        # We can't hardcode index 0 because sand has an extra parameter, so use the last one
+                        # There are also cases where it's an arg-less constructor; we don't want to do anything there.
+                        if len(args) > 0:
+                            obj.update(args[-1])
+
+                    if desc.returns.name == builder_class or desc.returns.name == superclass:
+                        return obj
+                    elif desc.returns.name == aggregate["classes"]["identifier"]:
+                        # Probably getting the air identifier from the registry
+                        return "air"
+                    elif desc.returns.name != "void":
+                        return object()
+
+            def on_get_field(self, ins, const, obj):
+                if const.class_.name.value == superclass:
+                    # Probably getting the static AIR resource location
+                    return "air"
+                elif const.class_.name.value == listclass:
+                    return block[block_fields[const.name_and_type.name.value]]
+                else:
+                    return object()
+
+            def on_put_field(self, ins, const, obj, value):
+                if isinstance(value, dict):
+                    block_fields[const.name_and_type.name.value] = value["text_id"]
+
+        walk_method(cf, method, Walker(), verbose)
 
     @staticmethod
     def _process_1point13(aggregate, classloader, verbose):
