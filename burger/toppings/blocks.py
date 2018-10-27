@@ -222,7 +222,9 @@ class BlocksTopping(Topping):
 
             def on_put_field(self, ins, const, obj, value):
                 if isinstance(value, dict):
-                    block_fields[const.name_and_type.name.value] = value["text_id"]
+                    field = const.name_and_type.name.value
+                    value["field"] = field
+                    block_fields[field] = value["text_id"]
 
         walk_method(cf, method, Walker(), verbose)
 
