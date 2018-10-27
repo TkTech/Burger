@@ -31,14 +31,8 @@ import traceback
 # We can identify almost every class we need just by
 # looking for consistent strings.
 MATCHES = (
-    (['Accessed Biomes before Bootstrap!'], 'biome.list'),  # 1.9 only
-    ((['Ice Plains', 'mutated_ice_flats', 'ice_spikes'], True), 'biome.superclass'),
-    (['Accessed Blocks before Bootstrap!'], 'block.list'),
-    (['lightgem', 'Block{'], 'block.superclass'),
     (['Skipping Entity with id'], 'entity.list'),
     (['Fetching addPacket for removed entity'], 'entity.trackerentry'),
-    (['Accessed Items before Bootstrap!'], 'item.list'),
-    (['yellowDust', 'CB3F55D3-645C-4F38-A497-9C13A33DB5CF'], 'item.superclass'),
     (['#%04d/%d%s', 'attribute.modifier.equals.'], 'itemstack'),
     (['disconnect.lost'], 'nethandler.client'),
     (['Outdated server!', 'multiplayer.disconnect.outdated_client'],
@@ -65,10 +59,6 @@ MATCHES = (
     (['has invalidly named property'], 'blockstatecontainer'),
     ((['HORIZONTAL'], True), 'enumfacing.plane')
 )
-
-# In some cases there really isn't a good way to verify that it's a specific
-# class and we need to just depend on it coming first (bad!)
-IGNORE_DUPLICATES = [ "biome.superclass" ]
 
 def identify(classloader, path):
     """
@@ -104,6 +94,7 @@ def identify(classloader, path):
             assert len(class_file.interfaces) == 1
             const = class_file.interfaces[0]
             return 'chatcomponent', const.name.value
+
         if value == 'ambient.cave':
             # This is found in both the sounds list class and sounds event class.
             # However, the sounds list class also has a constant specific to it.
@@ -115,6 +106,45 @@ def identify(classloader, path):
                     return 'sounds.list', class_file.this.name.value
             else:
                 return 'sounds.event', class_file.this.name.value
+
+        if value == 'piston_head':
+            # piston_head is a technical block, which is important as that means it has no item form.
+            # This constant is found in both the block list class and the class containing block registrations.
+            class_file = classloader[path]
+
+            for c2 in class_file.constants.find(type_=String):
+                if c2 == 'Accessed Blocks before Bootstrap!':
+                    return 'block.list', class_file.this.name.value
+            else:
+                return 'block.superclass', class_file.this.name.value
+
+        if value == 'diamond_pickaxe':
+            # Similarly, diamond_pickaxe is only an item.  This exists in 3 classes, though:
+            # - The actual item registration code
+            # - The item list class
+            # - The item renderer class (until 1.13), which we don't care about
+            class_file = classloader[path]
+
+            for c2 in class_file.constants.find(type_=String):
+                if c2 == 'textures/misc/enchanted_item_glint.png':
+                    # Item renderer, which we don't care about
+                    return
+
+                if c2 == 'Accessed Items before Bootstrap!':
+                    return 'item.list', class_file.this.name.value
+            else:
+                return 'item.superclass', class_file.this.name.value
+
+        if value in ('Ice Plains', 'mutated_ice_flats', 'ice_spikes'):
+            # Finally, biomes.  There's several different names that were used for this one biome
+            # Only classes are the list class and the one with registration.  Note that the list didn't exist in 1.8.
+            class_file = classloader[path]
+
+            for c2 in class_file.constants.find(type_=String):
+                if c2 == 'Accessed Biomes before Bootstrap!':
+                    return 'biome.list', class_file.this.name.value
+            else:
+                return 'biome.superclass', class_file.this.name.value
 
         if value == 'minecraft':
             class_file = classloader[path]
@@ -197,8 +227,6 @@ class IdentifyTopping(Topping):
             result = identify(classloader, path[:-len(".class")])
             if result:
                 if result[0] in classes:
-                    if result[0] in IGNORE_DUPLICATES:
-                        continue
                     raise Exception(
                             "Already registered %(value)s to %(old_class)s! "
                             "Can't overwrite it with %(new_class)s" % {
