@@ -33,13 +33,14 @@ import six
 class ItemsTopping(Topping):
     """Provides some information on most available items."""
     PROVIDES = [
+        "identify.item.superclass",
         "items"
     ]
 
     DEPENDS = [
         "identify.block.superclass",
         "identify.block.list",
-        "identify.item.superclass",
+        "identify.item.register",
         "identify.item.list",
         "language",
         "blocks",
@@ -85,11 +86,10 @@ class ItemsTopping(Topping):
     @staticmethod
     def _process_1point14(aggregate, classloader, verbose):
         # Handles versions after 1.14 (specifically >= 18w43a)
-        # All of the registration happens in the list class in this version,
-        # which we end up identifying incorrectly as the superclass.  Things are a bit messy, as such.
-        listclass = aggregate["classes"]["item.superclass"]
+        # All of the registration happens in the list class in this version.
+        listclass = aggregate["classes"]["item.register"]
         lcf = classloader[listclass]
-        superclass = next(lcf.fields.find()).type.name
+        superclass = next(lcf.fields.find()).type.name # The first field in the list class is an item
         cf = classloader[superclass]
         aggregate["classes"]["item.superclass"] = superclass
         aggregate["classes"]["item.list"] = listclass
@@ -265,7 +265,8 @@ class ItemsTopping(Topping):
     @staticmethod
     def _process_1point13(aggregate, classloader, verbose):
         # Handles versions after 1.13 (specifically >= 18w02a)
-        superclass = aggregate["classes"]["item.superclass"]
+        superclass = aggregate["classes"]["item.register"]
+        aggregate["classes"]["item.superclass"] = superclass
         blockclass = aggregate["classes"]["block.superclass"]
         blocklist = aggregate["classes"]["block.list"]
 
@@ -429,7 +430,8 @@ class ItemsTopping(Topping):
 
     @staticmethod
     def _process_1point12(aggregate, classloader, verbose):
-        superclass = aggregate["classes"]["item.superclass"]
+        superclass = aggregate["classes"]["item.register"]
+        aggregate["classes"]["item.superclass"] = superclass
         blockclass = aggregate["classes"]["block.superclass"]
         blocklist = aggregate["classes"]["block.list"]
 

@@ -116,7 +116,7 @@ def identify(classloader, path):
                 if c2 == 'Accessed Blocks before Bootstrap!':
                     return 'block.list', class_file.this.name.value
             else:
-                return 'block.superclass', class_file.this.name.value
+                return 'block.register', class_file.this.name.value
 
         if value == 'diamond_pickaxe':
             # Similarly, diamond_pickaxe is only an item.  This exists in 3 classes, though:
@@ -133,7 +133,7 @@ def identify(classloader, path):
                 if c2 == 'Accessed Items before Bootstrap!':
                     return 'item.list', class_file.this.name.value
             else:
-                return 'item.superclass', class_file.this.name.value
+                return 'item.register', class_file.this.name.value
 
         if value in ('Ice Plains', 'mutated_ice_flats', 'ice_spikes'):
             # Finally, biomes.  There's several different names that were used for this one biome
@@ -144,7 +144,7 @@ def identify(classloader, path):
                 if c2 == 'Accessed Biomes before Bootstrap!':
                     return 'biome.list', class_file.this.name.value
             else:
-                return 'biome.superclass', class_file.this.name.value
+                return 'biome.register', class_file.this.name.value
 
         if value == 'minecraft':
             class_file = classloader[path]
@@ -188,9 +188,9 @@ class IdentifyTopping(Topping):
     PROVIDES = [
         "identify.anvilchunkloader",
         "identify.biome.list",
-        "identify.biome.superclass",
+        "identify.biome.register",
         "identify.block.list",
-        "identify.block.superclass",
+        "identify.block.register",
         "identify.blockstatecontainer",
         "identify.chatcomponent",
         "identify.entity.list",
@@ -198,7 +198,7 @@ class IdentifyTopping(Topping):
         "identify.enumfacing.plane",
         "identify.identifier",
         "identify.item.list",
-        "identify.item.superclass",
+        "identify.item.register",
         "identify.itemstack",
         "identify.metadata",
         "identify.nbtcompound",

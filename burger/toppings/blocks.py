@@ -34,11 +34,12 @@ class BlocksTopping(Topping):
     """Gets most available block types."""
 
     PROVIDES = [
+        "identify.block.superclass",
         "blocks"
     ]
 
     DEPENDS = [
-        "identify.block.superclass",
+        "identify.block.register",
         "identify.block.list",
         "identify.identifier",
         "language",
@@ -87,11 +88,10 @@ class BlocksTopping(Topping):
     @staticmethod
     def _process_1point14(aggregate, classloader, verbose):
         # Handles versions after 1.14 (specifically >= 18w43a)
-        # All of the registration happens in the list class in this version,
-        # which we end up identifying incorrectly as the superclass.  Things are a bit messy, as such.
-        listclass = aggregate["classes"]["block.superclass"]
+        # All of the registration happens in the list class in this version.
+        listclass = aggregate["classes"]["block.register"]
         lcf = classloader[listclass]
-        superclass = next(lcf.fields.find()).type.name
+        superclass = next(lcf.fields.find()).type.name # The first field in the list class is a block
         cf = classloader[superclass]
         aggregate["classes"]["block.superclass"] = superclass
         aggregate["classes"]["block.list"] = listclass
@@ -231,8 +231,9 @@ class BlocksTopping(Topping):
     @staticmethod
     def _process_1point13(aggregate, classloader, verbose):
         # Handles versions after 1.13 (specifically >= 18w02a)
-        superclass = aggregate["classes"]["block.superclass"]
+        superclass = aggregate["classes"]["block.register"]
         cf = classloader[superclass]
+        aggregate["classes"]["block.superclass"] = superclass
 
         if "block" in aggregate["language"]:
             language = aggregate["language"]["block"]
@@ -362,8 +363,9 @@ class BlocksTopping(Topping):
     @staticmethod
     def _process_1point12(aggregate, classloader, verbose):
         # Handles versions prior to 1.13
-        superclass = aggregate["classes"]["block.superclass"]
+        superclass = aggregate["classes"]["block.register"]
         cf = classloader[superclass]
+        aggregate["classes"]["block.superclass"] = superclass
 
         is_flattened = aggregate["version"]["is_flattened"]
         individual_textures = True #aggregate["version"]["protocol"] >= 52 # assume >1.5 http://wiki.vg/Protocol_History#1.5.x since don't read packets TODO

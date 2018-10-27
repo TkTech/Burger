@@ -33,11 +33,12 @@ class BiomeTopping(Topping):
     """Gets most biome types."""
 
     PROVIDES = [
+        "identify.biome.superclass",
         "biomes"
     ]
 
     DEPENDS = [
-        "identify.biome.superclass",
+        "identify.biome.register",
         "identify.biome.list",
         "version.data",
         "language"
@@ -45,7 +46,7 @@ class BiomeTopping(Topping):
 
     @staticmethod
     def act(aggregate, classloader, verbose=False):
-        if "biome.superclass" not in aggregate["classes"]:
+        if "biome.register" not in aggregate["classes"]:
             return
         data_version = aggregate["version"]["data"] if "data" in aggregate["version"] else -1
         if data_version >= 1901: # 18w43a
@@ -65,9 +66,10 @@ class BiomeTopping(Topping):
         biomes = biomes_base.setdefault("biome", {})
         biome_fields = biomes_base.setdefault("biome_fields", {})
 
-        superclass = aggregate["classes"]["biome.superclass"]
+        superclass = aggregate["classes"]["biome.register"]
+        aggregate["classes"]["biome.superclass"] = superclass
         cf = classloader[superclass]
-        
+
         mutate_method_desc = None
         mutate_method_name = None
         void_methods = cf.methods.find(returns="L" + superclass + ";", args="", f=lambda m: m.access_flags.acc_protected and not m.access_flags.acc_static)
@@ -196,7 +198,8 @@ class BiomeTopping(Topping):
         biomes = biomes_base.setdefault("biome", {})
         biome_fields = biomes_base.setdefault("biome_fields", {})
 
-        superclass = aggregate["classes"]["biome.superclass"]
+        superclass = aggregate["classes"]["biome.register"]
+        aggregate["classes"]["biome.superclass"] = superclass
         cf = classloader[superclass]
 
         method = cf.methods.find_one(returns="V", args="", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
@@ -308,7 +311,8 @@ class BiomeTopping(Topping):
         biomes = biomes_base.setdefault("biome", {})
         biome_fields = biomes_base.setdefault("biome_fields", {})
 
-        superclass = aggregate["classes"]["biome.superclass"]
+        superclass = aggregate["classes"]["biome.register"]
+        aggregate["classes"]["biome.superclass"] = superclass
         cf = classloader[superclass]
 
         method = cf.methods.find_one(returns="V", args="", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
@@ -469,9 +473,9 @@ class BiomeTopping(Topping):
     @staticmethod
     def _process_114(aggregate, classloader, verbose):
         # Processes biomes for Minecraft 1.14
-        listclass = aggregate["classes"]["biome.superclass"]
+        listclass = aggregate["classes"]["biome.register"]
         lcf = classloader[listclass]
-        superclass = next(lcf.fields.find()).type.name
+        superclass = next(lcf.fields.find()).type.name # The first field in the list is a biome
         aggregate["classes"]["biome.superclass"] = superclass
         aggregate["classes"]["biome.list"] = listclass
 
