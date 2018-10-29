@@ -60,6 +60,13 @@ MATCHES = (
     ((['HORIZONTAL'], True), 'enumfacing.plane')
 )
 
+# In some cases there really isn't a good way to verify that it's a specific
+# class and we need to just depend on it coming first (bad!)
+# The biome class specifically is an issue because in 18w06a, the old name is
+# present in the biome's own class, but the ID is still in the register class.
+# This stops being an issue later into 1.13 when biome names become translatable.
+IGNORE_DUPLICATES = [ "biome.register" ]
+
 def identify(classloader, path):
     """
     The first pass across the jar will identify all possible classes it
@@ -227,6 +234,8 @@ class IdentifyTopping(Topping):
             result = identify(classloader, path[:-len(".class")])
             if result:
                 if result[0] in classes:
+                    if result[0] in IGNORE_DUPLICATES:
+                        continue
                     raise Exception(
                             "Already registered %(value)s to %(old_class)s! "
                             "Can't overwrite it with %(new_class)s" % {
