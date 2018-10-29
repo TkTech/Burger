@@ -62,6 +62,7 @@ class EntityTopping(Topping):
 
         entities = aggregate["entities"]
 
+        # Identify sizes now that we have entity classes
         for e in six.itervalues(entities["entity"]):
             cf = classloader[e["class"]]
             size = EntityTopping.size(cf)
@@ -73,6 +74,8 @@ class EntityTopping(Topping):
         entities["info"] = {
             "entity_count": len(entities["entity"])
         }
+
+        EntityTopping.abstract_entities(classloader, entities["entity"], verbose)
 
     @staticmethod
     def _entities_1point13(aggregate, classloader, verbose):
@@ -380,3 +383,30 @@ class EntityTopping(Topping):
             else:
                 stage = 0
                 tmp = []
+
+    @staticmethod
+    def abstract_entities(classloader, entities, verbose):
+        entity_classes = {e["class"]: e["name"] for e in six.itervalues(entities)}
+
+        # Add some abstract classes, to help with metadata, and for reference only;
+        # these are not spawnable
+        def abstract_entity(abstract_name, *subclass_names):
+            for name in subclass_names:
+                if name in entities:
+                    cf = classloader[entities[name]["class"]]
+                    parent = cf.super_.name.value
+                    if parent not in entity_classes:
+                        entities["~abstract_" + abstract_name] = { "class": parent, "name": "~abstract_" + abstract_name }
+                    elif verbose:
+                        print("Unexpected non-abstract class for parent of %s: %s" % (name, entity_classes[parent]))
+                    break
+            else:
+                if verbose:
+                    print("Failed to find abstract entity %s as a superclass of %s" % (abstract_name, subclass_names))
+
+        abstract_entity("entity", "item", "Item")
+        abstract_entity("minecart", "minecart", "MinecartRideable")
+        abstract_entity("living", "armor_stand", "ArmorStand") # EntityLivingBase
+        abstract_entity("insentient", "ender_dragon", "EnderDragon") # EntityLiving
+        abstract_entity("insentient", "enderman", "Enderman") # EntityMob
+        abstract_entity("tameable", "wolf", "Wolf") # EntityTameable
