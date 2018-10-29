@@ -25,9 +25,10 @@ THE SOFTWARE.
 import six
 
 from .topping import Topping
-from burger.util import class_from_invokedynamic
+from burger.util import WalkerCallback, class_from_invokedynamic, walk_method
 
 from jawa.constants import *
+from jawa.util.descriptor import method_descriptor
 
 class EntityTopping(Topping):
     """Gets most entity types."""
@@ -78,44 +79,97 @@ class EntityTopping(Topping):
         if verbose:
             print("Using 1.13 entity format")
 
-        superclass = aggregate["classes"]["entity.list"]
-        cf = classloader[superclass]
+        listclass = aggregate["classes"]["entity.list"]
+        cf = classloader[listclass]
 
         entities = aggregate.setdefault("entities", {})
         entity = entities.setdefault("entity", {})
 
+        # Find the inner builder class
+        inner_classes = cf.attributes.find_one(name="InnerClasses").inner_classes
+        for entry in inner_classes:
+            outer = cf.constants.get(entry.outer_class_info_index)
+            if outer.name == listclass:
+                inner = cf.constants.get(entry.inner_class_info_index)
+                builderclass = inner.name.value
+                break
+        else:
+            raise Exception("Failed to find inner class for builder in " + str(inner_classes))
+
         method = cf.methods.find_one(name="<clinit>")
 
-        stack = []
-        numeric_id = 0
-        for ins in method.code.disassemble():
-            if ins in ("ldc", "ldc_w"):
-                const = ins.operands[0]
-                if isinstance(const, ConstantClass):
-                    stack.append(const.name.value)
-                elif isinstance(const, String):
-                    stack.append(const.string.value)
-            elif ins == "invokedynamic":
-                stack.append(class_from_invokedynamic(ins, cf))
-            elif ins == "putstatic":
-                if len(stack) in (2, 3):
-                    if len(stack) == 3:
-                        # In 18w07a, they added a parameter for the entity class,
-                        # in addition to the invokedynamic.  Make sure both are the same.
-                        assert stack[1] == stack[2]
+        # Example of what's being parsed:
+        # public static final EntityType<EntityAreaEffectCloud> AREA_EFFECT_CLOUD = register("area_effect_cloud", EntityType.Builder.create(EntityAreaEffectCloud.class, EntityAreaEffectCloud::new));
+        # and in older versions:
+        # public static final EntityType<EntityAreaEffectCloud> AREA_EFFECT_CLOUD = register("area_effect_cloud", EntityType.Builder.create(EntityAreaEffectCloud::new));
 
-                    name = stack[0]
+        class EntityContext(WalkerCallback):
+            def __init__(self):
+                self.cur_id = 0
 
-                    entity[name] = {
-                        "id": numeric_id,
-                        "name": name,
-                        "class": stack[1]
-                    }
+            def on_invokedynamic(self, ins, const):
+                # MC uses EntityZombie::new, similar; return the created class
+                return class_from_invokedynamic(ins, cf)
+
+            def on_invoke(self, ins, const, obj, args):
+                if const.class_.name == listclass:
+                    assert len(args) == 2
+                    # Call to register
+                    name = args[0]
+                    new_entity = args[1]
+                    new_entity["name"] = name
+                    new_entity["id"] = self.cur_id
                     if "minecraft." + name in aggregate["language"]["entity"]:
-                        entity[name]["display_name"] = aggregate["language"]["entity"]["minecraft." + name]
+                        new_entity["display_name"] = aggregate["language"]["entity"]["minecraft." + name]
+                    self.cur_id += 1
 
-                    numeric_id += 1
-                stack = []
+                    entity[name] = new_entity
+                    return new_entity
+                elif const.class_.name == builderclass:
+                    if ins.mnemonic != "invokestatic":
+                        # Extra properties on the builder, which we don't care about
+                        return obj
+
+                    if len(args) == 2:
+                        # In 18w06a, they added a parameter for the entity class; check consistency
+                        assert args[0] == args[1] + ".class"
+                        cls = args[1]
+                    elif len(args) == 1:
+                        # There is also a format that creates an entity that cannot be serialized.
+                        # This might be just with a single argument (its class), in 18w06a+.
+                        # Otherwise, in 18w05a and below, it's just the function to build.
+                        method_desc = const.name_and_type.descriptor.value
+                        desc = method_descriptor(method_desc)
+                        if desc.args[0].name == "java/lang/Class":
+                            # The type that represents something that cannot be serialized
+                            cls = None
+                        else:
+                            # Just the function, which was converted into a class name earlier
+                            cls = args[0]
+                    else:
+                        # In 18w05a and below, nonserializable entities
+                        cls = None
+
+                    return { "class": cls } if cls else { "serializable": "false" }
+
+            def on_put_field(self, ins, const, obj, value):
+                if isinstance(value, dict):
+                    # Keep track of the field in the entity list too.
+                    value["field"] = const.name_and_type.name.value
+                    # Also, if this isn't a serializable entity, get the class from the generic signature of the field
+                    if "class" not in value:
+                        field = cf.fields.find_one(name=const.name_and_type.name.value)
+                        sig = field.attributes.find_one(name="Signature").signature.value # Something like `Laev<Laep;>;`
+                        value["class"] = sig[sig.index("<") + 2 : sig.index(">") - 1] # Awful way of getting the actual type
+
+            def on_new(self, ins, const):
+                # Done once, for the registry, but we don't care
+                return object()
+
+            def on_get_field(self, ins, const, obj):
+                raise Exception("unexpected getfield: %s" % ins)
+
+        walk_method(cf, method, EntityContext(), verbose)
 
     @staticmethod
     def _entities_1point11(aggregate, classloader, verbose):
@@ -123,59 +177,58 @@ class EntityTopping(Topping):
         if verbose:
             print("Using 1.11 entity format")
 
-        superclass = aggregate["classes"]["entity.list"]
-        cf = classloader[superclass]
+        listclass = aggregate["classes"]["entity.list"]
+        cf = classloader[listclass]
 
         entities = aggregate.setdefault("entities", {})
         entity = entities.setdefault("entity", {})
 
         method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
 
-        stack = []
         minecart_info = {}
-        for ins in method.code.disassemble():
-            if ins in ("ldc", "ldc_w"):
-                const = ins.operands[0]
-                if isinstance(const, ConstantClass):
-                    stack.append(const.name.value)
-                elif isinstance(const, String):
-                    stack.append(const.string.value)
-                else:
-                    stack.append(const.value)
-            elif ins in ("bipush", "sipush"):
-                stack.append(ins.operands[0].value)
-            elif ins == "getstatic":
+        class EntityContext(WalkerCallback):
+            def on_get_field(self, ins, const, obj):
                 # Minecarts use an enum for their data - assume that this is that enum
                 const = ins.operands[0]
                 if not "types_by_field" in minecart_info:
                     EntityTopping._load_minecart_enum(classloader, const.class_.name.value, minecart_info)
-                # This technically happens when invokevirtual is called, but do it like this for simplicity
                 minecart_name = minecart_info["types_by_field"][const.name_and_type.name.value]
-                stack.append(minecart_info["types"][minecart_name]["entitytype"])
-            elif ins == "invokestatic":
-                if len(stack) == 4:
-                    # Initial registration
-                    name = stack[1]
-                    old_name = stack[3]
+                return minecart_info["types"][minecart_name]
 
-                    entity[name] = {
-                        "id": stack[0],
-                        "name": name,
-                        "class": stack[2],
-                        "old_name": old_name
-                    }
+            def on_invoke(self, ins, const, obj, args):
+                if const.class_.name == listclass:
+                    if len(args) == 4:
+                        # Initial registration
+                        name = args[1]
+                        old_name = args[3]
+                        entity[name] = {
+                            "id": args[0],
+                            "name": name,
+                            "class": args[2][:-len(".class")],
+                            "old_name": old_name
+                        }
 
-                    if old_name + ".name" in aggregate["language"]["entity"]:
-                        entity[name]["display_name"] = aggregate["language"]["entity"][old_name + ".name"]
-                elif len(stack) == 3:
-                    # Spawn egg registration
-                    name = stack[0]
-                    if name in entity:
-                        entity[name]["egg_primary"] = stack[1]
-                        entity[name]["egg_secondary"] = stack[2]
-                    else:
-                        print("Missing entity during egg registration: %s" % name)
-                stack = []
+                        if old_name + ".name" in aggregate["language"]["entity"]:
+                            entity[name]["display_name"] = aggregate["language"]["entity"][old_name + ".name"]
+                    elif len(args) == 3:
+                        # Spawn egg registration
+                        name = args[0]
+                        if name in entity:
+                            entity[name]["egg_primary"] = args[1]
+                            entity[name]["egg_secondary"] = args[2]
+                        elif verbose:
+                            print("Missing entity during egg registration: %s" % name)
+                elif const.class_.name == minecart_info["class"]:
+                    # Assume that obj is the minecart info, and the method being called is the one that gets the name
+                    return obj["entitytype"]
+
+            def on_new(self, ins, const):
+                raise Exception("unexpected new: %s" % ins)
+
+            def on_put_field(self, ins, const, obj, value):
+                raise Exception("unexpected putfield: %s" % ins)
+
+        walk_method(cf, method, EntityContext(), verbose)
 
     @staticmethod
     def _entities_1point10(aggregate, classloader, verbose):

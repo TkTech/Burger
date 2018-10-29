@@ -86,6 +86,17 @@ class WalkerCallback(ABC):
         """
         pass
 
+    def on_invokedynamic(self, ins, const):
+        """
+        Called for an invokedynamic instruction.
+
+        ins: The instruction
+        const: The constant, a InvokeDynamic
+
+        return value: what to put on the stack
+        """
+        raise Exception("Unexpected invokedynamic: %s" % str(ins))
+
 def walk_method(cf, method, callback, verbose):
     assert isinstance(callback, WalkerCallback)
 
@@ -164,7 +175,11 @@ def walk_method(cf, method, callback, verbose):
             stack.append(locals[ins.operands[0].value])
         elif ins == "dup":
             stack.append(stack[-1])
+        elif ins == "pop":
+            stack.pop()
         elif ins in ("checkcast", "return"):
             pass
+        elif ins == "invokedynamic":
+            stack.append(callback.on_invokedynamic(ins, ins.operands[0]))
         elif verbose:
             print("Unknown instruction %s: stack is %s" % (ins, stack))
