@@ -181,7 +181,7 @@ def walk_method(cf, method, callback, verbose):
             stack.append([None] * stack.pop())
         elif ins == "newarray":
             stack.append([0] * stack.pop())
-        elif ins in ("aastore", "iastore"):
+        elif ins in ("aastore", "iastore", "fastore"):
             value = stack.pop()
             index = stack.pop()
             array = stack.pop()

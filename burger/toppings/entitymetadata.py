@@ -79,7 +79,13 @@ class EntityMetadataTopping(Topping):
                     if const.class_.name == datamanager_class and const.name_and_type.name == create_key_method.name and const.name_and_type.descriptor == create_key_method.descriptor:
                         # Call to createKey.
                         # Sanity check: entities should only register metadata for themselves
-                        assert args[0] == cls + ".class"
+                        if args[0] != cls + ".class":
+                            # ... but in some versions, mojang messed this up with potions... hence why the sanity check exists in vanilla now.
+                            if verbose:
+                                other_class = args[0][:-len(".class")]
+                                name = entity_classes.get(cls, "Unknown")
+                                other_name = entity_classes.get(other_class, "Unknown")
+                                print("An entity tried to register metadata for another entity: %s (%s) from %s (%s)" % (other_name, other_class, name, cls))
 
                         serializer = args[1]
                         index = self.cur_index
