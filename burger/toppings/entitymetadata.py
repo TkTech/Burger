@@ -52,7 +52,7 @@ class EntityMetadataTopping(Topping):
 
         dataserializers = EntityMetadataTopping.identify_serializers(classloader, dataserializer_class, dataserializers_class, aggregate["classes"], verbose)
         aggregate["entities"]["dataserializers"] = dataserializers
-        dataserializers_by_field = {serializer["field"]: serializer for serializer in dataserializers}
+        dataserializers_by_field = {serializer["field"]: serializer for serializer in six.itervalues(dataserializers)}
 
         entity_classes = {e["class"]: e["name"] for e in six.itervalues(entities)}
         parent_by_class = {}
@@ -155,7 +155,7 @@ class EntityMetadataTopping(Topping):
     @staticmethod
     def identify_serializers(classloader, dataserializer_class, dataserializers_class, classes, verbose):
         serializers_by_field = {}
-        serializers = []
+        serializers = {}
         id = 0
         dataserializers_cf = classloader[dataserializers_class]
         for ins in dataserializers_cf.methods.find_one(name="<clinit>").code.disassemble():
@@ -184,9 +184,15 @@ class EntityMetadataTopping(Topping):
 
                 serializer = serializers_by_field[field]
                 serializer["id"] = id
-                id += 1
+                name = serializer["name"]
+                if name not in serializers:
+                    serializers[name] = serializer
+                else:
+                    if verbose:
+                        print("Duplicate serializer with identified name %s: original %s, new %s" % (name, serializers[name], serializer))
+                    serializers[str(id)] = serializer # This hopefully will not clash but still shouldn't happen in the first place
 
-                serializers.append(serializer)
+                id += 1
 
         return serializers
 
@@ -230,9 +236,30 @@ class EntityMetadataTopping(Topping):
             name = "Chat"
         elif inner_type == classes["position"]:
             name = "BlockPos"
+        else:
+            # Try some more tests, based on the class itself:
+            try:
+                content_cf = classloader[inner_type]
+                if len(list(content_cf.fields.find(type_="F"))) == 3:
+                    name = "Rotations"
+                elif content_cf.constants.find_one(type_=String, f=lambda c: c == "down"):
+                    name = "Facing"
+                elif content_cf.access_flags.acc_interface:
+                    # Make some _very_ bad assumptions here; both of these are hard to identify:
+                    if name_prefix == "Opt":
+                        name = "BlockState"
+                    else:
+                        name = "Particle"
+            except:
+                if verbose:
+                    print("Failed to determine name of metadata content type %s" % inner_type)
+                    import traceback
+                    traceback.print_exc()
 
         if name:
             serializer["name"] = name_prefix + name
+        else:
+            serializer["name"] = str(serializer["id"]) # Somewhat messy fallback
 
         # Decompile the serialization code.
         # Note that we are using the bridge method that takes an object, and not the more find
