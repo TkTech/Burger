@@ -105,11 +105,11 @@ def walk_method(cf, method, callback, verbose):
     for ins in method.code.disassemble():
         if ins in ("bipush", "sipush"):
             stack.append(ins.operands[0].value)
-        elif ins.mnemonic.startswith("fconst"):
+        elif ins.mnemonic.startswith("fconst") or ins.mnemonic.startswith("dconst"):
             stack.append(float(ins.mnemonic[-1]))
         elif ins == "aconst_null":
             stack.append(None)
-        elif ins in ("ldc", "ldc_w"):
+        elif ins in ("ldc", "ldc_w", "ldc2_w"):
             const = ins.operands[0]
 
             if isinstance(const, ConstantClass):
@@ -177,9 +177,21 @@ def walk_method(cf, method, callback, verbose):
             stack.append(stack[-1])
         elif ins == "pop":
             stack.pop()
-        elif ins in ("checkcast", "return"):
-            pass
+        elif ins == "anewarray":
+            stack.append([None] * stack.pop())
+        elif ins == "newarray":
+            stack.append([0] * stack.pop())
+        elif ins in ("aastore", "iastore"):
+            value = stack.pop()
+            index = stack.pop()
+            array = stack.pop()
+            if isinstance(array, list) and isinstance(index, int):
+                array[index] = value
+            elif verbose:
+                print("Failed to execute %s: array %s index %s value %s" % (ins, array, index, value))
         elif ins == "invokedynamic":
             stack.append(callback.on_invokedynamic(ins, ins.operands[0]))
+        elif ins in ("checkcast", "return"):
+            pass
         elif verbose:
             print("Unknown instruction %s: stack is %s" % (ins, stack))

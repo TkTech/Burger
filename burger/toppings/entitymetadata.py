@@ -1,7 +1,7 @@
 import six
 
 from .topping import Topping
-from burger.util import WalkerCallback, class_from_invokedynamic, walk_method
+from burger.util import WalkerCallback, walk_method
 
 from jawa.constants import *
 from jawa.util.descriptor import method_descriptor
@@ -52,7 +52,7 @@ class EntityMetadataTopping(Topping):
 
         dataserializers = EntityMetadataTopping.identify_serializers(classloader, dataserializer_class, dataserializers_class, aggregate["classes"], verbose)
         aggregate["entities"]["dataserializers"] = dataserializers
-        dataserializers_by_field = {serializer["field"]: serializer["type"] for serializer in dataserializers}
+        dataserializers_by_field = {serializer["field"]: serializer for serializer in dataserializers}
 
         entity_classes = {e["class"]: e["name"] for e in six.itervalues(entities)}
         parent_by_class = {}
@@ -71,18 +71,49 @@ class EntityMetadataTopping(Topping):
             index = fill_class(super)
 
             metadata = []
-            for field in cf.fields.find(type_="L" + dataparameter_class + ";"):
-                entry = {
-                    "field": field.name.value,
-                    "type": field.attributes.find_one(name="Signature").signature.value[4:-2],
-                    "index": index
-                }
-                index += 1
-                metadata.append(entry)
+            class MetadataContext(WalkerCallback):
+                def __init__(self):
+                    self.cur_index = index
 
+                def on_invoke(self, ins, const, obj, args):
+                    if const.class_.name == datamanager_class and const.name_and_type.name == create_key_method.name and const.name_and_type.descriptor == create_key_method.descriptor:
+                        # Call to createKey.
+                        # Sanity check: entities should only register metadata for themselves
+                        assert args[0] == cls + ".class"
+
+                        serializer = args[1]
+                        index = self.cur_index
+                        self.cur_index += 1
+
+                        metadata_entry = {
+                            "serializer_id": serializer["id"],
+                            "serializer": serializer["name"] if "name" in serializer else serializer["id"],
+                            "index": index
+                        }
+                        metadata.append(metadata_entry)
+                        return metadata_entry
+
+                def on_put_field(self, ins, const, obj, value):
+                    if isinstance(value, dict):
+                        value["field"] = const.name_and_type.name.value
+
+                def on_get_field(self, ins, const, obj):
+                    if const.class_.name == dataserializers_class:
+                        return dataserializers_by_field[const.name_and_type.name.value]
+
+                def on_invokedynamic(self, ins, const):
+                    return object()
+
+                def on_new(self, ins, const):
+                    return object()
+
+            ctx = MetadataContext()
+            init = cf.methods.find_one(name="<clinit>")
+            if init:
+                walk_method(cf, init, ctx, verbose)
             metadata_by_class[cls] = metadata
 
-            return index
+            return ctx.cur_index
 
         for cls in six.iterkeys(entity_classes):
             fill_class(cls)
