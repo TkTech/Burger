@@ -70,6 +70,15 @@ class SoundTopping(Topping):
     @staticmethod
     def act(aggregate, classloader, verbose=False):
         sounds = aggregate.setdefault('sounds', {})
+
+        if 'sounds.event' not in aggregate["classes"]:
+            # 1.8 - TODO implement this for 1.8
+            if verbose:
+                print("Not enough information to run sounds topping; missing sounds.event")
+            return
+        if 'sounds.list' not in aggregate["classes"]:
+            aggregate["classes"]["sounds.list"] = aggregate["classes"]["sounds.event"]
+
         try:
             version_meta = website.get_version_meta(aggregate["version"]["name"], verbose)
         except Exception as e:
@@ -91,14 +100,6 @@ class SoundTopping(Topping):
                 print("Error: Failed to download sound list: %s" % e)
                 traceback.print_exc()
             return
-
-        if 'sounds.event' not in aggregate["classes"]:
-            # 1.8 - TODO implement this for 1.8
-            if verbose:
-                print("Not enough information to run sounds topping; missing sounds.event")
-            return
-        if 'sounds.list' not in aggregate["classes"]:
-            aggregate["classes"]["sounds.list"] = aggregate["classes"]["sounds.event"]
 
         soundevent = aggregate["classes"]["sounds.event"]
         cf = classloader[soundevent]
