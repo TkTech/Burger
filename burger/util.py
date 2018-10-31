@@ -102,6 +102,15 @@ def walk_method(cf, method, callback, verbose):
 
     stack = []
     locals = {}
+    # TODO: Allow passing argument values in or something like that
+    cur_index = 0
+    if not method.access_flags.acc_static:
+        locals[cur_index] = object()
+        cur_index += 1
+    for arg in method.args:
+        locals[cur_index] = object()
+        cur_index += 1
+
     for ins in method.code.disassemble():
         if ins in ("bipush", "sipush"):
             stack.append(ins.operands[0].value)

@@ -50,6 +50,19 @@ class EntityMetadataTopping(Topping):
         else:
             raise Exception("Failed to identify dataserializers")
 
+        base_entity_class = entities["~abstract_entity"]["class"]
+        base_entity_cf = classloader[base_entity_class]
+        register_data_method_name = None
+        register_data_method_desc = None
+        # The last call in the base entity constructor is to registerData() (formerly entityInit())
+        for ins in base_entity_cf.methods.find_one(name="<init>").code.disassemble():
+            if ins.mnemonic == "invokevirtual":
+                const = ins.operands[0]
+                register_data_method_name = const.name_and_type.name.value
+                register_data_method_desc = const.name_and_type.descriptor.value
+                # Keep looping, to find the last call
+        assert register_data_method_desc == "()V"
+
         dataserializers = EntityMetadataTopping.identify_serializers(classloader, dataserializer_class, dataserializers_class, aggregate["classes"], verbose)
         aggregate["entities"]["dataserializers"] = dataserializers
         dataserializers_by_field = {serializer["field"]: serializer for serializer in six.itervalues(dataserializers)}
@@ -71,7 +84,7 @@ class EntityMetadataTopping(Topping):
             index = fill_class(super)
 
             metadata = []
-            class MetadataContext(WalkerCallback):
+            class MetadataFieldContext(WalkerCallback):
                 def __init__(self):
                     self.cur_index = index
 
@@ -113,13 +126,114 @@ class EntityMetadataTopping(Topping):
                 def on_new(self, ins, const):
                     return object()
 
-            ctx = MetadataContext()
             init = cf.methods.find_one(name="<clinit>")
             if init:
+                ctx = MetadataFieldContext()
                 walk_method(cf, init, ctx, verbose)
+                index = ctx.cur_index
+
+            class MetadataDefaultsContext(WalkerCallback):
+                def __init__(self, wait_for_putfield=False):
+                    self.textcomponentstring = None
+                    # True whlie waiting for "this.dataManager = new EntityDataManager(this);" when going through the entity constructor
+                    self.waiting_for_putfield = wait_for_putfield
+
+                def on_invoke(self, ins, const, obj, args):
+                    if self.waiting_for_putfield:
+                        return
+
+                    if "Optional" in const.class_.name.value:
+                        if const.name_and_type.name in ("absent", "empty"):
+                            return "Empty"
+                        elif len(args) == 1:
+                            # Assume "of" or similar
+                            return args[0]
+                    elif const.name_and_type.name == "valueOf":
+                        # Boxing methods
+                        if const.class_.name == "java/lang/Boolean":
+                            return bool(args[0])
+                        else:
+                            return args[0]
+                    elif const.name_and_type.name == "<init>":
+                        if const.class_.name == self.textcomponentstring:
+                            obj["text"] = args[0]
+
+                        return
+                    elif const.class_.name == datamanager_class:
+                        assert const.name_and_type.name == register_method.name
+                        assert const.name_and_type.descriptor == register_method.descriptor
+
+                        # args[0] is the metadata entry, and args[1] is the default value
+                        if args[0] is not None and args[1] is not None:
+                            args[0]["default"] = args[1]
+
+                        return
+                    elif const.name_and_type.descriptor.value.endswith("L" + datamanager_class + ";"):
+                        # getDataManager, which doesn't really have a reason to exist given that the data manager field is accessible
+                        return None
+                    elif const.name_and_type.name == register_data_method_name and const.name_and_type.descriptor == register_data_method_desc:
+                        # Call to super.registerData()
+                        return
+
+                def on_put_field(self, ins, const, obj, value):
+                    if not self.waiting_for_putfield:
+                        raise Exception("Unexpected putfield: %s" % (ins,))
+
+                    if const.name_and_type.descriptor == "L" + datamanager_class + ";":
+                        self.waiting_for_putfield = False
+
+                def on_get_field(self, ins, const, obj):
+                    if self.waiting_for_putfield:
+                        return
+
+                    if const.name_and_type.descriptor == "L" + dataparameter_class + ";":
+                        # Definitely shouldn't be registering something declared elsewhere
+                        assert const.class_.name == cls
+                        for metadata_entry in metadata:
+                            if const.name_and_type.name == metadata_entry.get("field"):
+                                return metadata_entry
+                        else:
+                            if verbose:
+                                print("Can't figure out metadata entry for field %s; default will not be set." % (const,))
+                            return None
+
+                    if const.class_.name == aggregate["classes"]["position"]:
+                        # Assume BlockPos.ORIGIN
+                        return "(0, 0, 0)"
+                    elif const.class_.name == aggregate["classes"]["itemstack"]:
+                        # Assume ItemStack.EMPTY
+                        return "Empty"
+                    elif const.name_and_type.descriptor == "L" + datamanager_class + ";":
+                        return
+                    else:
+                        return None
+
+                def on_new(self, ins, const):
+                    if self.waiting_for_putfield:
+                        return
+
+                    if self.textcomponentstring == None:
+                        # Check if this is TextComponentString
+                        temp_cf = classloader[const.name.value]
+                        for str in temp_cf.constants.find(type_=String):
+                            if "TextComponent{text=" in str.string.value:
+                                self.textcomponentstring = const.name.value
+                                break
+
+                    if const.name == aggregate["classes"]["nbtcompound"]:
+                        return "Empty"
+                    elif const.name == self.textcomponentstring:
+                        return {'text': None}
+
+            register = cf.methods.find_one(name=register_data_method_name, f=lambda m: m.descriptor == register_data_method_desc)
+            if register and not register.access_flags.acc_abstract:
+                walk_method(cf, register, MetadataDefaultsContext(), verbose)
+            elif cls == base_entity_class:
+                walk_method(cf, cf.methods.find_one(name="<init>"), MetadataDefaultsContext(True), verbose)
+
             metadata_by_class[cls] = metadata
 
-            return ctx.cur_index
+            return index
 
         for cls in six.iterkeys(entity_classes):
             fill_class(cls)
