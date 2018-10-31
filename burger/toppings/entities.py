@@ -408,5 +408,5 @@ class EntityTopping(Topping):
         abstract_entity("minecart", "minecart", "MinecartRideable")
         abstract_entity("living", "armor_stand", "ArmorStand") # EntityLivingBase
         abstract_entity("insentient", "ender_dragon", "EnderDragon") # EntityLiving
-        abstract_entity("insentient", "enderman", "Enderman") # EntityMob
+        abstract_entity("monster", "enderman", "Enderman") # EntityMob
         abstract_entity("tameable", "wolf", "Wolf") # EntityTameable
