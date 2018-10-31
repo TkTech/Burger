@@ -298,7 +298,7 @@ class EntityMetadataTopping(Topping):
 
                 serializer = serializers_by_field[field]
                 serializer["id"] = id
-                name = serializer["name"]
+                name = serializer.get("name") or str(id)
                 if name not in serializers:
                     serializers[name] = serializer
                 else:
@@ -358,6 +358,9 @@ class EntityMetadataTopping(Topping):
                     name = "Rotations"
                 elif content_cf.constants.find_one(type_=String, f=lambda c: c == "down"):
                     name = "Facing"
+                elif content_cf.constants.find_one(type_=String, f=lambda c: c == "minecraft:air"):
+                    # This method only works in 1.14, where BlockState isn't an interface
+                    name = "BlockState"
                 elif content_cf.access_flags.acc_interface:
                     # Make some _very_ bad assumptions here; both of these are hard to identify:
                     if name_prefix == "Opt":
@@ -372,8 +375,6 @@ class EntityMetadataTopping(Topping):
 
         if name:
             serializer["name"] = name_prefix + name
-        else:
-            serializer["name"] = str(serializer["id"]) # Somewhat messy fallback
 
         # Decompile the serialization code.
         # Note that we are using the bridge method that takes an object, and not the more find
