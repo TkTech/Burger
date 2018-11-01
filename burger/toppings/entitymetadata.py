@@ -340,6 +340,8 @@ class EntityMetadataTopping(Topping):
 
         if inner_type.startswith("java/lang/"):
             name = inner_type[len("java/lang/"):]
+            if name == "Integer":
+                name = "VarInt"
         elif inner_type == "java/util/UUID":
             name = "UUID"
         elif inner_type == classes["nbtcompound"]:
