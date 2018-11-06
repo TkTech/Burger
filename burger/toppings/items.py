@@ -87,12 +87,11 @@ class ItemsTopping(Topping):
     def _process_1point14(aggregate, classloader, verbose):
         # Handles versions after 1.14 (specifically >= 18w43a)
         # All of the registration happens in the list class in this version.
-        listclass = aggregate["classes"]["item.register"]
+        listclass = aggregate["classes"]["item.list"]
         lcf = classloader[listclass]
         superclass = next(lcf.fields.find()).type.name # The first field in the list class is an item
         cf = classloader[superclass]
         aggregate["classes"]["item.superclass"] = superclass
-        aggregate["classes"]["item.list"] = listclass
         blockclass = aggregate["classes"]["block.superclass"]
         blocklist = aggregate["classes"]["block.list"]
 

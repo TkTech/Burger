@@ -76,8 +76,6 @@ class SoundTopping(Topping):
             if verbose:
                 print("Not enough information to run sounds topping; missing sounds.event")
             return
-        if 'sounds.list' not in aggregate["classes"]:
-            aggregate["classes"]["sounds.list"] = aggregate["classes"]["sounds.event"]
 
         try:
             version_meta = website.get_version_meta(aggregate["version"]["name"], verbose)

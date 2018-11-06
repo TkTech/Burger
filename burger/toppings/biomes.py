@@ -52,9 +52,8 @@ class BiomeTopping(Topping):
         if data_version >= 1901: # 18w43a
             BiomeTopping._process_114(aggregate, classloader, verbose)
         elif data_version >= 1466: # snapshot 18w06a
-            assert "biome.list" in aggregate["classes"]
             BiomeTopping._process_113(aggregate, classloader, verbose)
-        elif "biome.list" in aggregate["classes"]:
+        elif data_version != -1:
             BiomeTopping._process_19(aggregate, classloader, verbose)
         else:
             BiomeTopping._process_18(aggregate, classloader, verbose)
@@ -473,11 +472,10 @@ class BiomeTopping(Topping):
     @staticmethod
     def _process_114(aggregate, classloader, verbose):
         # Processes biomes for Minecraft 1.14
-        listclass = aggregate["classes"]["biome.register"]
+        listclass = aggregate["classes"]["biome.list"]
         lcf = classloader[listclass]
         superclass = next(lcf.fields.find()).type.name # The first field in the list is a biome
         aggregate["classes"]["biome.superclass"] = superclass
-        aggregate["classes"]["biome.list"] = listclass
 
         biomes_base = aggregate.setdefault("biomes", {})
         biomes = biomes_base.setdefault("biome", {})

@@ -248,5 +248,17 @@ class IdentifyTopping(Topping):
                     # If everything has been found, we don't need to keep
                     # searching, so stop early for performance
                     break
+
+        # Add classes that might not be recognized in some versions
+        # since the registration class is also the list class
+        if "sounds.list" not in classes and "sounds.event" in classes:
+            classes["sounds.list"] = classes["sounds.event"]
+        if "block.list" not in classes and "block.register" in classes:
+            classes["block.list"] = classes["block.register"]
+        if "item.list" not in classes and "item.register" in classes:
+            classes["item.list"] = classes["item.register"]
+        if "biome.list" not in classes and "biome.register" in classes:
+            classes["biome.list"] = classes["biome.register"]
+
         if verbose:
             print("identify classes: %s" % classes)

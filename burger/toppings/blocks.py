@@ -89,12 +89,11 @@ class BlocksTopping(Topping):
     def _process_1point14(aggregate, classloader, verbose):
         # Handles versions after 1.14 (specifically >= 18w43a)
         # All of the registration happens in the list class in this version.
-        listclass = aggregate["classes"]["block.register"]
+        listclass = aggregate["classes"]["block.list"]
         lcf = classloader[listclass]
         superclass = next(lcf.fields.find()).type.name # The first field in the list class is a block
         cf = classloader[superclass]
         aggregate["classes"]["block.superclass"] = superclass
-        aggregate["classes"]["block.list"] = listclass
 
         if "block" in aggregate["language"]:
             language = aggregate["language"]["block"]
