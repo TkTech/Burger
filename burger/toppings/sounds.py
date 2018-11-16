@@ -32,48 +32,12 @@ import traceback
 import six
 import six.moves.urllib.request
 
+from burger.website import Website
 from .topping import Topping
 
 from jawa.constants import *
 
-VERSION_MANIFEST = "https://launchermeta.mojang.com/mc/game/version_manifest.json"
-LEGACY_VERSION_META = "https://s3.amazonaws.com/Minecraft.Download/versions/%(version)s/%(version)s.json" # DEPRECATED
 RESOURCES_SITE = "http://resources.download.minecraft.net/%(short_hash)s/%(hash)s"
-
-def load_json(url):
-    stream = six.moves.urllib.request.urlopen(url)
-    try:
-        return json.load(stream)
-    finally:
-        stream.close()
-
-def get_version_meta(version, verbose):
-    """
-    Gets a version JSON file, first attempting the to use the version manifest
-    and then falling back to the legacy site if that fails.
-    Note that the main manifest should include all versions as of august 2018.
-    """
-    version_manifest = load_json(VERSION_MANIFEST)
-    for version_info in version_manifest["versions"]:
-        if version_info["id"] == version:
-            address = version_info["url"]
-            break
-    else:
-        if verbose:
-            print("Failed to find %s in the main version manifest; using legacy site" % version)
-            address = LEGACY_VERSION_META % {'version': version}
-    if verbose:
-        print("Loading version manifest for %s from %s" % (version, address))
-    return load_json(address)
-
-def get_asset_index(version_meta, verbose):
-    """Downloads the Minecraft asset index"""
-    if "assetIndex" not in version_meta:
-        raise Exception("No asset index defined in the version meta")
-    asset_index = version_meta["assetIndex"]
-    if verbose:
-        print("Assets: id %(id)s, url %(url)s" % asset_index)
-    return load_json(asset_index["url"])
 
 def get_sounds(asset_index, resources_site=RESOURCES_SITE):
     """Downloads the sounds.json file from the assets index"""
@@ -107,14 +71,14 @@ class SoundTopping(Topping):
     def act(aggregate, classloader, verbose=False):
         sounds = aggregate.setdefault('sounds', {})
         try:
-            version_meta = get_version_meta(aggregate["version"]["name"], verbose)
+            version_meta = Website.get_version_meta(aggregate["version"]["name"], verbose)
         except Exception as e:
             if verbose:
                 print("Error: Failed to download version meta for sounds: %s" % e)
                 traceback.print_exc()
             return
         try:
-            assets = get_asset_index(version_meta, verbose)
+            assets = Website.get_asset_index(version_meta, verbose)
         except Exception as e:
             if verbose:
                 print("Error: Failed to download asset index for sounds: %s" % e)
