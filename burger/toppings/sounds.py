@@ -32,7 +32,7 @@ import traceback
 import six
 import six.moves.urllib.request
 
-from burger.website import Website
+from burger import website
 from .topping import Topping
 
 from jawa.constants import *
@@ -71,14 +71,14 @@ class SoundTopping(Topping):
     def act(aggregate, classloader, verbose=False):
         sounds = aggregate.setdefault('sounds', {})
         try:
-            version_meta = Website.get_version_meta(aggregate["version"]["name"], verbose)
+            version_meta = website.get_version_meta(aggregate["version"]["name"], verbose)
         except Exception as e:
             if verbose:
                 print("Error: Failed to download version meta for sounds: %s" % e)
                 traceback.print_exc()
             return
         try:
-            assets = Website.get_asset_index(version_meta, verbose)
+            assets = website.get_asset_index(version_meta, verbose)
         except Exception as e:
             if verbose:
                 print("Error: Failed to download asset index for sounds: %s" % e)
