@@ -48,11 +48,6 @@ MATCHES = (
     (['X#X'], 'recipe.superclass'),
     (['Skipping BlockEntity with id '], 'tileentity.superclass'),
     (
-        ['Unable to resolve BlockEntity for ItemInstance:',
-        'Unable to resolve BlockEntity for ItemStack:'],
-        'tileentity.blockentitytag'
-    ),
-    (
         ['ThreadedAnvilChunkStorage ({}): All chunks are saved'],
         'anvilchunkloader'
     ),
@@ -218,8 +213,7 @@ class IdentifyTopping(Topping):
         "identify.resourcelocation",
         "identify.sounds.event",
         "identify.sounds.list",
-        "identify.tileentity.superclass",
-        "identify.tileentity.blockentitytag"
+        "identify.tileentity.superclass"
     ]
 
     DEPENDS = []
