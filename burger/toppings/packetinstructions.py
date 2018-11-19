@@ -526,7 +526,7 @@ class PacketInstructionsTopping(Topping):
                 # Don't attempt to lookup the instruction in the handler
                 pass
 
-            elif instruction.mnemonic in ("istore", "lstore", "fstore", "dstore", "astore"):
+            elif instruction in ("istore", "lstore", "fstore", "dstore", "astore"):
                 # Keep track of what is being stored, for clarity
                 type = _PIT.INSTRUCTION_TYPES[instruction.mnemonic[0]]
                 arg = operands.pop().value
@@ -537,7 +537,7 @@ class PacketInstructionsTopping(Topping):
                                             var=var,
                                             value=stack.pop()))
 
-            elif instruction.mnemonic in ("iastore", "lastore", "fastore", "dastore", "aastore", "bastore", "castore", "sastore"):
+            elif instruction in ("iastore", "lastore", "fastore", "dastore", "aastore", "bastore", "castore", "sastore"):
                 type = _PIT.INSTRUCTION_TYPES[instruction.mnemonic[0]]
 
                 # Array store

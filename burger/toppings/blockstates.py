@@ -93,22 +93,22 @@ class BlockStateTopping(Topping):
                 # This could _almost_ just be checking for getstatic, but
                 # brewing stands use an array of properties as the field,
                 # so we need some stupid extra logic.
-                if ins.mnemonic == "new":
+                if ins == "new":
                     assert not is_18w19a # In 18w19a this should be a parameter
                     const = ins.operands[0]
                     type_name = const.name.value
                     assert type_name == blockstatecontainer
                     stack.append(object())
-                elif ins.mnemonic == "aload" and ins.operands[0].value == 1:
+                elif ins == "aload" and ins.operands[0].value == 1:
                     assert is_18w19a # The parameter is only used in 18w19a and above
                     stack.append(object())
-                elif ins.mnemonic in ("sipush", "bipush"):
+                elif ins in ("sipush", "bipush"):
                     stack.append(ins.operands[0].value)
-                elif ins.mnemonic in ("anewarray", "newarray"):
+                elif ins in ("anewarray", "newarray"):
                     length = stack.pop()
                     val = [None] * length
                     stack.append(val)
-                elif ins.mnemonic == "getstatic":
+                elif ins == "getstatic":
                     const = ins.operands[0]
                     prop = {
                         "field_name": const.name_and_type.name.value
@@ -116,22 +116,22 @@ class BlockStateTopping(Topping):
                     desc = field_descriptor(const.name_and_type.descriptor.value)
                     _property_types.add(desc.name)
                     stack.append(prop)
-                elif ins.mnemonic == "aaload":
+                elif ins == "aaload":
                     index = stack.pop()
                     array = stack.pop()
                     prop = array.copy()
                     prop["array_index"] = index
                     stack.append(prop)
-                elif ins.mnemonic == "aastore":
+                elif ins == "aastore":
                     value = stack.pop()
                     index = stack.pop()
                     array = stack.pop()
                     array[index] = value
-                elif ins.mnemonic == "dup":
+                elif ins == "dup":
                     stack.append(stack[-1])
-                elif ins.mnemonic == "invokespecial":
+                elif ins == "invokespecial":
                     const = ins.operands[0]
-                    assert const.name_and_type.name.value == "<init>"
+                    assert const.name_and_type.name == "<init>"
                     desc = method_descriptor(const.name_and_type.descriptor.value)
                     assert len(desc.args) == 2
 
@@ -142,7 +142,7 @@ class BlockStateTopping(Topping):
                     stack.pop() # Block
                     stack.pop() # Invocation target
                     stack.append(arg)
-                elif ins.mnemonic == "invokevirtual":
+                elif ins == "invokevirtual":
                     # Two possibilities (both only present pre-flattening):
                     # 1. It's isDouble() for a slab.  Two different sets of
                     #    properties in that case.
@@ -156,7 +156,7 @@ class BlockStateTopping(Topping):
                     const = ins.operands[0]
                     desc = method_descriptor(const.name_and_type.descriptor.value)
 
-                    if const.class_.name.value == blockstatecontainer:
+                    if const.class_.name == blockstatecontainer:
                         # Case 3.
                         assert properties == None
                         properties = stack.pop()
@@ -173,12 +173,12 @@ class BlockStateTopping(Topping):
                         # for properties
                         stack.pop() # Target object
                         stack.append(None)
-                elif ins.mnemonic == "ifeq":
+                elif ins == "ifeq":
                     assert if_pos is None
                     if_pos = ins.pos + ins.operands[0].value
-                elif ins.mnemonic == "pop":
+                elif ins == "pop":
                     stack.pop()
-                elif ins.mnemonic == "areturn":
+                elif ins == "areturn":
                     assert not is_18w19a # In 18w19a we don't return a container
                     if if_pos == None:
                         assert properties == None
@@ -188,9 +188,9 @@ class BlockStateTopping(Topping):
                         index = 0 if ins.pos < if_pos else 1
                         assert properties[index] == None
                         properties[index] = stack.pop()
-                elif ins.mnemonic == "return":
+                elif ins == "return":
                     assert is_18w19a # We only return void in 18w19a
-                elif ins.mnemonic == "aload":
+                elif ins == "aload":
                     assert ins.operands[0].value == 0 # Should be aload_0 (this)
                     stack.append(object())
                 elif verbose:
@@ -299,7 +299,7 @@ class BlockStateTopping(Topping):
             ignore_remaining = False
 
             for ins in init.code.disassemble():
-                if ins.mnemonic == "putstatic":
+                if ins == "putstatic":
                     const = ins.operands[0]
                     name = const.name_and_type.name.value
                     if ignore_remaining:
@@ -324,7 +324,7 @@ class BlockStateTopping(Topping):
                     fields_by_class[cls][name] = value
                 elif ignore_remaining:
                     continue
-                elif ins.mnemonic == "getstatic":
+                elif ins == "getstatic":
                     const = ins.operands[0]
                     target = const.class_.name.value
                     type = field_descriptor(const.name_and_type.descriptor.value).name
@@ -333,7 +333,7 @@ class BlockStateTopping(Topping):
                         stack.append(find_field(target, name))
                     else:
                         stack.append(object())
-                elif ins.mnemonic in ("ldc", "ldc_w", "ldc2_w"):
+                elif ins in ("ldc", "ldc_w", "ldc2_w"):
                     const = ins.operands[0]
 
                     if isinstance(const, ConstantClass):
@@ -344,30 +344,30 @@ class BlockStateTopping(Topping):
                         stack.append(const.value)
                 elif ins.mnemonic.startswith("dconst"):
                     stack.append(float(ins.mnemonic[-1]))
-                elif ins.mnemonic in ("bipush", "sipush"):
+                elif ins in ("bipush", "sipush"):
                     stack.append(ins.operands[0].value)
-                elif ins.mnemonic == "aconst_null":
+                elif ins == "aconst_null":
                     stack.append(None)
-                elif ins.mnemonic in ("anewarray", "newarray"):
+                elif ins in ("anewarray", "newarray"):
                     length = stack.pop()
                     stack.append([None] * length)
-                elif ins.mnemonic in ("aaload", "iaload"):
+                elif ins in ("aaload", "iaload"):
                     index = stack.pop()
                     array = stack.pop()
                     prop = array[index].copy()
                     prop["array_index"] = index
                     stack.append(prop)
-                elif ins.mnemonic in ("aastore", "iastore"):
+                elif ins in ("aastore", "iastore"):
                     value = stack.pop()
                     index = stack.pop()
                     array = stack.pop()
                     array[index] = value
-                elif ins.mnemonic == "arraylength":
+                elif ins == "arraylength":
                     array = stack.pop()
                     stack.append(len(array))
-                elif ins.mnemonic == "dup":
+                elif ins == "dup":
                     stack.append(stack[-1])
-                elif ins.mnemonic == "invokedynamic":
+                elif ins == "invokedynamic":
                     # Try to get the class that's being created
                     const = ins.operands[0]
                     desc = method_descriptor(const.name_and_type.descriptor.value)
@@ -379,7 +379,7 @@ class BlockStateTopping(Topping):
                     args = [stack.pop() for _ in six.moves.range(num_args)]
                     args.reverse()
 
-                    if ins.mnemonic == "invokestatic":
+                    if ins == "invokestatic":
                         if const.class_.name.value.startswith("com/google/"):
                             # Call to e.g. Maps.newHashMap, beyond what we
                             # care about
@@ -396,13 +396,13 @@ class BlockStateTopping(Topping):
                             "args": args
                         }
                         stack.append(prop)
-                    elif const.name_and_type.name.value == "<init>":
+                    elif const.name_and_type.name == "<init>":
                         if obj["is_enum"]:
                             obj["enum_name"] = args[0]
                             obj["enum_ordinal"] = args[1]
                         else:
                             obj["args"] = args
-                    elif const.name_and_type.name.value == "values":
+                    elif const.name_and_type.name == "values":
                         # Enum values
                         fields = find_field(const.class_.name.value, None)
                         stack.append([fld for fld in fields
@@ -420,13 +420,13 @@ class BlockStateTopping(Topping):
                         else:
                             o = object()
                             stack.append(o)
-                elif ins.mnemonic in ("istore", "lstore", "fstore", "dstore", "astore"):
+                elif ins in ("istore", "lstore", "fstore", "dstore", "astore"):
                     # Store other than array store
                     locals[ins.operands[0].value] = stack.pop()
-                elif ins.mnemonic in ("iload", "lload", "fload", "dload", "aload"):
+                elif ins in ("iload", "lload", "fload", "dload", "aload"):
                     # Load other than array load
                     stack.append(locals[ins.operands[0].value])
-                elif ins.mnemonic == "new":
+                elif ins == "new":
                     const = ins.operands[0]
                     type_name = const.name.value
                     obj = {
@@ -434,12 +434,12 @@ class BlockStateTopping(Topping):
                         "is_enum": is_enum(type_name)
                     }
                     stack.append(obj)
-                elif ins.mnemonic == "checkcast":
+                elif ins == "checkcast":
                     # We don't have type information, so no checking or casting
                     pass
-                elif ins.mnemonic == "return":
+                elif ins == "return":
                     break
-                elif ins.mnemonic == "if_icmpge":
+                elif ins == "if_icmpge":
                     # Code in stairs that loops over state combinations for hitboxes
                     break
                 elif verbose:

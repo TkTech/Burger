@@ -65,12 +65,12 @@ class ObjectTopping(Topping):
 
         will_be_spawn_object_packet = False
         for ins in createspawnpacket_method.code.disassemble():
-            if ins.mnemonic == "instanceof":
+            if ins == "instanceof":
                 # Check to make sure that it's a spawn packet for item entities
                 const = ins.operands[0]
-                if const.name.value == item_entity_class:
+                if const.name == item_entity_class:
                     will_be_spawn_object_packet = True
-            elif ins.mnemonic == "new" and will_be_spawn_object_packet:
+            elif ins == "new" and will_be_spawn_object_packet:
                 const = ins.operands[0]
                 packet_class_name = const.name.value
                 break
@@ -98,11 +98,11 @@ class ObjectTopping(Topping):
         current_id = 0
 
         for ins in method.code.disassemble():
-            if ins.mnemonic == "if_icmpne":
+            if ins == "if_icmpne":
                 current_id = potential_id
-            elif ins.mnemonic in ("bipush", "sipush"):
+            elif ins in ("bipush", "sipush"):
                 potential_id = ins.operands[0].value
-            elif ins.mnemonic == "new":
+            elif ins == "new":
                 const = ins.operands[0]
                 tmp = {"id": current_id, "class": const.name.value}
                 objects[tmp["id"]] = tmp

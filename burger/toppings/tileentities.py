@@ -58,17 +58,17 @@ class TileEntityTopping(Topping):
         te_classes = te.setdefault("classes", {})
         tmp = {}
         for ins in method.code.disassemble():
-            if ins.mnemonic in ("ldc", "ldc_w"):
+            if ins in ("ldc", "ldc_w"):
                 const = ins.operands[0]
                 if isinstance(const, ConstantClass):
                     # Used before 1.13
                     tmp["class"] = const.name.value
                 elif isinstance(const, String):
                     tmp["name"] = const.string.value
-            elif ins.mnemonic == "invokedynamic":
+            elif ins == "invokedynamic":
                 # Used after 1.13
                 tmp["class"] = class_from_invokedynamic(ins, cf)
-            elif ins.mnemonic == "invokestatic":
+            elif ins == "invokestatic":
                 if "class" in tmp and "name" in tmp:
                     tmp["blocks"] = []
                     tileentities[tmp["name"]] = tmp
@@ -90,14 +90,14 @@ class TileEntityTopping(Topping):
 
             num_getstatic = 0
             for ins in method.code.disassemble():
-                if ins.mnemonic == "getstatic":
+                if ins == "getstatic":
                     num_getstatic += 1
                     assert num_getstatic <= num_maps
-                elif ins.mnemonic in ("ldc", "ldc_w") and num_getstatic != 0:
+                elif ins in ("ldc", "ldc_w") and num_getstatic != 0:
                     const = ins.operands[0]
                     if isinstance(const, String):
                         stack.append(const.string.value)
-                elif ins.mnemonic == "invokeinterface":
+                elif ins == "invokeinterface":
                     if len(stack) != 2:
                         if verbose:
                             print("Unexpected stack length for BETag:", stack)
@@ -164,9 +164,9 @@ class TileEntityTopping(Topping):
 
             value = None
             for ins in method.code.disassemble():
-                if ins.mnemonic in ("bipush", "sipush"):
+                if ins in ("bipush", "sipush"):
                     value = ins.operands[0].value
-                elif ins.mnemonic == "instanceof":
+                elif ins == "instanceof":
                     if value is None:
                         # Ensure the command block callback is not counted
                         continue

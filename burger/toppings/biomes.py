@@ -70,7 +70,7 @@ class BiomeTopping(Topping):
         void_methods = cf.methods.find(returns="L" + superclass + ";", args="", f=lambda m: m.access_flags.acc_protected and not m.access_flags.acc_static)
         for method in void_methods:
             for ins in method.code.disassemble():
-                if ins.mnemonic == "sipush" and ins.operands[0].value == 128:
+                if ins == "sipush" and ins.operands[0].value == 128:
                     mutate_method_desc = method.descriptor.value
                     mutate_method_name = method.name.value
 
@@ -79,7 +79,7 @@ class BiomeTopping(Topping):
         int_methods = cf.methods.find(returns="L" + superclass + ";", args="I", f=lambda m: m.access_flags.acc_protected and not m.access_flags.acc_static)
         for method in int_methods:
             for ins in method.code.disassemble():
-                if ins.mnemonic == "new":
+                if ins == "new":
                     make_mutated_method_desc = method.descriptor.value
                     make_mutated_method_name = method.name.value
 
@@ -97,7 +97,7 @@ class BiomeTopping(Topping):
 
         # OK, start running through the initializer for biomes.
         for ins in method.code.disassemble():
-            if ins.mnemonic == "new":
+            if ins == "new":
                 store_biome_if_valid(tmp)
 
                 stack = []
@@ -110,7 +110,7 @@ class BiomeTopping(Topping):
                 }
             elif tmp is None:
                 continue
-            elif ins.mnemonic == "invokespecial":
+            elif ins == "invokespecial":
                 const = ins.operands[0]
                 name = const.name_and_type.name.value
                 if len(stack) == 2 and (isinstance(stack[1], float) or isinstance(stack[0], float)):
@@ -122,7 +122,7 @@ class BiomeTopping(Topping):
                     stack = []
                 elif name != "<init>":
                     tmp["rainfall"] = 0
-            elif ins.mnemonic == "invokevirtual":
+            elif ins == "invokevirtual":
                 const = ins.operands[0]
                 name = const.name_and_type.name.value
                 desc = const.name_and_type.descriptor.value
@@ -151,7 +151,7 @@ class BiomeTopping(Topping):
                 elif len(stack) == 2:
                     tmp["rainfall"] = stack.pop()
                     tmp["temperature"] = stack.pop()
-            elif ins.mnemonic == "putstatic":
+            elif ins == "putstatic":
                 const = ins.operands[0]
                 field = const.name_and_type.name.value
                 if "height" in tmp and not "name" in tmp:
@@ -159,7 +159,7 @@ class BiomeTopping(Topping):
                     heights_by_field[field] = tmp["height"]
                 else:
                     tmp["field"] = field
-            elif ins.mnemonic == "getstatic":
+            elif ins == "getstatic":
                 # Loading a height map or preparing to mutate a biome
                 const = ins.operands[0]
                 field = const.name_and_type.name.value
@@ -172,7 +172,7 @@ class BiomeTopping(Topping):
                     if field in biome_fields:
                         tmp = biomes[biome_fields[field]]
             # numeric values & constants
-            elif ins.mnemonic in ("ldc", "ldc_w"):
+            elif ins in ("ldc", "ldc_w"):
                 const = ins.operands[0]
                 if isinstance(const, String):
                     tmp["name"] = const.string.value
@@ -181,7 +181,7 @@ class BiomeTopping(Topping):
 
             elif ins.mnemonic.startswith("fconst"):
                 stack.append(float(ins.mnemonic[-1]))
-            elif ins.mnemonic in ("bipush", "sipush"):
+            elif ins in ("bipush", "sipush"):
                 stack.append(ins.operands[0].value)
 
         store_biome_if_valid(tmp)
@@ -204,13 +204,13 @@ class BiomeTopping(Topping):
 
         # OK, start running through the initializer for biomes.
         for ins in method.code.disassemble():
-            if ins.mnemonic == "anewarray":
+            if ins == "anewarray":
                 # End of biome initialization; now creating the list of biomes
                 # for the explore all biomes achievement but we don't need
                 # that info.
                 break
 
-            if ins.mnemonic == "new":
+            if ins == "new":
                 if first_new:
                     # There are two 'new's in biome initialization - the first
                     # one is for the biome generator itself and the second one
@@ -233,19 +233,19 @@ class BiomeTopping(Topping):
                     stack = []
 
                 first_new = not(first_new)
-            elif ins.mnemonic == "invokestatic":
+            elif ins == "invokestatic":
                 # Call to the static registration method
                 # We already saved its parameters at the constructor, so we
                 # only need to store the biome now.
                 biomes[biome["text_id"]] = biome
-            elif ins.mnemonic == "invokespecial":
+            elif ins == "invokespecial":
                 # Possibly the constructor for biome properties, which takes
                 # the name as a string.
                 if len(stack) > 0 and not "name" in biome:
                     biome["name"] = stack.pop()
 
                 stack = []
-            elif ins.mnemonic == "invokevirtual":
+            elif ins == "invokevirtual":
                 const = ins.operands[0]
                 name = const.name_and_type.name.value
                 desc = method_descriptor(const.name_and_type.descriptor.value)
@@ -266,7 +266,7 @@ class BiomeTopping(Topping):
                         # setBaseBiome
                         biome["mutated_from"] = stack.pop()
             # numeric values & constants
-            elif ins.mnemonic in ("ldc", "ldc_w"):
+            elif ins in ("ldc", "ldc_w"):
                 const = ins.operands[0]
                 if isinstance(const, String):
                     stack.append(const.string.value)
@@ -275,7 +275,7 @@ class BiomeTopping(Topping):
 
             elif ins.mnemonic.startswith("fconst"):
                 stack.append(float(ins.mnemonic[-1]))
-            elif ins.mnemonic in ("bipush", "sipush"):
+            elif ins in ("bipush", "sipush"):
                 stack.append(ins.operands[0].value)
 
         # Go through the biome list and add the field info.
@@ -286,11 +286,11 @@ class BiomeTopping(Topping):
         method = lcf.methods.find_one(name="<clinit>")
         biome_name = ""
         for ins in method.code.disassemble():
-            if ins.mnemonic in ("ldc", "ldc_w"):
+            if ins in ("ldc", "ldc_w"):
                 const = ins.operands[0]
                 if isinstance(const, String):
                     biome_name = const.string.value
-            elif ins.mnemonic == "putstatic":
+            elif ins == "putstatic":
                 if biome_name is None or biome_name == "Accessed Biomes before Bootstrap!":
                     continue
                 const = ins.operands[0]
@@ -313,16 +313,16 @@ class BiomeTopping(Topping):
         # First pass: identify all the biomes.
         stack = []
         for ins in method.code.disassemble():
-            if ins.mnemonic in ("bipush", "sipush"):
+            if ins in ("bipush", "sipush"):
                 stack.append(ins.operands[0].value)
-            elif ins.mnemonic in ("ldc", "ldc_w"):
+            elif ins in ("ldc", "ldc_w"):
                 const = ins.operands[0]
                 if isinstance(const, String):
                     stack.append(const.string.value)
-            elif ins.mnemonic == "new":
+            elif ins == "new":
                 const = ins.operands[0]
                 stack.append(const.name.value)
-            elif ins.mnemonic == "invokestatic":
+            elif ins == "invokestatic":
                 # Registration
                 assert len(stack) == 3
                 # NOTE: the default values there aren't present
@@ -336,7 +336,7 @@ class BiomeTopping(Topping):
                     "class": stack[2]
                 }
                 stack = []
-            elif ins.mnemonic == "anewarray":
+            elif ins == "anewarray":
                 # End of biome initialization; now creating the list of biomes
                 # for the explore all biomes achievement but we don't need
                 # that info.
@@ -355,11 +355,11 @@ class BiomeTopping(Topping):
         method = lcf.methods.find_one(name="<clinit>")
         biome_name = ""
         for ins in method.code.disassemble():
-            if ins.mnemonic in ("ldc", "ldc_w"):
+            if ins in ("ldc", "ldc_w"):
                 const = ins.operands[0]
                 if isinstance(const, String):
                     biome_name = const.string.value
-            elif ins.mnemonic == "putstatic":
+            elif ins == "putstatic":
                 if biome_name is None or biome_name == "Accessed Biomes before Bootstrap!":
                     continue
                 const = ins.operands[0]
@@ -381,7 +381,7 @@ class BiomeTopping(Topping):
             float_count = 0
             last = None
             for ins in method.code.disassemble():
-                if ins.mnemonic in ("ldc", "ldc_w"):
+                if ins in ("ldc", "ldc_w"):
                     const = ins.operands[0]
                     if isinstance(const, String):
                         last = const.string.value
@@ -389,7 +389,7 @@ class BiomeTopping(Topping):
                         last = const.value
                 elif ins.mnemonic.startswith("fconst_"):
                     last = float(ins.mnemonic[-1])
-                elif ins.mnemonic == "putfield" and last != None:
+                elif ins == "putfield" and last != None:
                     if isinstance(last, float):
                         if float_count == 0:
                             biome["height"][0] = last
@@ -419,13 +419,13 @@ class BiomeTopping(Topping):
             method = cf.methods.find_one(name="<init>")
             stack = []
             for ins in method.code.disassemble():
-                if ins.mnemonic == "invokespecial":
+                if ins == "invokespecial":
                     const = ins.operands[0]
                     name = const.name_and_type.name.value
                     if const.class_.name.value == cf.super_.name.value and name == "<init>":
                         # Calling biome init; we're done
                         break
-                elif ins.mnemonic == "invokevirtual":
+                elif ins == "invokevirtual":
                     const = ins.operands[0]
                     name = const.name_and_type.name.value
                     desc = method_descriptor(const.name_and_type.descriptor.value)
@@ -449,7 +449,7 @@ class BiomeTopping(Topping):
 
                     stack = []
                 # Constants
-                elif ins.mnemonic in ("ldc", "ldc_w"):
+                elif ins in ("ldc", "ldc_w"):
                     const = ins.operands[0]
                     if isinstance(const, String):
                         stack.append(const.string.value)
@@ -458,7 +458,7 @@ class BiomeTopping(Topping):
 
                 elif ins.mnemonic.startswith("fconst"):
                     stack.append(float(ins.mnemonic[-1]))
-                elif ins.mnemonic in ("bipush", "sipush"):
+                elif ins in ("bipush", "sipush"):
                     stack.append(ins.operands[0].value)
-                elif ins.mnemonic == "aconst_null":
+                elif ins == "aconst_null":
                     stack.append(None)

@@ -15,14 +15,14 @@ def class_from_invokedynamic(ins, cf):
     method = cf.constants.get(bootstrap.method_ref)
     # Make sure this is a reference to LambdaMetafactory
     assert method.reference_kind == 6 # REF_invokeStatic
-    assert method.reference.class_.name.value == "java/lang/invoke/LambdaMetafactory"
-    assert method.reference.name_and_type.name.value == "metafactory"
+    assert method.reference.class_.name == "java/lang/invoke/LambdaMetafactory"
+    assert method.reference.name_and_type.name == "metafactory"
     assert len(bootstrap.bootstrap_args) == 3 # Num arguments
     # Now check the arguments.  Note that LambdaMetafactory has some
     # arguments automatically filled in.
     methodhandle = cf.constants.get(bootstrap.bootstrap_args[1])
     assert methodhandle.reference_kind == 8 # REF_newInvokeSpecial
-    assert methodhandle.reference.name_and_type.name.value == "<init>"
+    assert methodhandle.reference.name_and_type.name == "<init>"
     # OK, now that we've done all those checks, just get the type
     # from the constructor.
     return methodhandle.reference.class_.name.value
@@ -92,13 +92,13 @@ def walk_method(cf, method, callback, verbose):
     stack = []
     locals = {}
     for ins in method.code.disassemble():
-        if ins.mnemonic in ("bipush", "sipush"):
+        if ins in ("bipush", "sipush"):
             stack.append(ins.operands[0].value)
         elif ins.mnemonic.startswith("fconst"):
             stack.append(float(ins.mnemonic[-1]))
-        elif ins.mnemonic == "aconst_null":
+        elif ins == "aconst_null":
             stack.append(None)
-        elif ins.mnemonic in ("ldc", "ldc_w"):
+        elif ins in ("ldc", "ldc_w"):
             const = ins.operands[0]
 
             if isinstance(const, ConstantClass):
@@ -107,14 +107,14 @@ def walk_method(cf, method, callback, verbose):
                 stack.append(const.string.value)
             else:
                 stack.append(const.value)
-        elif ins.mnemonic == "new":
+        elif ins == "new":
             const = ins.operands[0]
 
             try:
                 stack.append(callback.on_new(ins, const))
             except StopIteration:
                 break
-        elif ins.mnemonic in ("getfield", "getstatic"):
+        elif ins in ("getfield", "getstatic"):
             const = ins.operands[0]
             if ins.mnemonic != "getstatic":
                 obj = stack.pop()
@@ -125,7 +125,7 @@ def walk_method(cf, method, callback, verbose):
                 stack.append(callback.on_get_field(ins, const, obj))
             except StopIteration:
                 break
-        elif ins.mnemonic in ("putfield", "putstatic"):
+        elif ins in ("putfield", "putstatic"):
             const = ins.operands[0]
             value = stack.pop()
             if ins.mnemonic != "putstatic":
@@ -137,7 +137,7 @@ def walk_method(cf, method, callback, verbose):
                 callback.on_put_field(ins, const, obj, value)
             except StopIteration:
                 break
-        elif ins.mnemonic in ("invokevirtual", "invokespecial", "invokeinterface", "invokestatic"):
+        elif ins in ("invokevirtual", "invokespecial", "invokeinterface", "invokestatic"):
             const = ins.operands[0]
             method_desc = const.name_and_type.descriptor.value
             desc = method_descriptor(method_desc)
@@ -158,13 +158,13 @@ def walk_method(cf, method, callback, verbose):
                 break
             if desc.returns.name != "void":
                 stack.append(ret)
-        elif ins.mnemonic == "astore":
+        elif ins == "astore":
             locals[ins.operands[0].value] = stack.pop()
-        elif ins.mnemonic == "aload":
+        elif ins == "aload":
             stack.append(locals[ins.operands[0].value])
-        elif ins.mnemonic == "dup":
+        elif ins == "dup":
             stack.append(stack[-1])
-        elif ins.mnemonic in ("checkcast", "return"):
+        elif ins in ("checkcast", "return"):
             pass
         elif verbose:
             print("Unknown instruction %s: stack is %s" % (ins, stack))

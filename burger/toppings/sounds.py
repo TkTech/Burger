@@ -141,10 +141,10 @@ class SoundTopping(Topping):
         sound_name = None
         sound_id = 0
         for ins in method.code.disassemble():
-            if ins.mnemonic in ('ldc', 'ldc_w'):
+            if ins in ('ldc', 'ldc_w'):
                 const = ins.operands[0]
                 sound_name = const.string.value
-            elif ins.mnemonic == 'invokestatic':
+            elif ins == 'invokestatic':
                 sound = {
                     "name": sound_name,
                     "id": sound_id
@@ -185,10 +185,10 @@ class SoundTopping(Topping):
 
         method = lcf.methods.find_one(name="<clinit>")
         for ins in method.code.disassemble():
-            if ins.mnemonic in ('ldc', 'ldc_w'):
+            if ins in ('ldc', 'ldc_w'):
                 const = ins.operands[0]
                 sound_name = const.string.value
-            elif ins.mnemonic == "putstatic":
+            elif ins == "putstatic":
                 if sound_name is None or sound_name == "Accessed Sounds before Bootstrap!":
                     continue
                 const = ins.operands[0]

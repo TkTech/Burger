@@ -268,14 +268,14 @@ class RecipesTopping(Topping):
             stack = []
             while True:
                 ins = itr.next()
-                if ins.mnemonic in ("bipush", "sipush"):
+                if ins in ("bipush", "sipush"):
                     stack.append(ins.operands[0].value)
-                elif ins.mnemonic == "getstatic":
+                elif ins == "getstatic":
                     const = ins.operands[0]
                     clazz = const.class_.name.value
                     name = const.name_and_type.name.value
                     stack.append((clazz, name))
-                elif ins.mnemonic == "invokevirtual":
+                elif ins == "invokevirtual":
                     # TODO: This is a _total_ hack...
                     # We assume that this is an enum, used to get the data value
                     # for the given block.  We also assume that the return value
@@ -284,20 +284,20 @@ class RecipesTopping(Topping):
                     # As I said... ugly.  There's probably a way better way of doing this.
                     dv = int(name, 36) - int('a', 36)
                     stack.append(dv)
-                elif ins.mnemonic == "iadd":
+                elif ins == "iadd":
                     # For whatever reason, there are a few cases where 4 is both
                     # added and subtracted to the enum constant value.
                     # So we need to handle that :/
                     i2 = stack.pop()
                     i1 = stack.pop()
                     stack.append(i1 + i2);
-                elif ins.mnemonic == "isub":
+                elif ins == "isub":
                     i2 = stack.pop()
                     i1 = stack.pop()
                     stack.append(i1 - i2);
-                elif ins.mnemonic == "invokespecial":
+                elif ins == "invokespecial":
                     const = ins.operands[0]
-                    if const.name_and_type.name.value == "<init>":
+                    if const.name_and_type.name == "<init>":
                         break
 
             item = get_material(*stack[0])
@@ -328,7 +328,7 @@ class RecipesTopping(Topping):
 
                     ins = itr.next()
                     # Size of the parameter array
-                    if ins.mnemonic in ("bipush", "sipush"):
+                    if ins in ("bipush", "sipush"):
                         param_count = ins.operands[0].value
                     else:
                         raise Exception('Unexpected instruction: expected int constant, got ' + str(ins))
@@ -346,36 +346,36 @@ class RecipesTopping(Topping):
                         # The weirdness here is because characters and strings are
                         # mixed; for example jukebox looks like this:
                         # new Object[] {"###", "#X#", "###", '#', Blocks.PLANKS, 'X', Items.DIAMOND}
-                        if ins.mnemonic == "aastore":
+                        if ins == "aastore":
                             num_astore += 1
                             array.append(data)
                             data = None
-                        elif ins.mnemonic in ("ldc", "ldc_w"):
+                        elif ins in ("ldc", "ldc_w"):
                             const = ins.operands[0]
                             # Separate into a list of characters, to disambiguate (see below)
                             data = list(const.string.value)
-                        if ins.mnemonic in ("bipush", "sipush"):
+                        if ins in ("bipush", "sipush"):
                             data = ins.operands[0].value
-                        elif ins.mnemonic == "invokestatic":
+                        elif ins == "invokestatic":
                             const = ins.operands[0]
-                            if const.class_.name.value == "java/lang/Character" and const.name_and_type.name.value == "valueOf":
+                            if const.class_.name == "java/lang/Character" and const.name_and_type.name == "valueOf":
                                 data = chr(data)
                             else:
                                 raise Exception("Unknown method invocation: " + repr(const))
-                        elif ins.mnemonic == "getstatic":
+                        elif ins == "getstatic":
                             const = ins.operands[0]
                             clazz = const.class_.name.value
                             field = const.name_and_type.name.value
                             data = get_material(clazz, field)
-                        elif ins.mnemonic == "new":
+                        elif ins == "new":
                             data = read_itemstack(itr)
 
                     ins = itr.next()
-                    assert ins.mnemonic == "invokevirtual"
+                    assert ins == "invokevirtual"
                     const = ins.operands[0]
 
                     recipe_data = {}
-                    if const.name_and_type.name.value == setter_names[0]:
+                    if const.name_and_type.name == setter_names[0]:
                         # Shaped
                         recipe_data['type'] = 'shape'
                         recipe_data['makes'] = crafted_item
