@@ -29,7 +29,7 @@ You can redirect the output from the default `stdout` by passing
 `-o <path>` or `--output <path>`.  This is useful when combined with
 verbose output (`-v` or `--verbose`) so that the output doesn't go into the file.
 
-    $ python munch.py -d --output output.json
+    $ python munch.py -D --output output.json
 
 You can see what toppings are available by passing `-l` or `--list`.
 
@@ -41,7 +41,7 @@ missing a dependency, it will output an error telling you what
 also needs to be included.  Toppings will generally automatically load
 their dependencies, however.
 
-    $ python munch.py -d --toppings language,stats
+    $ python munch.py -D --toppings language,stats
 
 The above example would only extract the language information, as
 well as the stats and achievements (both part of `stats`).
