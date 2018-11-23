@@ -24,6 +24,11 @@ from .topping import Topping
 
 from jawa.constants import *
 
+try:
+    import json
+except ImportError:
+    import simplejson as json
+
 class VersionTopping(Topping):
     """Provides the protocol version."""
 
@@ -42,12 +47,40 @@ class VersionTopping(Topping):
 
     @staticmethod
     def act(aggregate, classloader, verbose=False):
-        VersionTopping.get_protocol_version(aggregate, classloader, verbose)
-        VersionTopping.get_data_version(aggregate, classloader, verbose)
+        aggregate.setdefault("version", {})
+
+        try:
+            # 18w47b+ has a file that just directly includes this info
+            with classloader.open("version.json") as fin:
+                version_json = json.load(fin)
+                aggregate["version"]["data"] = version_json["world_version"]
+                aggregate["version"]["protocol"] = version_json["protocol_version"]
+                aggregate["version"]["name"] = version_json["name"]
+        except:
+            # Find it manually
+            VersionTopping.get_protocol_version(aggregate, classloader, verbose)
+            VersionTopping.get_data_version(aggregate, classloader, verbose)
+
+        if "data" in aggregate["version"]:
+            data_version = aggregate["version"]["data"]
+            # Versions after 17w46a (1449) are flattened
+            aggregate["version"]["is_flattened"] = (data_version > 1449)
+            if data_version >= 1461:
+                # 1.13 (18w02a and above, 1461) uses yet another entity format
+                aggregate["version"]["entity_format"] = "1.13"
+            elif data_version >= 800:
+                # 1.11 versions (16w32a and above, 800) use one entity format
+                aggregate["version"]["entity_format"] = "1.11"
+            else:
+                # Old entity format
+                aggregate["version"]["entity_format"] = "1.10"
+        else:
+            aggregate["version"]["is_flattened"] = False
+            aggregate["version"]["entity_format"] = "1.10"
 
     @staticmethod
     def get_protocol_version(aggregate, classloader, verbose):
-        versions = aggregate.setdefault("version", {})
+        versions = aggregate["version"]
         if "nethandler.server" in aggregate["classes"]:
             nethandler = aggregate["classes"]["nethandler.server"]
             cf = classloader[nethandler]
@@ -122,20 +155,3 @@ class VersionTopping(Topping):
                     break
         elif verbose:
             print("Unable to determine data version")
-
-        if "data" in aggregate["version"]:
-            data_version = aggregate["version"]["data"]
-            # Versions after 17w46a (1449) are flattened
-            aggregate["version"]["is_flattened"] = (data_version > 1449)
-            if data_version >= 1461:
-                # 1.13 (18w02a and above, 1461) uses yet another entity format
-                aggregate["version"]["entity_format"] = "1.13"
-            elif data_version >= 800:
-                # 1.11 versions (16w32a and above, 800) use one entity format
-                aggregate["version"]["entity_format"] = "1.11"
-            else:
-                # Old entity format
-                aggregate["version"]["entity_format"] = "1.10"
-        else:
-            aggregate["version"]["is_flattened"] = False
-            aggregate["version"]["entity_format"] = "1.10"
