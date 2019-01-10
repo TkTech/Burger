@@ -12,7 +12,7 @@ setup(
     url="http://github.com/mcdevs/Burger",
     keywords=["java", "minecraft"],
     install_requires=[
-        'Jawa>=2.0'
+        'Jawa>=2.2.0'
     ],
     dependency_links=[
         'https://github.com/tktech/Jawa/tarball/master#egg=Jawa'
