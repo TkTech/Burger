@@ -136,11 +136,7 @@ class RecipesTopping(Topping):
                         recipe["group"] = data["group"]
 
                     if data["type"] not in ("crafting_shaped", "crafting_shapeless"):
-                        if data["type"] == "smelting":
-                            # Just not yet implemented
-                            continue
-                        if verbose:
-                            print("Unrecognized recipe type %s for %s" % (data["type"], recipe_id))
+                        # We only care about regular recipes, not furnace/loom/whatever ones.
                         continue
 
 
