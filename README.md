@@ -11,18 +11,25 @@ a few specifically. Each topping is then aggregated by
 
 ## Usage
 The simplest way to use Burger is to pass the `-d` or `--download`
-flag, which will download the minecraft client for you.
+flag, which will download the specified minecraft client for you.
+This option can be specified multiple times.  The downloaded jar will be saved
+in the working directory, and if it already exists the existing verison will be used.
 
-    $ python munch.py --download
+    $ python munch.py --download 1.13.2
+
+To download the latest snapshot, `-D` or `--download-latest` can be used.
+
+    $ python munch.py -D
 
 Alternatively, you can specify the client JAR by passing it as an argument.
 
     $ python munch.py 1.8.jar
 
 You can redirect the output from the default `stdout` by passing
-`-o <path>` or `--output <path>`.
-    
-    $ python munch.py -d --output output.json
+`-o <path>` or `--output <path>`.  This is useful when combined with
+verbose output (`-v` or `--verbose`) so that the output doesn't go into the file.
+
+    $ python munch.py -D --output output.json
 
 You can see what toppings are available by passing `-l` or `--list`.
 
@@ -34,7 +41,7 @@ missing a dependency, it will output an error telling you what
 also needs to be included.  Toppings will generally automatically load
 their dependencies, however.
 
-    $ python munch.py -d --toppings language,stats
+    $ python munch.py -D --toppings language,stats
 
 The above example would only extract the language information, as
 well as the stats and achievements (both part of `stats`).

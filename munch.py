@@ -25,6 +25,7 @@ import os
 import sys
 import getopt
 import urllib
+import traceback
 
 try:
     import json
@@ -36,7 +37,7 @@ from collections import deque
 from jawa.classloader import ClassLoader
 from jawa.transforms import simple_swap, expand_constants
 
-from burger.website import Website
+from burger import website
 from burger.roundedfloats import transform_floats
 
 
@@ -83,18 +84,16 @@ if __name__ == "__main__":
     try:
         opts, args = getopt.gnu_getopt(
             sys.argv[1:],
-            "t:o:vu:p:dlcs:",
+            "t:o:vd:Dlc",
             [
                 "toppings=",
                 "output=",
                 "verbose",
-                "username=",
-                "password=",
-                "download",
+                "download=",
+                "download-latest",
                 "list",
                 "compact",
-                "url=",
-                "source="
+                "url="
             ]
         )
     except getopt.GetoptError as err:
@@ -105,9 +104,8 @@ if __name__ == "__main__":
     toppings = None
     output = sys.stdout
     verbose = False
-    username = None
-    password = None
-    download_fresh_jar = False
+    download_jars = []
+    download_latest = False
     list_toppings = False
     compact = False
     url = None
@@ -116,20 +114,18 @@ if __name__ == "__main__":
         if o in ("-t", "--toppings"):
             toppings = a.split(",")
         elif o in ("-o", "--output"):
-            output = open(a, "a")
+            output = open(a, "w")
         elif o in ("-v", "--verbose"):
             verbose = True
         elif o in ("-c", "--compact"):
             compact = True
-        elif o in ("-u", "--username"):
-            username = a
-        elif o in ("-p", "--password"):
-            password = a
         elif o in ("-d", "--download"):
-            download_fresh_jar = True
+            download_jars.append(a)
+        elif o in ("-D", "--download-latest"):
+            download_latest = True
         elif o in ("-l", "--list"):
             list_toppings = True
-        elif o in ("-s", "--url", "--source"):
+        elif o in ("-s", "--url"):
             url = a
 
     # Load all toppings
@@ -212,10 +208,14 @@ if __name__ == "__main__":
 
     jarlist = args
 
-    # Should we download a new copy of the JAR directly
-    # from minecraft.net?
-    if download_fresh_jar:
-        client_path = Website.client_jar()
+    # Download any jars that have already been specified
+    for version in download_jars:
+        client_path = website.client_jar(version, verbose)
+        jarlist.append(client_path)
+
+    # Download a copy of the latest snapshot jar
+    if download_latest:
+        client_path = website.latest_client_jar(verbose)
         jarlist.append(client_path)
 
     # Download a JAR from the given URL
@@ -239,8 +239,23 @@ if __name__ == "__main__":
             }
         }
 
+        available = []
         for topping in to_be_run:
-            topping.act(aggregate, classloader, verbose)
+            missing = [dep for dep in topping.DEPENDS if dep not in available]
+            if len(missing) != 0:
+                if verbose:
+                    print("Dependencies failed for %s: Missing %s" % (topping, missing))
+                continue
+
+            orig_aggregate = aggregate.copy()
+            try:
+                topping.act(aggregate, classloader, verbose)
+                available.extend(topping.PROVIDES)
+            except:
+                aggregate = orig_aggregate # If the topping failed, don't leave things in an incomplete state
+                if verbose:
+                    print("Failed to run %s" % topping)
+                    traceback.print_exc()
 
         summary.append(aggregate)
 
@@ -249,9 +264,7 @@ if __name__ == "__main__":
     else:
         json.dump(transform_floats(summary), output)
 
-    # Cleanup temporary downloads
-    if download_fresh_jar:
-        os.remove(client_path)
+    # Cleanup temporary downloads (the URL download is temporary)
     if url:
         os.remove(url_path)
     # Cleanup file output (if used)
