@@ -110,6 +110,8 @@ class ObjectTopping(Topping):
         entities_by_class = {entity["class"]: entity for entity in six.itervalues(entities["entity"])}
 
         from .entities import EntityTopping
+        EntityTopping.compute_sizes(classloader, aggregate, objects) # Needed because some objects aren't in the entity list
+
         for o in six.itervalues(objects):
             if o["class"] in entities_by_class:
                 # If this object corresponds to a known entity, copy data from that
@@ -124,14 +126,5 @@ class ObjectTopping(Topping):
                     o["height"] = entity["height"]
                 if "texture" in entity:
                     o["texture"] = entity["texture"]
-            else:
-                # Not a known entity; try to compute some stuff
-                cf = classloader[o["class"]]
-                size = EntityTopping.size(cf)
-                if size:
-                    o["width"] = size[0]
-                    o["height"] = size[1]
-                    if size[2]:
-                        o["texture"] = size[2]
 
         entities["info"]["object_count"] = len(objects)

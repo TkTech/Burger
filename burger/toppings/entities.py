@@ -62,20 +62,12 @@ class EntityTopping(Topping):
 
         entities = aggregate["entities"]
 
-        # Identify sizes now that we have entity classes
-        for e in six.itervalues(entities["entity"]):
-            cf = classloader[e["class"]]
-            size = EntityTopping.size(cf)
-            if size:
-                e["width"], e["height"], texture = size
-                if texture:
-                    e["texture"] = texture
-
         entities["info"] = {
             "entity_count": len(entities["entity"])
         }
 
         EntityTopping.abstract_entities(classloader, entities["entity"], verbose)
+        EntityTopping.compute_sizes(classloader, aggregate, entities["entity"])
 
     @staticmethod
     def _entities_1point13(aggregate, classloader, verbose):
@@ -102,9 +94,11 @@ class EntityTopping(Topping):
         method = cf.methods.find_one(name="<clinit>")
 
         # Example of what's being parsed:
-        # public static final EntityType<EntityAreaEffectCloud> AREA_EFFECT_CLOUD = register("area_effect_cloud", EntityType.Builder.create(EntityAreaEffectCloud.class, EntityAreaEffectCloud::new));
+        # public static final EntityType<EntityAreaEffectCloud> AREA_EFFECT_CLOUD = register("area_effect_cloud", EntityType.Builder.create(EntityAreaEffectCloud.class, EntityAreaEffectCloud::new).setSize(6.0F, 0.5F)); // 19w03a+
         # and in older versions:
-        # public static final EntityType<EntityAreaEffectCloud> AREA_EFFECT_CLOUD = register("area_effect_cloud", EntityType.Builder.create(EntityAreaEffectCloud::new));
+        # public static final EntityType<EntityAreaEffectCloud> AREA_EFFECT_CLOUD = register("area_effect_cloud", EntityType.Builder.create(EntityAreaEffectCloud.class, EntityAreaEffectCloud::new)); // 18w06a-19w02a
+        # and in even older versions:
+        # public static final EntityType<EntityAreaEffectCloud> AREA_EFFECT_CLOUD = register("area_effect_cloud", EntityType.Builder.create(EntityAreaEffectCloud::new)); // through 18w05a
 
         class EntityContext(WalkerCallback):
             def __init__(self):
@@ -130,7 +124,13 @@ class EntityTopping(Topping):
                     return new_entity
                 elif const.class_.name == builderclass:
                     if ins.mnemonic != "invokestatic":
-                        # Extra properties on the builder, which we don't care about
+                        if len(args) == 2 and const.name_and_type.descriptor.value.startswith("(FF)"):
+                            # Entity size in 19w03a and newer
+                            obj["width"] = args[0]
+                            obj["height"] = args[1]
+
+                        # There are other properties on the builder (related to whether the entity can be created)
+                        # We don't care about these
                         return obj
 
                     if len(args) == 2:
@@ -356,33 +356,62 @@ class EntityTopping(Topping):
                 already_has_minecart_name = False
 
     @staticmethod
-    def size(cf):
-        method = cf.methods.find_one(name="<init>")
-        if method is None:
-            return
+    def compute_sizes(classloader, aggregate, entities):
+        # Class -> size
+        size_cache = {}
 
-        stage = 0
-        tmp = []
-        texture = None
-        for ins in method.code.disassemble():
-            if ins == "aload" and ins.operands[0].value == 0 and stage == 0:
-                stage = 1
-            elif ins in ("ldc", "ldc_w"):
-                const = ins.operands[0]
-                if isinstance(const, Float) and stage in (1, 2):
-                    tmp.append(round(const.value, 2))
-                    stage += 1
-                else:
-                    stage = 0
+        # NOTE: Use aggregate["entities"] instead of the given entities list because
+        # this method is re-used in the objects topping
+        base_entity_cf = classloader[aggregate["entities"]["entity"]["~abstract_entity"]["class"]]
+
+        # Note that there are additional methods matching this, used to set camera angle and such
+        set_size = base_entity_cf.methods.find_one(args="FF", returns="V", f=lambda m: m.access_flags.acc_protected)
+
+        set_size_name = set_size.name.value
+        set_size_desc = set_size.descriptor.value
+
+        def compute_size(class_name):
+            if class_name == "java/lang/Object":
+                return None
+
+            if class_name in size_cache:
+                return size_cache[class_name]
+
+            cf = classloader[class_name]
+            constructor = cf.methods.find_one(name="<init>")
+
+            tmp = []
+            for ins in constructor.code.disassemble():
+                if ins in ("ldc", "ldc_w"):
+                    const = ins.operands[0]
+                    if isinstance(const, Float):
+                        tmp.append(const.value)
+                elif ins == "invokevirtual":
+                    const = ins.operands[0]
+                    if const.name_and_type.name == set_size_name and const.name_and_type.descriptor == set_size_desc:
+                        if len(tmp) == 2:
+                            result = tmp
+                        else:
+                            # There was a call to the method, but we couldn't parse it fully
+                            result = None
+                        break
                     tmp = []
-                    if isinstance(const, String):
-                        texture = const.string.value
-            elif ins == "invokevirtual" and stage == 3:
-                return tmp + [texture]
-                break
+                else:
+                    # We want only the simplest parse, so even things like multiplication should cause this to be reset
+                    tmp = []
             else:
-                stage = 0
-                tmp = []
+                # No result, so use the superclass
+                result = compute_size(cf.super_.name.value)
+
+            size_cache[class_name] = result
+            return result
+
+        for entity in six.itervalues(entities):
+            if "width" not in entity:
+                size = compute_size(entity["class"])
+                if size is not None:
+                    entity["width"] = size[0]
+                    entity["height"] = size[1]
 
     @staticmethod
     def abstract_entities(classloader, entities, verbose):

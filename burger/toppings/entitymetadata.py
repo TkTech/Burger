@@ -53,15 +53,14 @@ class EntityMetadataTopping(Topping):
         base_entity_class = entities["~abstract_entity"]["class"]
         base_entity_cf = classloader[base_entity_class]
         register_data_method_name = None
-        register_data_method_desc = None
+        register_data_method_desc = "()V"
         # The last call in the base entity constructor is to registerData() (formerly entityInit())
         for ins in base_entity_cf.methods.find_one(name="<init>").code.disassemble():
             if ins.mnemonic == "invokevirtual":
                 const = ins.operands[0]
-                register_data_method_name = const.name_and_type.name.value
-                register_data_method_desc = const.name_and_type.descriptor.value
-                # Keep looping, to find the last call
-        assert register_data_method_desc == "()V"
+                if const.name_and_type.descriptor == register_data_method_desc:
+                    register_data_method_name = const.name_and_type.name.value
+                    # Keep looping, to find the last call
 
         dataserializers = EntityMetadataTopping.identify_serializers(classloader, dataserializer_class, dataserializers_class, aggregate["classes"], verbose)
         aggregate["entities"]["dataserializers"] = dataserializers
