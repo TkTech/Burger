@@ -39,12 +39,16 @@ class ObjectTopping(Topping):
     DEPENDS = [
         "identify.nethandler.client",
         "identify.entity.trackerentry",
+        "version.data",
         "entities.entity",
         "packets.classes"
     ]
 
     @staticmethod
     def act(aggregate, classloader, verbose=False):
+        if aggregate["version"]["data"] >= 1930: # 19w05a+
+            # Object IDs were removed in 19w05a, and entity IDs are now used instead.  Skip this topping entirely.
+            return
         if "entity.trackerentry" not in aggregate["classes"] or "nethandler.client" not in aggregate["classes"]:
             return
 

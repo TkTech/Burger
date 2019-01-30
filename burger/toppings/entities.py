@@ -94,6 +94,7 @@ class EntityTopping(Topping):
         method = cf.methods.find_one(name="<clinit>")
 
         # Example of what's being parsed:
+        # public static final EntityType<EntityAreaEffectCloud> AREA_EFFECT_CLOUD = register("area_effect_cloud", EntityType.Builder.create(EntityAreaEffectCloud::new, EntityCategory.MISC).setSize(6.0F, 0.5F)); // 19w05a+
         # public static final EntityType<EntityAreaEffectCloud> AREA_EFFECT_CLOUD = register("area_effect_cloud", EntityType.Builder.create(EntityAreaEffectCloud.class, EntityAreaEffectCloud::new).setSize(6.0F, 0.5F)); // 19w03a+
         # and in older versions:
         # public static final EntityType<EntityAreaEffectCloud> AREA_EFFECT_CLOUD = register("area_effect_cloud", EntityType.Builder.create(EntityAreaEffectCloud.class, EntityAreaEffectCloud::new)); // 18w06a-19w02a
@@ -133,23 +134,40 @@ class EntityTopping(Topping):
                         # We don't care about these
                         return obj
 
+                    method_desc = const.name_and_type.descriptor.value
+                    desc = method_descriptor(method_desc)
+
                     if len(args) == 2:
-                        # In 18w06a, they added a parameter for the entity class; check consistency
-                        assert args[0] == args[1] + ".class"
-                        cls = args[1]
+                        if desc.args[0].name == "java/lang/Class" and desc.args[1].name == "java/util/function/Function":
+                            # Builder.create(Class, Function), 18w06a+
+                            # In 18w06a, they added a parameter for the entity class; check consistency
+                            assert args[0] == args[1] + ".class"
+                            cls = args[1]
+                        elif desc.args[0].name == "java/util/function/Function":
+                            # Builder.create(Function, EntityCategory), 19w05a+
+                            cls = args[0]
+                        else:
+                            if verbose:
+                                print("Unknown entity type register method", method_desc)
+                            cls = None
                     elif len(args) == 1:
                         # There is also a format that creates an entity that cannot be serialized.
                         # This might be just with a single argument (its class), in 18w06a+.
                         # Otherwise, in 18w05a and below, it's just the function to build.
-                        method_desc = const.name_and_type.descriptor.value
-                        desc = method_descriptor(method_desc)
-                        if desc.args[0].name == "java/lang/Class":
+                        if desc.args[0].name == "java/lang/Function":
+                            # Builder.create(Function), 18w05a-
+                            # Just the function, which was converted into a class name earlier
+                            cls = args[0]
+                        elif desc.args[0].name == "java/lang/Class":
+                            # Builder.create(Class), 18w06a+
                             # The type that represents something that cannot be serialized
                             cls = None
                         else:
-                            # Just the function, which was converted into a class name earlier
-                            cls = args[0]
+                            # Assume Builder.create(EntityCategory) in 19w05a+,
+                            # though it could be hit for other unknown signatures
+                            cls = None
                     else:
+                        # Assume Builder.create(), though this could be hit for other unknown signatures
                         # In 18w05a and below, nonserializable entities
                         cls = None
 
@@ -170,7 +188,8 @@ class EntityTopping(Topping):
                 return object()
 
             def on_get_field(self, ins, const, obj):
-                raise Exception("unexpected getfield: %s" % ins)
+                # 19w05a+: used to set entity types.
+                return object()
 
         walk_method(cf, method, EntityContext(), verbose)
 
