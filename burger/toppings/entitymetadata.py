@@ -331,7 +331,7 @@ class EntityMetadataTopping(Topping):
         # Try to do some recognition of what it is:
         name = None
         name_prefix = ""
-        if "Optional" in inner_type:
+        if "Optional<" in inner_type:
             # NOTE: both java and guava optionals are used at different times
             name_prefix = "Opt"
             # Get rid of another parameter
@@ -343,6 +343,8 @@ class EntityMetadataTopping(Topping):
                 name = "VarInt"
         elif inner_type == "java/util/UUID":
             name = "UUID"
+        elif inner_type == "java/util/OptionalInt":
+            name = "OptVarInt"
         elif inner_type == classes["nbtcompound"]:
             name = "NBT"
         elif inner_type == classes["itemstack"]:
