@@ -82,14 +82,25 @@ class EntityTopping(Topping):
 
         # Find the inner builder class
         inner_classes = cf.attributes.find_one(name="InnerClasses").inner_classes
+        builderclass = None
+        funcclass = None # 19w08a+ - a functional interface for creating new entities
         for entry in inner_classes:
             outer = cf.constants.get(entry.outer_class_info_index)
             if outer.name == listclass:
                 inner = cf.constants.get(entry.inner_class_info_index)
-                builderclass = inner.name.value
-                break
-        else:
+                inner_cf = classloader[inner.name.value]
+                if inner_cf.access_flags.acc_interface:
+                    if funcclass:
+                        raise Exception("Unexpected multiple inner interfaces")
+                    funcclass = inner.name.value
+                else:
+                    if builderclass:
+                        raise Exception("Unexpected multiple inner classes")
+                    builderclass = inner.name.value
+
+        if not builderclass:
             raise Exception("Failed to find inner class for builder in " + str(inner_classes))
+        # Note that funcclass might not be found since it didn't always exist
 
         method = cf.methods.find_one(name="<clinit>")
 
@@ -143,12 +154,12 @@ class EntityTopping(Topping):
                             # In 18w06a, they added a parameter for the entity class; check consistency
                             assert args[0] == args[1] + ".class"
                             cls = args[1]
-                        elif desc.args[0].name == "java/util/function/Function":
+                        elif desc.args[0].name == "java/util/function/Function" or desc.args[0].name == funcclass:
                             # Builder.create(Function, EntityCategory), 19w05a+
                             cls = args[0]
                         else:
                             if verbose:
-                                print("Unknown entity type register method", method_desc)
+                                print("Unknown entity type builder creation method", method_desc)
                             cls = None
                     elif len(args) == 1:
                         # There is also a format that creates an entity that cannot be serialized.
