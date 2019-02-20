@@ -175,10 +175,9 @@ class EntityMetadataTopping(Topping):
                         return
 
                 def on_put_field(self, ins, const, obj, value):
-                    if not self.waiting_for_putfield:
-                        raise Exception("Unexpected putfield: %s" % (ins,))
-
                     if const.name_and_type.descriptor == "L" + datamanager_class + ";":
+                        if not self.waiting_for_putfield:
+                            raise Exception("Unexpected putfield: %s" % (ins,))
                         self.waiting_for_putfield = False
 
                 def on_get_field(self, ins, const, obj):
