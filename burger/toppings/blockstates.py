@@ -272,8 +272,9 @@ class BlockStateTopping(Topping):
                     return fields_by_class[cls][field_name]
                 else:
                     return fields_by_class[cls]
-            elif cls == aggregate["classes"]["sounds.list"]:
-                # Another scary case.  We don't want to parse all of the sound events.
+            elif cls == aggregate["classes"].get("sounds.list"):
+                # If we already know what the sounds list class is, just ignore it
+                # as going through it would take a while for no reason
                 return object()
 
             cf = classloader[cls]

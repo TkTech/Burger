@@ -39,12 +39,16 @@ class ObjectTopping(Topping):
     DEPENDS = [
         "identify.nethandler.client",
         "identify.entity.trackerentry",
+        "version.data",
         "entities.entity",
         "packets.classes"
     ]
 
     @staticmethod
     def act(aggregate, classloader, verbose=False):
+        if aggregate["version"]["data"] >= 1930: # 19w05a+
+            # Object IDs were removed in 19w05a, and entity IDs are now used instead.  Skip this topping entirely.
+            return
         if "entity.trackerentry" not in aggregate["classes"] or "nethandler.client" not in aggregate["classes"]:
             return
 
@@ -107,21 +111,24 @@ class ObjectTopping(Topping):
                 tmp = {"id": current_id, "class": const.name.value}
                 objects[tmp["id"]] = tmp
 
-        classes = {}
-        for entity in six.itervalues(entities["entity"]):
-            classes[entity["class"]] = entity
+        entities_by_class = {entity["class"]: entity for entity in six.itervalues(entities["entity"])}
 
         from .entities import EntityTopping
+        EntityTopping.compute_sizes(classloader, aggregate, objects) # Needed because some objects aren't in the entity list
+
         for o in six.itervalues(objects):
-            if o["class"] in classes:
-                o["entity"] = copy(classes[o["class"]])
-                del o["entity"]["class"]
-            else:
-                cf = classloader[o["class"]]
-                size = EntityTopping.size(cf)
-                if size:
-                    o["entity"] = {"width": size[0], "height": size[1]}
-                    if size[2]:
-                        o["entity"]["texture"] = size[2]
+            if o["class"] in entities_by_class:
+                # If this object corresponds to a known entity, copy data from that
+                entity = entities_by_class[o["class"]]
+                if "id" in entity:
+                    o["entity_id"] = entity["id"]
+                if "name" in entity:
+                    o["name"] = entity["name"]
+                if "width" in entity:
+                    o["width"] = entity["width"]
+                if "height" in entity:
+                    o["height"] = entity["height"]
+                if "texture" in entity:
+                    o["texture"] = entity["texture"]
 
         entities["info"]["object_count"] = len(objects)

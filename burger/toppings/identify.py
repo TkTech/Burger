@@ -31,14 +31,8 @@ import traceback
 # We can identify almost every class we need just by
 # looking for consistent strings.
 MATCHES = (
-    (['Accessed Biomes before Bootstrap!'], 'biome.list'),  # 1.9 only
-    ((['Ice Plains', 'mutated_ice_flats', 'ice_spikes'], True), 'biome.superclass'),
-    (['Accessed Blocks before Bootstrap!'], 'block.list'),
-    (['lightgem', 'Block{'], 'block.superclass'),
     (['Skipping Entity with id'], 'entity.list'),
     (['Fetching addPacket for removed entity'], 'entity.trackerentry'),
-    (['Accessed Items before Bootstrap!'], 'item.list'),
-    (['yellowDust', 'CB3F55D3-645C-4F38-A497-9C13A33DB5CF'], 'item.superclass'),
     (['#%04d/%d%s', 'attribute.modifier.equals.'], 'itemstack'),
     (['disconnect.lost'], 'nethandler.client'),
     (['Outdated server!', 'multiplayer.disconnect.outdated_client'],
@@ -52,13 +46,7 @@ MATCHES = (
     ),
     (['Data value id is too big'], 'metadata'),
     (['X#X'], 'recipe.superclass'),
-    (['Accessed Sounds before Bootstrap!'], 'sounds.list'),
     (['Skipping BlockEntity with id '], 'tileentity.superclass'),
-    (
-        ['Unable to resolve BlockEntity for ItemInstance:',
-        'Unable to resolve BlockEntity for ItemStack:'],
-        'tileentity.blockentitytag'
-    ),
     (
         ['ThreadedAnvilChunkStorage ({}): All chunks are saved'],
         'anvilchunkloader'
@@ -69,7 +57,10 @@ MATCHES = (
 
 # In some cases there really isn't a good way to verify that it's a specific
 # class and we need to just depend on it coming first (bad!)
-IGNORE_DUPLICATES = [ "biome.superclass" ]
+# The biome class specifically is an issue because in 18w06a, the old name is
+# present in the biome's own class, but the ID is still in the register class.
+# This stops being an issue later into 1.13 when biome names become translatable.
+IGNORE_DUPLICATES = [ "biome.register" ]
 
 def identify(classloader, path):
     """
@@ -105,34 +96,57 @@ def identify(classloader, path):
             assert len(class_file.interfaces) == 1
             const = class_file.interfaces[0]
             return 'chatcomponent', const.name.value
-        if 'ambient.cave' in value:
+
+        if value == 'ambient.cave':
+            # This is found in both the sounds list class and sounds event class.
+            # However, the sounds list class also has a constant specific to it.
+            # Note that this method will not work in 1.8, but the list class doesn't exist then either.
             class_file = classloader[path]
 
-            # We _may_ have found the SoundEvent class, but there are several
-            # other classes with this string constant.  So we need to check
-            # for registration methods.
-            def is_public_static(m):
-                return m.access_flags.acc_public and m.access_flags.acc_static
-
-            def is_private_static(m):
-                return m.access_flags.acc_private and m.access_flags.acc_static
-
-            pub_args = {
-                "args": "",
-                "returns": "V",
-                "f": is_public_static
-            }
-            priv_args = {
-                "args": "Ljava/lang/String;",
-                "returns": "V",
-                "f": is_private_static
-            }
-
-            public_register_method = class_file.methods.find_one(**pub_args)
-            private_register_method = class_file.methods.find_one(**priv_args)
-
-            if public_register_method and private_register_method:
+            for c2 in class_file.constants.find(type_=String):
+                if c2 == 'Accessed Sounds before Bootstrap!':
+                    return 'sounds.list', class_file.this.name.value
+            else:
                 return 'sounds.event', class_file.this.name.value
+
+        if value == 'piston_head':
+            # piston_head is a technical block, which is important as that means it has no item form.
+            # This constant is found in both the block list class and the class containing block registrations.
+            class_file = classloader[path]
+
+            for c2 in class_file.constants.find(type_=String):
+                if c2 == 'Accessed Blocks before Bootstrap!':
+                    return 'block.list', class_file.this.name.value
+            else:
+                return 'block.register', class_file.this.name.value
+
+        if value == 'diamond_pickaxe':
+            # Similarly, diamond_pickaxe is only an item.  This exists in 3 classes, though:
+            # - The actual item registration code
+            # - The item list class
+            # - The item renderer class (until 1.13), which we don't care about
+            class_file = classloader[path]
+
+            for c2 in class_file.constants.find(type_=String):
+                if c2 == 'textures/misc/enchanted_item_glint.png':
+                    # Item renderer, which we don't care about
+                    return
+
+                if c2 == 'Accessed Items before Bootstrap!':
+                    return 'item.list', class_file.this.name.value
+            else:
+                return 'item.register', class_file.this.name.value
+
+        if value in ('Ice Plains', 'mutated_ice_flats', 'ice_spikes'):
+            # Finally, biomes.  There's several different names that were used for this one biome
+            # Only classes are the list class and the one with registration.  Note that the list didn't exist in 1.8.
+            class_file = classloader[path]
+
+            for c2 in class_file.constants.find(type_=String):
+                if c2 == 'Accessed Biomes before Bootstrap!':
+                    return 'biome.list', class_file.this.name.value
+            else:
+                return 'biome.register', class_file.this.name.value
 
         if value == 'minecraft':
             class_file = classloader[path]
@@ -176,9 +190,9 @@ class IdentifyTopping(Topping):
     PROVIDES = [
         "identify.anvilchunkloader",
         "identify.biome.list",
-        "identify.biome.superclass",
+        "identify.biome.register",
         "identify.block.list",
-        "identify.block.superclass",
+        "identify.block.register",
         "identify.blockstatecontainer",
         "identify.chatcomponent",
         "identify.entity.list",
@@ -186,7 +200,7 @@ class IdentifyTopping(Topping):
         "identify.enumfacing.plane",
         "identify.identifier",
         "identify.item.list",
-        "identify.item.superclass",
+        "identify.item.register",
         "identify.itemstack",
         "identify.metadata",
         "identify.nbtcompound",
@@ -199,8 +213,7 @@ class IdentifyTopping(Topping):
         "identify.resourcelocation",
         "identify.sounds.event",
         "identify.sounds.list",
-        "identify.tileentity.superclass",
-        "identify.tileentity.blockentitytag"
+        "identify.tileentity.superclass"
     ]
 
     DEPENDS = []
@@ -229,5 +242,17 @@ class IdentifyTopping(Topping):
                     # If everything has been found, we don't need to keep
                     # searching, so stop early for performance
                     break
+
+        # Add classes that might not be recognized in some versions
+        # since the registration class is also the list class
+        if "sounds.list" not in classes and "sounds.event" in classes:
+            classes["sounds.list"] = classes["sounds.event"]
+        if "block.list" not in classes and "block.register" in classes:
+            classes["block.list"] = classes["block.register"]
+        if "item.list" not in classes and "item.register" in classes:
+            classes["item.list"] = classes["item.register"]
+        if "biome.list" not in classes and "biome.register" in classes:
+            classes["biome.list"] = classes["biome.register"]
+
         if verbose:
             print("identify classes: %s" % classes)

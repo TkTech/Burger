@@ -295,13 +295,23 @@ class PacketInstructionsTopping(Topping):
                                                         type="identifier",
                                                         field=field))
                         elif "position" not in classes or arg_type == classes["position"]:
-                            if verbose and "position" not in classes:
-                                print("Assuming", arg_type, "is the position class")
+                            if "position" not in classes:
+                                classes["position"] = arg_type
+                                if verbose:
+                                    print("Assuming", arg_type, "is the position class")
                             operations.append(Operation(instruction.pos,
                                                         "write", type="position",
                                                         field=field))
                         else:
-                            raise Exception("Unexpected type: " + arg_type)
+                            # Unknown type in packetbuffer; try inlining it as well
+                            # (on the assumption that it's something made of a few calls,
+                            # and not e.g. writeVarInt)
+                            if verbose:
+                                print("Inlining code for", arg_type)
+                            operations += _PIT.sub_operations(
+                                classloader, cf, classes, instruction, verbose, operands[0],
+                                [obj] + arguments if not is_static else arguments
+                            )
                     elif num_arguments == 2:
                         if arg_type == "java/lang/String" and descriptor.args[1].name == "int":
                             max_length = arguments[1] # not using this at the time
@@ -312,9 +322,9 @@ class PacketInstructionsTopping(Topping):
                             raise Exception("Unexpected descriptor " + desc)
                     else:
                         raise Exception("Unexpected num_arguments: " + str(num_arguments) + " - desc " + desc)
-                    # Return the buffer back to the stack.
-                    assert descriptor.returns.name == classes["packet.packetbuffer"]
-                    stack.append(obj)
+                    # Return the buffer back to the stack, if needed
+                    if descriptor.returns.name == classes["packet.packetbuffer"]:
+                        stack.append(obj)
                 elif name == "<init>":
                     # Constructor call.  Should have the instance right
                     # on the stack as well (due to constructors returning void).

@@ -86,19 +86,39 @@ class WalkerCallback(ABC):
         """
         pass
 
+    def on_invokedynamic(self, ins, const):
+        """
+        Called for an invokedynamic instruction.
+
+        ins: The instruction
+        const: The constant, a InvokeDynamic
+
+        return value: what to put on the stack
+        """
+        raise Exception("Unexpected invokedynamic: %s" % str(ins))
+
 def walk_method(cf, method, callback, verbose):
     assert isinstance(callback, WalkerCallback)
 
     stack = []
     locals = {}
+    # TODO: Allow passing argument values in or something like that
+    cur_index = 0
+    if not method.access_flags.acc_static:
+        locals[cur_index] = object()
+        cur_index += 1
+    for arg in method.args:
+        locals[cur_index] = object()
+        cur_index += 1
+
     for ins in method.code.disassemble():
         if ins in ("bipush", "sipush"):
             stack.append(ins.operands[0].value)
-        elif ins.mnemonic.startswith("fconst"):
+        elif ins.mnemonic.startswith("fconst") or ins.mnemonic.startswith("dconst"):
             stack.append(float(ins.mnemonic[-1]))
         elif ins == "aconst_null":
             stack.append(None)
-        elif ins in ("ldc", "ldc_w"):
+        elif ins in ("ldc", "ldc_w", "ldc2_w"):
             const = ins.operands[0]
 
             if isinstance(const, ConstantClass):
@@ -164,6 +184,22 @@ def walk_method(cf, method, callback, verbose):
             stack.append(locals[ins.operands[0].value])
         elif ins == "dup":
             stack.append(stack[-1])
+        elif ins == "pop":
+            stack.pop()
+        elif ins == "anewarray":
+            stack.append([None] * stack.pop())
+        elif ins == "newarray":
+            stack.append([0] * stack.pop())
+        elif ins in ("aastore", "iastore", "fastore"):
+            value = stack.pop()
+            index = stack.pop()
+            array = stack.pop()
+            if isinstance(array, list) and isinstance(index, int):
+                array[index] = value
+            elif verbose:
+                print("Failed to execute %s: array %s index %s value %s" % (ins, array, index, value))
+        elif ins == "invokedynamic":
+            stack.append(callback.on_invokedynamic(ins, ins.operands[0]))
         elif ins in ("checkcast", "return"):
             pass
         elif verbose:

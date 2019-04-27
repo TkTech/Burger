@@ -128,20 +128,19 @@ class RecipesTopping(Topping):
                         data = json.load(fin)
 
                     assert "type" in data
+                    recipe_type = data["type"]
+                    if recipe_type.startswith("minecraft:"):
+                        recipe_type = recipe_type[len("minecraft:"):]
+
+                    if recipe_type not in ("crafting_shaped", "crafting_shapeless"):
+                        # We only care about regular recipes, not furnace/loom/whatever ones.
+                        continue
 
                     recipe = {}
                     recipe["id"] = recipe_id # new for 1.12, but used ingame
 
                     if "group" in data:
                         recipe["group"] = data["group"]
-
-                    if data["type"] not in ("crafting_shaped", "crafting_shapeless"):
-                        if data["type"] == "smelting":
-                            # Just not yet implemented
-                            continue
-                        if verbose:
-                            print("Unrecognized recipe type %s for %s" % (data["type"], recipe_id))
-                        continue
 
 
                     assert "result" in data
@@ -151,7 +150,7 @@ class RecipesTopping(Topping):
 
                     matching_recipes = [recipe]
 
-                    if data["type"] == "crafting_shapeless":
+                    if recipe_type == "crafting_shapeless":
                         recipe["type"] = 'shapeless'
 
                         assert "ingredients" in data
@@ -170,7 +169,7 @@ class RecipesTopping(Topping):
                             else:
                                 for recipe_choice in matching_recipes:
                                     recipe_choice["ingredients"].append(item)
-                    elif data["type"] == "crafting_shaped":
+                    elif recipe_type == "crafting_shaped":
                         recipe["type"] = 'shape'
 
                         assert "pattern" in data

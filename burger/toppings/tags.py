@@ -28,3 +28,35 @@ class TagsTopping(Topping):
             data["type"] = type
             data["name"] = name
             tags[key] = data
+
+        # Tags can reference other tags -- flatten that out.
+        flattening = set()
+        flattened = set()
+        def flatten_tag(name):
+            if name in flattening:
+                if verbose:
+                    print("Already flattening " + name + " -- is there a cycle?", flattening)
+                return
+            if name in flattened:
+                return
+
+            flattening.add(name)
+
+            tag = tags[name]
+            values = tag["values"]
+            new_values = []
+            for entry in values:
+                if entry.startswith("#"):
+                    assert entry.startswith("#minecraft:")
+                    referenced_tag_name = tag["type"] + "/" + entry[len("#minecraft:"):]
+                    flatten_tag(referenced_tag_name)
+                    new_values.extend(tags[referenced_tag_name]["values"])
+                else:
+                    new_values.append(entry)
+            tag["values"] = new_values
+
+            flattening.discard(name)
+            flattened.add(name)
+
+        for name in tags:
+            flatten_tag(name)

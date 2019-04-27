@@ -20,18 +20,25 @@ class TileEntityTopping(Topping):
 
     DEPENDS = [
         "identify.tileentity.superclass",
-        "identify.tileentity.blockentitytag",
-        "packets.classes"
+        "identify.block.superclass",
+        "packets.classes",
+        "blocks"
     ]
 
     @staticmethod
     def act(aggregate, classloader, verbose=False):
-        te = aggregate.setdefault("tileentity", {})
-
         if "tileentity.superclass" not in aggregate["classes"]:
             if verbose:
                 print("Missing tileentity.superclass")
             return
+
+        TileEntityTopping.identify_block_entities(aggregate, classloader, verbose)
+        TileEntityTopping.identify_associated_blocks(aggregate, classloader, verbose)
+        TileEntityTopping.identify_network_ids(aggregate, classloader, verbose)
+
+    @staticmethod
+    def identify_block_entities(aggregate, classloader, verbose):
+        te = aggregate.setdefault("tileentity", {})
 
         superclass = aggregate["classes"]["tileentity.superclass"]
         cf = classloader[superclass]
@@ -41,14 +48,12 @@ class TileEntityTopping(Topping):
         if cf.constants.find_one(String, lambda c: c.string.value in ('daylight_detector', 'DLDetector')):
             # Yes, it is
             listclass = superclass
-            has_separate_list =-False
         else:
             # It isn't, but we can figure it out by looking at the constructor's only parameter.
             method = cf.methods.find_one(name="<init>")
             assert len(method.args) == 1
             listclass = method.args[0].name
             cf = classloader[listclass]
-            has_separate_list = True
 
         aggregate["classes"]["tileentity.list"] = listclass
 
@@ -75,58 +80,82 @@ class TileEntityTopping(Topping):
                     te_classes[tmp["class"]] = tmp["name"]
                     tmp = {}
 
-        if "tileentity.blockentitytag" in aggregate["classes"]:
-            # Block entity tag matches block names to tile entities.
-            tag = aggregate["classes"]["tileentity.blockentitytag"]
-            tag_cf = classloader[tag]
-            method = tag_cf.methods.find_one(name="<clinit>")
+    @staticmethod
+    def identify_associated_blocks(aggregate, classloader, verbose):
+        te = aggregate["tileentity"]
+        tileentities = te["tileentities"]
+        te_classes = te["classes"]
 
-            stack = []
+        blocks = aggregate["blocks"]["block"]
+        # Brewing stands are a fairly simple block entity with a clear hierarchy
+        brewing_stand = blocks["brewing_stand"]
+        cf = classloader[brewing_stand["class"]]
 
-            # There may be two fields, one for old/new name and one item/name.
-            # Or there may just be item/name.
-            num_maps = len(list(tag_cf.fields.find(type_="Ljava/util/Map;")))
-            assert num_maps in (1, 2)
+        blockcontainer = cf.super_.name.value
+        cf = classloader[blockcontainer]
+        assert len(cf.interfaces) == 1
 
-            num_getstatic = 0
-            for ins in method.code.disassemble():
-                if ins == "getstatic":
-                    num_getstatic += 1
-                    assert num_getstatic <= num_maps
-                elif ins in ("ldc", "ldc_w") and num_getstatic != 0:
+        tileentityprovider = cf.interfaces[0].name.value
+        cf = classloader[tileentityprovider]
+        methods = list(cf.methods.find())
+        assert len(methods) == 1
+        create_te_name = methods[0].name.value
+        create_te_desc = methods[0].descriptor.value
+
+        has_be_by_class = {}
+        has_be_by_class[blockcontainer] = True
+        has_be_by_class[aggregate["classes"]["block.superclass"]] = False
+
+        def has_be(cls):
+            if cls in has_be_by_class:
+                return has_be_by_class[cls]
+
+            cf = classloader[cls]
+
+            if has_be(cf.super_.name.value):
+                has_be_by_class[cls] = True
+                return True
+
+            for interface in cf.interfaces:
+                # Final case: if it implements the interface but doesn't directly
+                # extend BlockContainer, it's still a TE
+                if interface.name.value == tileentityprovider:
+                    has_be_by_class[cls] = True
+                    return True
+
+            return False
+
+        blocks_with_be = []
+
+        for block in six.itervalues(blocks):
+            if has_be(block["class"]):
+                blocks_with_be.append(block)
+
+        # OK, we've identified all blocks that have block entities...
+        # now figure out which one each one actually has
+        for block in blocks_with_be:
+            # Find the createNewTileEntity method.
+            # However, it might actually be in a parent class, so loop until it's found
+            cls = block["class"]
+            create_te = None
+            while not create_te:
+                cf = classloader[cls]
+                cls = cf.super_.name.value
+                create_te = cf.methods.find_one(f=lambda m: m.name == create_te_name and m.descriptor == create_te_desc)
+
+            for ins in create_te.code.disassemble():
+                if ins.mnemonic == "new":
                     const = ins.operands[0]
-                    if isinstance(const, String):
-                        stack.append(const.string.value)
-                elif ins == "invokeinterface":
-                    if len(stack) != 2:
-                        if verbose:
-                            print("Unexpected stack length for BETag:", stack)
-                        stack = []
-                        continue
+                    te_name = te_classes[const.name.value]
+                    block["block_entity"] = te_name
+                    tileentities[te_name]["blocks"].append(block["text_id"])
+                    break
 
-                    entity_id = stack.pop()
-                    block_id = stack.pop()
-                    if entity_id.startswith("minecraft:"):
-                        entity_id = entity_id[len("minecraft:"):]
-
-                    if num_getstatic == num_maps:
-                        # The last map is the block name to block entity map
-                        if not entity_id in tileentities:
-                            if verbose:
-                                # This does currently happen in 1.9
-                                print ("Trying to mark %s as a block with "
-                                       "tile entity %s but that tile entity "
-                                       "does not exist!"
-                                       % (block_id, entity_id))
-                        else:
-                            tileentities[entity_id]["blocks"].append(block_id)
-                    else:
-                        # The other map has block name to _old_ block entity
-                        # name.  But we don't want that (burger currently
-                        # doesn't track the old block entity name).
-                        pass
-        elif verbose:
-            print("No block entity tag info; skipping that")
+    @staticmethod
+    def identify_network_ids(aggregate, classloader, verbose):
+        te = aggregate["tileentity"]
+        tileentities = te["tileentities"]
+        te_classes = te["classes"]
 
         nbt_tag_type = "L" + aggregate["classes"]["nbtcompound"] + ";"
         if "nethandler.client" in aggregate["classes"]:
@@ -143,7 +172,7 @@ class TileEntityTopping(Topping):
                         # Tile entity type int, at least (maybe also position)
                         len(list(packet_cf.fields.find(type_="I"))) >= 1 and
                         # New NBT tag
-                        len(list(packet_cf.fields.find(type_=nbt_tag_type)))):
+                        len(list(packet_cf.fields.find(type_=nbt_tag_type))) >= 1):
                     # There are other fields, but they vary by version.
                     updatepacket = packet
                     break

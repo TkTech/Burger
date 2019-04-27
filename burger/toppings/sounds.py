@@ -70,6 +70,13 @@ class SoundTopping(Topping):
     @staticmethod
     def act(aggregate, classloader, verbose=False):
         sounds = aggregate.setdefault('sounds', {})
+
+        if 'sounds.event' not in aggregate["classes"]:
+            # 1.8 - TODO implement this for 1.8
+            if verbose:
+                print("Not enough information to run sounds topping; missing sounds.event")
+            return
+
         try:
             version_meta = website.get_version_meta(aggregate["version"]["name"], verbose)
         except Exception as e:
@@ -92,15 +99,11 @@ class SoundTopping(Topping):
                 traceback.print_exc()
             return
 
-        if not 'sounds.list' in aggregate["classes"]:
-            # 1.8 - TODO implement this for 1.8
-            return
-
         soundevent = aggregate["classes"]["sounds.event"]
         cf = classloader[soundevent]
 
         # Find the static sound registration method
-        method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
+        method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_static)
 
         sound_name = None
         sound_id = 0

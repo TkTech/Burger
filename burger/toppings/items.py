@@ -33,13 +33,14 @@ import six
 class ItemsTopping(Topping):
     """Provides some information on most available items."""
     PROVIDES = [
+        "identify.item.superclass",
         "items"
     ]
 
     DEPENDS = [
         "identify.block.superclass",
         "identify.block.list",
-        "identify.item.superclass",
+        "identify.item.register",
         "identify.item.list",
         "language",
         "blocks",
@@ -49,7 +50,11 @@ class ItemsTopping(Topping):
 
     @staticmethod
     def act(aggregate, classloader, verbose=False):
-        if "data" in aggregate["version"] and aggregate["version"]["data"] >= 1461: # 18w02a
+        data_version = aggregate["version"]["data"] if "data" in aggregate["version"] else -1
+        if data_version >= 1901: # 18w43a
+            ItemsTopping._process_1point14(aggregate, classloader, verbose)
+            return # This also adds classes
+        elif data_version >= 1461: # 18w02a
             ItemsTopping._process_1point13(aggregate, classloader, verbose)
         else:
             ItemsTopping._process_1point12(aggregate, classloader, verbose)
@@ -79,9 +84,188 @@ class ItemsTopping(Topping):
                 item_fields[field] = item_name
 
     @staticmethod
+    def _process_1point14(aggregate, classloader, verbose):
+        # Handles versions after 1.14 (specifically >= 18w43a)
+        # All of the registration happens in the list class in this version.
+        listclass = aggregate["classes"]["item.list"]
+        lcf = classloader[listclass]
+        superclass = next(lcf.fields.find()).type.name # The first field in the list class is an item
+        cf = classloader[superclass]
+        aggregate["classes"]["item.superclass"] = superclass
+        blockclass = aggregate["classes"]["block.superclass"]
+        blocklist = aggregate["classes"]["block.list"]
+
+        cf = classloader[superclass]
+
+        if "item" in aggregate["language"]:
+            language = aggregate["language"]["item"]
+        else:
+            language = None
+
+        # Figure out what the builder class is
+        ctor = cf.methods.find_one(name="<init>")
+        builder_class = ctor.args[0].name
+        builder_cf = classloader[builder_class]
+
+        # Find the max stack size method
+        max_stack_method = None
+        for method in builder_cf.methods.find(args='I'):
+            for ins in method.code.disassemble():
+                if ins.mnemonic in ("ldc", "ldc_w"):
+                    const = ins.operands[0]
+                    if isinstance(const, String) and const.string.value == "Unable to have damage AND stack.":
+                        max_stack_method = method
+                        break
+        if not max_stack_method:
+            raise Exception("Couldn't find max stack size setter in " + builder_class)
+
+        register_item_block_method = lcf.methods.find_one(args='L' + blockclass + ';', returns='L' + superclass + ';')
+        item_block_class = None
+        # Find the class used that represents an item that is a block
+        for ins in register_item_block_method.code.disassemble():
+            if ins.mnemonic == "new":
+                const = ins.operands[0]
+                item_block_class = const.name.value
+                break
+
+        items = aggregate.setdefault("items", {})
+        item_list = items.setdefault("item", {})
+        item_fields = items.setdefault("item_fields", {})
+
+        is_item_class_cache = {superclass: True}
+        def is_item_class(name):
+            if name in is_item_class_cache:
+                return is_item_class_cache
+            elif name == 'java/lang/Object':
+                return True
+            elif '/' in name:
+                return False
+
+            cf = classloader[name]
+            result = is_item_class(cf.super_.name.value)
+            is_item_class_cache[name] = result
+            return result
+        # Find the static block registration method
+        method = lcf.methods.find_one(name='<clinit>')
+
+        class Walker(WalkerCallback):
+            def __init__(self):
+                self.cur_id = 0
+
+            def on_new(self, ins, const):
+                class_name = const.name.value
+                return {"class": class_name}
+
+            def on_invoke(self, ins, const, obj, args):
+                method_name = const.name_and_type.name.value
+                method_desc = const.name_and_type.descriptor.value
+                desc = method_descriptor(method_desc)
+
+                if ins.mnemonic == "invokestatic":
+                    if const.class_.name.value == listclass:
+                        current_item = {}
+
+                        text_id = None
+                        idx = 0
+                        for arg in desc.args:
+                            if arg.name == blockclass:
+                                block = args[idx]
+                                text_id = block["text_id"]
+                                if "name" in block:
+                                    current_item["name"] = block["name"]
+                                if "display_name" in block:
+                                    current_item["display_name"] = block["display_name"]
+                            elif arg.name == superclass:
+                                current_item.update(args[idx])
+                            elif arg.name == item_block_class:
+                                current_item.update(args[idx])
+                                text_id = current_item["text_id"]
+                            elif arg.name == "java/lang/String":
+                                text_id = args[idx]
+                            idx += 1
+
+                        if current_item == {} and not text_id:
+                            if verbose:
+                                print("Couldn't find any identifying information for the call to %s with %s" % (method_desc, args))
+                            return
+
+                        if not text_id:
+                            if verbose:
+                                print("Could not find text_id for call to %s with %s" % (method_desc, args))
+                            return
+
+                        # Call to the static register method.
+                        current_item["text_id"] = text_id
+                        current_item["numeric_id"] = self.cur_id
+                        self.cur_id += 1
+                        lang_key = "minecraft.%s" % text_id
+                        if language != None and lang_key in language:
+                            current_item["display_name"] = language[lang_key]
+                        if "max_stack_size" not in current_item:
+                            current_item["max_stack_size"] = 64
+                        item_list[text_id] = current_item
+
+                        return current_item
+                else:
+                    if method_name == "<init>":
+                        # Call to a constructor.  Check if the builder is in the args,
+                        # and if so update the item with it
+                        idx = 0
+                        for arg in desc.args:
+                            if arg.name == builder_class:
+                                # Update from the builder
+                                if "max_stack_size" in args[idx]:
+                                    obj["max_stack_size"] = args[idx]["max_stack_size"]
+                            elif arg.name == blockclass and "text_id" not in obj:
+                                block = args[idx]
+                                obj["text_id"] = block["text_id"]
+                                if "name" in block:
+                                    obj["name"] = block["name"]
+                                if "display_name" in block:
+                                    obj["display_name"] = block["display_name"]
+                            idx += 1
+                    elif method_name == max_stack_method.name.value and method_desc == max_stack_method.descriptor.value:
+                        obj["max_stack_size"] = args[0]
+
+                if desc.returns.name != "void":
+                    if desc.returns.name == builder_class or is_item_class(desc.returns.name):
+                        if ins.mnemonic == "invokestatic":
+                            # Probably returning itself, but through a synthetic method
+                            return args[0]
+                        else:
+                            # Probably returning itself
+                            return obj
+                    else:
+                        return object()
+
+            def on_get_field(self, ins, const, obj):
+                if const.class_.name.value == blocklist:
+                    # Getting a block; put it on the stack.
+                    block_name = aggregate["blocks"]["block_fields"][const.name_and_type.name.value]
+                    if block_name not in aggregate["blocks"]["block"]:
+                        if verbose:
+                            print("No information available for item-block for %s/%s" % (const.name_and_type.name.value, block_name))
+                        return {}
+                    else:
+                        return aggregate["blocks"]["block"][block_name]
+                elif const.class_.name.value == listclass:
+                    return item_list[item_fields[const.name_and_type.name.value]]
+                else:
+                    return const
+
+            def on_put_field(self, ins, const, obj, value):
+                if isinstance(value, dict):
+                    field = const.name_and_type.name.value
+                    value["field"] = field
+                    item_fields[const.name_and_type.name.value] = value["text_id"]
+
+        walk_method(cf, method, Walker(), verbose)
+
+    @staticmethod
     def _process_1point13(aggregate, classloader, verbose):
         # Handles versions after 1.13 (specifically >= 18w02a)
-        superclass = aggregate["classes"]["item.superclass"]
+        superclass = aggregate["classes"]["item.register"]
+        aggregate["classes"]["item.superclass"] = superclass
         blockclass = aggregate["classes"]["block.superclass"]
         blocklist = aggregate["classes"]["block.list"]
 
@@ -245,7 +429,8 @@ class ItemsTopping(Topping):
 
     @staticmethod
     def _process_1point12(aggregate, classloader, verbose):
-        superclass = aggregate["classes"]["item.superclass"]
+        superclass = aggregate["classes"]["item.register"]
+        aggregate["classes"]["item.superclass"] = superclass
         blockclass = aggregate["classes"]["block.superclass"]
         blocklist = aggregate["classes"]["block.list"]
 
