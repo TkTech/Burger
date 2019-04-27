@@ -33,11 +33,12 @@ import traceback
 MATCHES = (
     (['Accessed Biomes before Bootstrap!'], 'biome.list'),  # 1.9 only
     ((['Ice Plains', 'mutated_ice_flats', 'ice_spikes'], True), 'biome.superclass'),
-    (['Accessed Blocks before Bootstrap!'], 'block.list'),
+    (['Accessed Blocks before Bootstrap!', 'red_nether_brick_slab'], 'block.list'),
     (['lightgem', 'Block{'], 'block.superclass'),
     (['Skipping Entity with id'], 'entity.list'),
+    (['water_creature'], 'entity.packet.list'),
     (['Fetching addPacket for removed entity'], 'entity.trackerentry'),
-    (['Accessed Items before Bootstrap!'], 'item.list'),
+    ((['ocelot_spawn_egg'], True), 'item.list'), #'Accessed Items before Bootstrap!', 
     (['yellowDust', 'CB3F55D3-645C-4F38-A497-9C13A33DB5CF'], 'item.superclass'),
     (['#%04d/%d%s', 'attribute.modifier.equals.'], 'itemstack'),
     (['disconnect.lost'], 'nethandler.client'),
@@ -52,7 +53,7 @@ MATCHES = (
     ),
     (['Data value id is too big'], 'metadata'),
     (['X#X'], 'recipe.superclass'),
-    (['Accessed Sounds before Bootstrap!'], 'sounds.list'),
+    (['ambient.cave'], 'sounds.list'),
     (['Skipping BlockEntity with id '], 'tileentity.superclass'),
     (
         ['Unable to resolve BlockEntity for ItemInstance:',
@@ -200,7 +201,8 @@ class IdentifyTopping(Topping):
         "identify.sounds.event",
         "identify.sounds.list",
         "identify.tileentity.superclass",
-        "identify.tileentity.blockentitytag"
+        "identify.tileentity.blockentitytag",
+        "identify.entity.packet.list"
     ]
 
     DEPENDS = []

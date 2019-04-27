@@ -54,38 +54,16 @@ class ItemsTopping(Topping):
         else:
             ItemsTopping._process_1point12(aggregate, classloader, verbose)
 
-        item_list = aggregate["items"]["item"]
-        item_fields = aggregate["items"].setdefault("item_fields", {})
-
-        # Go through the item list and add the field info.
-        list = aggregate["classes"]["item.list"]
-        lcf = classloader[list]
-
-        # Find the static block, and load the fields for each.
-        method = lcf.methods.find_one(name="<clinit>")
-        item_name = ""
-        for ins in method.code.disassemble():
-            if ins in ("ldc", "ldc_w"):
-                const = ins.operands[0]
-                if isinstance(const, String):
-                    item_name = const.string.value
-            elif ins == "putstatic":
-                const = ins.operands[0]
-                field = const.name_and_type.name.value
-                if item_name in item_list:
-                    item_list[item_name]["field"] = field
-                elif verbose:
-                    print("Cannot find an item matching %s for field %s" % (item_name, field))
-                item_fields[field] = item_name
-
     @staticmethod
     def _process_1point13(aggregate, classloader, verbose):
         # Handles versions after 1.13 (specifically >= 18w02a)
         superclass = aggregate["classes"]["item.superclass"]
         blockclass = aggregate["classes"]["block.superclass"]
         blocklist = aggregate["classes"]["block.list"]
+        itemlist = aggregate["classes"]["item.list"]
 
         cf = classloader[superclass]
+        itemlist_class = classloader[itemlist]
 
         if "item" in aggregate["language"]:
             language = aggregate["language"]["item"]
@@ -109,7 +87,7 @@ class ItemsTopping(Topping):
         if not max_stack_method:
             raise Exception("Couldn't find max stack size setter in " + builder_class)
 
-        register_item_block_method = cf.methods.find_one(args='L' + blockclass + ';', returns="V")
+        register_item_block_method = itemlist_class.methods.find_one(args='L' + blockclass + ';', returns="L" + superclass + ";")
         item_block_class = None
         # Find the class used that represents an item that is a block
         for ins in register_item_block_method.code.disassemble():
@@ -120,6 +98,8 @@ class ItemsTopping(Topping):
 
         items = aggregate.setdefault("items", {})
         item_list = items.setdefault("item", {})
+        item_fields = items.setdefault("item_fields", {})
+        reflected_items = {}
 
         is_item_class_cache = {superclass: True}
         def is_item_class(name):
@@ -135,7 +115,7 @@ class ItemsTopping(Topping):
             is_item_class_cache[name] = result
             return result
         # Find the static block registration method
-        method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
+        method = itemlist_class.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_static)
 
         class Walker(WalkerCallback):
             def __init__(self):
@@ -151,7 +131,7 @@ class ItemsTopping(Topping):
                 desc = method_descriptor(method_desc)
 
                 if ins == "invokestatic":
-                    if const.class_.name == superclass:
+                    if const.class_.name == itemlist:
                         current_item = {}
 
                         text_id = None
@@ -193,6 +173,7 @@ class ItemsTopping(Topping):
                         if "max_stack_size" not in current_item:
                             current_item["max_stack_size"] = 64
                         item_list[text_id] = current_item
+                        return text_id
                 else:
                     if method_name == "<init>":
                         # Call to a constructor.  Check if the builder is in the args,
@@ -235,11 +216,17 @@ class ItemsTopping(Topping):
                         return {}
                     else:
                         return aggregate["blocks"]["block"][block_name]
+                elif const.class_.name == itemlist:
+                    item_list[reflected_items[const.name_and_type.name.value]]
                 else:
                     return const
 
             def on_put_field(self, ins, const, obj, value):
-                raise Exception("unexpected putfield: %s" % ins)
+                if ins == "putstatic":
+                    item_list[value]["field"] = const.name_and_type.name.value
+                    item_fields[const.name_and_type.name.value] = value
+                    reflected_items[const.name_and_type.name.value] = value
+                return
 
         walk_method(cf, method, Walker(), verbose)
 

@@ -63,6 +63,8 @@ class RecipesTopping(Topping):
         recipes = aggregate.setdefault("recipes", {})
 
         for recipe in recipe_list:
+            if "makes" not in recipe:
+                continue
             makes = recipe['makes']['name']
 
             recipes_for_item = recipes.setdefault(makes, [])
@@ -92,6 +94,8 @@ class RecipesTopping(Topping):
                     tag = blob["tag"]
                     if tag.startswith("minecraft:"):
                         tag = tag[len("minecraft:"):]
+                    elif tag.startswith("#minecraft:"):
+                        tag = tag[len("#minecraft:"):-1]
                     for id in aggregate["tags"]["items/" + tag]["values"]:
                         res.append(parse_item({"item": id}))
                     return res
@@ -107,7 +111,8 @@ class RecipesTopping(Topping):
             id = blob["item"]
             if id.startswith("minecraft:"):
                 id = id[len("minecraft:"):] # TODO: In the future, we don't want to strip namespaces
-
+            elif id.startswith("#minecraft:"): # seems to imply a false plural related to tags having this plural
+                id = id[len("#minecraft:"):-1]
             if verbose and id not in aggregate["items"]["item"]:
                 print("A recipe references item %s but that doesn't exist" % id)
 
@@ -135,23 +140,30 @@ class RecipesTopping(Topping):
                     if "group" in data:
                         recipe["group"] = data["group"]
 
-                    if data["type"] not in ("crafting_shaped", "crafting_shapeless"):
-                        if data["type"] == "smelting":
-                            # Just not yet implemented
-                            continue
+                    if data["type"] not in ("minecraft:crafting_shaped", "minecraft:crafting_shapeless", "minecraft:smelting", "minecraft:smoking", "minecraft:blasting", "minecraft:campfire_cooking", "minecraft:stonecutting") and not data["type"].startswith("minecraft:crafting_special"):
                         if verbose:
                             print("Unrecognized recipe type %s for %s" % (data["type"], recipe_id))
                         continue
 
+                    if data["type"].startswith("minecraft:crafting_special"):
+                        recipe["type"] = data["type"][len("minecraft:"):]
+                        recipes.extend([recipe])
+                        continue
 
                     assert "result" in data
-                    recipe["makes"] = parse_item(data["result"], False)
+                    result = data["result"]
+                    if isinstance(result, str):
+                        result = {"item": result}
+                        if "count" in data:
+                            result["count"] = data["count"]
+
+                    recipe["makes"] = parse_item(result, False)
                     if "count" not in recipe["makes"]:
                         recipe["makes"]["count"] = 1 # default, TODO should we keep specifying this?
 
                     matching_recipes = [recipe]
 
-                    if data["type"] == "crafting_shapeless":
+                    if data["type"] == "minecraft:crafting_shapeless":
                         recipe["type"] = 'shapeless'
 
                         assert "ingredients" in data
@@ -170,7 +182,7 @@ class RecipesTopping(Topping):
                             else:
                                 for recipe_choice in matching_recipes:
                                     recipe_choice["ingredients"].append(item)
-                    elif data["type"] == "crafting_shaped":
+                    elif data["type"] == "minecraft:crafting_shaped":
                         recipe["type"] = 'shape'
 
                         assert "pattern" in data
@@ -206,6 +218,23 @@ class RecipesTopping(Topping):
                                         shape_row.append(None)
                                 shape.append(shape_row)
                             recipe_choice["shape"] = shape
+                    elif data["type"] == "minecraft:smelting" or data["type"] == "minecraft:smoking" or data["type"] == "minecraft:blasting" or data["type"] == "minecraft:campfire_cooking":
+                        recipe["type"] = data["type"][len("minecraft:")]
+
+                        assert "ingredient" in data
+                        assert "experience" in data
+                        assert "cookingtime" in data
+
+                        recipe["ingredient"] = parse_item(data["ingredient"])
+                        
+                        recipe["experience"] = data["experience"]
+                        recipe["cookingtime"] = data["cookingtime"]
+                    elif data["type"] == "minecraft:stonecutting":
+                        recipe["type"] = 'stonecutting'
+
+                        assert "ingredient" in data
+
+                        recipe["ingredient"] = parse_item(data["ingredient"])
 
                     recipes.extend(matching_recipes)
                 except Exception as e:
@@ -415,7 +444,7 @@ class RecipesTopping(Topping):
                         recipe_data['shape'] = shape
                     else:
                         # Shapeless
-                        recipe_data['type'] = 'shapeless'
+                        recipe_data['type'] = 'minecraft:shapeless'
                         recipe_data['makes'] = crafted_item
                         recipe_data['ingredients'] = array
 

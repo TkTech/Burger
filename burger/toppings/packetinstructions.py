@@ -313,7 +313,9 @@ class PacketInstructionsTopping(Topping):
                     else:
                         raise Exception("Unexpected num_arguments: " + str(num_arguments) + " - desc " + desc)
                     # Return the buffer back to the stack.
-                    assert descriptor.returns.name == classes["packet.packetbuffer"]
+
+                    # assertion no longer valid in 1.14 it appears
+                    # assert descriptor.returns.name == classes["packet.packetbuffer"]
                     stack.append(obj)
                 elif name == "<init>":
                     # Constructor call.  Should have the instance right

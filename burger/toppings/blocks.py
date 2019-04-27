@@ -85,6 +85,8 @@ class BlocksTopping(Topping):
         # Handles versions after 1.13 (specifically >= 18w02a)
         superclass = aggregate["classes"]["block.superclass"]
         cf = classloader[superclass]
+        block_list_name = aggregate["classes"]["block.list"]
+        block_list = classloader[block_list_name]
 
         if "block" in aggregate["language"]:
             language = aggregate["language"]["block"]
@@ -126,9 +128,9 @@ class BlocksTopping(Topping):
         blocks = aggregate.setdefault("blocks", {})
         block = blocks.setdefault("block", {})
         ordered_blocks = blocks.setdefault("ordered_blocks", [])
-
+        reflected_blocks = {}
         # Find the static block registration method
-        method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
+        method = block_list.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_static)
 
         class Walker(WalkerCallback):
             def __init__(self):
@@ -142,9 +144,8 @@ class BlocksTopping(Topping):
                 method_name = const.name_and_type.name.value
                 method_desc = const.name_and_type.descriptor.value
                 desc = method_descriptor(method_desc)
-
                 if ins == "invokestatic":
-                    if const.class_.name == superclass:
+                    if const.class_.name == block_list_name:
                         # Call to the static register method.
                         text_id = args[0]
                         current_block = args[1]
@@ -156,6 +157,7 @@ class BlocksTopping(Topping):
                             current_block["display_name"] = language[lang_key]
                         block[text_id] = current_block
                         ordered_blocks.append(text_id)
+                        return text_id
                     elif const.class_.name == builder_class:
                         if desc.args[0].name == superclass: # Copy constructor
                             copy = dict(args[0])
@@ -203,11 +205,15 @@ class BlocksTopping(Topping):
                 if const.class_.name == superclass:
                     # Probably getting the static AIR resource location
                     return "air"
+                elif const.class_.name == block_list_name: # clone
+                    return block[reflected_blocks[const.name_and_type.name.value]]
                 else:
                     return object()
 
             def on_put_field(self, ins, const, obj, value):
-                raise Exception("unexpected putfield: %s" % ins)
+                if ins == "putstatic":
+                    reflected_blocks[const.name_and_type.name.value] = value
+                return
 
         walk_method(cf, method, Walker(), verbose)
 

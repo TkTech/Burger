@@ -24,6 +24,8 @@ from .topping import Topping
 
 from jawa.constants import *
 
+import json
+
 class VersionTopping(Topping):
     """Provides the protocol version."""
 
@@ -42,12 +44,30 @@ class VersionTopping(Topping):
 
     @staticmethod
     def act(aggregate, classloader, verbose=False):
-        VersionTopping.get_protocol_version(aggregate, classloader, verbose)
-        VersionTopping.get_data_version(aggregate, classloader, verbose)
+        versions = aggregate.setdefault("version", {})
+        try:
+            version_data=""
+            with classloader.open("version.json") as jsonf:
+                version_data = jsonf.read().decode("utf-8")
+            version_json = json.loads(version_data)
+            VersionTopping.load_version_json(aggregate, version_json)
+        except FileNotFoundError:
+            VersionTopping.get_protocol_version(aggregate, classloader, verbose)
+            VersionTopping.get_data_version(aggregate, classloader, verbose)
+        VersionTopping.get_entity_format(aggregate)
+
+    # Example `json` from 1.14: {'id': '1.14 / 5dac5567e13e46bdb0c1d90aa8d8b3f7', 'name': '1.14', 'release_target': '1.14', 'world_version': 1952, 'protocol_version': 477, 'pack_version': 4, 'build_time': '2019-04-23T14:51:09+00:00', 'stable': False}
+
+    @staticmethod
+    def load_version_json(aggregate, json):
+        versions = aggregate["version"]
+        versions["protocol"] = json["protocol_version"]
+        versions["name"] = json["name"]
+        versions["data"] = json["world_version"]
 
     @staticmethod
     def get_protocol_version(aggregate, classloader, verbose):
-        versions = aggregate.setdefault("version", {})
+        versions = aggregate["version"]
         if "nethandler.server" in aggregate["classes"]:
             nethandler = aggregate["classes"]["nethandler.server"]
             cf = classloader[nethandler]
@@ -61,7 +81,6 @@ class VersionTopping(Topping):
                         constant = instr.operands[0]
                         if isinstance(constant, String):
                             str = constant.string.value
-
                             if "multiplayer.disconnect.outdated_client" in str:
                                 versions["protocol"] = version
                                 looking_for_version_name = True
@@ -115,6 +134,8 @@ class VersionTopping(Topping):
         elif verbose:
             print("Unable to determine data version")
 
+    @staticmethod
+    def get_entity_format(aggregate):
         if "data" in aggregate["version"]:
             data_version = aggregate["version"]["data"]
             # Versions after 17w46a (1449) are flattened

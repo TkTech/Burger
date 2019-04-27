@@ -38,6 +38,7 @@ class EntityTopping(Topping):
 
     DEPENDS = [
         "identify.entity.list",
+        "identify.entity.packet.list",
         "version.entity_format",
         "language"
     ]
@@ -78,6 +79,20 @@ class EntityTopping(Topping):
         if verbose:
             print("Using 1.13 entity format")
 
+        packet_map = {}
+
+        packettype_class = aggregate["classes"]["entity.packet.list"]
+        packettype = classloader[packettype_class]
+        method = packettype.methods.find_one(name="<clinit>")
+        current_packet_name = ""
+        for ins in method.code.disassemble():
+            if ins in ("ldc", "ldc_w"):
+                current_packet_name = ins.operands[0].string.value
+            elif ins == "putstatic":
+                packet_map[ins.operands[0].name_and_type.name.value] = current_packet_name
+            elif ins == "anewarray":
+                break
+            
         superclass = aggregate["classes"]["entity.list"]
         cf = classloader[superclass]
 
@@ -88,6 +103,7 @@ class EntityTopping(Topping):
 
         stack = []
         numeric_id = 0
+        current_packet = ""
         for ins in method.code.disassemble():
             if ins in ("ldc", "ldc_w"):
                 const = ins.operands[0]
@@ -97,6 +113,9 @@ class EntityTopping(Topping):
                     stack.append(const.string.value)
             elif ins == "invokedynamic":
                 stack.append(class_from_invokedynamic(ins, cf))
+            elif ins == "getstatic":
+                if ins.operands[0].class_.name.value == packettype_class:
+                    current_packet = packet_map[ins.operands[0].name_and_type.name.value]
             elif ins == "putstatic":
                 if len(stack) in (2, 3):
                     if len(stack) == 3:
@@ -109,7 +128,9 @@ class EntityTopping(Topping):
                     entity[name] = {
                         "id": numeric_id,
                         "name": name,
-                        "class": stack[1]
+                        "class": stack[1],
+                        "field": ins.operands[0].name_and_type.name.value,
+                        "packet_type": current_packet
                     }
                     if "minecraft." + name in aggregate["language"]["entity"]:
                         entity[name]["display_name"] = aggregate["language"]["entity"]["minecraft." + name]

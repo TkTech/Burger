@@ -96,11 +96,11 @@ class SoundTopping(Topping):
             # 1.8 - TODO implement this for 1.8
             return
 
-        soundevent = aggregate["classes"]["sounds.event"]
+        soundevent = aggregate["classes"]["sounds.list"]
         cf = classloader[soundevent]
 
         # Find the static sound registration method
-        method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_public and m.access_flags.acc_static)
+        method = cf.methods.find_one(args='', returns="V", f=lambda m: m.access_flags.acc_static)
 
         sound_name = None
         sound_id = 0
@@ -142,18 +142,8 @@ class SoundTopping(Topping):
                             sound["subtitle"] = aggregate["language"]["subtitles"][subtitle_trimmed]
 
                 sounds[sound_name] = sound
-
-        # Get fields now
-        soundlist = aggregate["classes"]["sounds.list"]
-        lcf = classloader[soundlist]
-
-        method = lcf.methods.find_one(name="<clinit>")
-        for ins in method.code.disassemble():
-            if ins in ('ldc', 'ldc_w'):
-                const = ins.operands[0]
-                sound_name = const.string.value
-            elif ins == "putstatic":
-                if sound_name is None or sound_name == "Accessed Sounds before Bootstrap!":
+            elif ins == 'putstatic':
+                if sound_name is None:
                     continue
                 const = ins.operands[0]
                 field = const.name_and_type.name.value
