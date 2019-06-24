@@ -34,6 +34,7 @@ class VersionTopping(Topping):
 
     PROVIDES = [
         "version.protocol",
+        "version.id",
         "version.name",
         "version.data",
         "version.is_flattened",
@@ -56,6 +57,19 @@ class VersionTopping(Topping):
                 aggregate["version"]["data"] = version_json["world_version"]
                 aggregate["version"]["protocol"] = version_json["protocol_version"]
                 aggregate["version"]["name"] = version_json["name"]
+                # Starting with 1.14.3-pre1, the "id" field began being used
+                # for the id used on the downloads site.  Prior to that, (1.14.2)
+                # "name" was used, and "id" looked like
+                # "1.14.2 / f647ba8dc371474797bee24b2b312ff4".
+                # Our heuristic for this is whether the ID is shorter than the name.
+                if len(version_json["id"]) <= len(version_json["name"]):
+                    if verbose:
+                        print("Using id '%s' over name '%s' for id as it is shorter" % (version_json["id"], version_json["name"]))
+                    aggregate["version"]["id"] = version_json["id"]
+                else:
+                    if verbose:
+                        print("Using name '%s' over id '%s' for id as it is shorter" % (version_json["name"], version_json["id"]))
+                    aggregate["version"]["id"] = version_json["name"]
         except:
             # Find it manually
             VersionTopping.get_protocol_version(aggregate, classloader, verbose)
@@ -101,11 +115,13 @@ class VersionTopping(Topping):
                                 continue
                             elif looking_for_version_name:
                                 versions["name"] = str
+                                versions["id"] = versions["name"]
                                 return
                             elif "Outdated server!" in str:
                                 versions["protocol"] = version
                                 versions["name"] = \
                                     str[len("Outdated server! I'm still on "):]
+                                versions["id"] = versions["name"]
                                 return
         elif verbose:
             print("Unable to determine protocol version")
