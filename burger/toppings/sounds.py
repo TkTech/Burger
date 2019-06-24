@@ -78,7 +78,7 @@ class SoundTopping(Topping):
             return
 
         try:
-            version_meta = website.get_version_meta(aggregate["version"]["name"], verbose)
+            version_meta = website.get_version_meta(aggregate["version"]["id"], verbose)
         except Exception as e:
             if verbose:
                 print("Error: Failed to download version meta for sounds: %s" % e)

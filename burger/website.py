@@ -90,6 +90,8 @@ def client_jar(version, verbose):
     filename = version + ".jar"
     if not os.path.exists(filename):
         meta = get_version_meta(version, verbose)
+        if verbose:
+            print("For version %s, the downloads section of the meta is %s" % (filename, meta["downloads"]))
         url = meta["downloads"]["client"]["url"]
         if verbose:
             print("Downloading %s from %s" % (version, url))
