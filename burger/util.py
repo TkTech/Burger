@@ -178,9 +178,9 @@ def walk_method(cf, method, callback, verbose):
                 break
             if desc.returns.name != "void":
                 stack.append(ret)
-        elif ins == "astore":
+        elif ins in ("astore", "istore"):
             locals[ins.operands[0].value] = stack.pop()
-        elif ins == "aload":
+        elif ins in ("aload", "iload"):
             stack.append(locals[ins.operands[0].value])
         elif ins == "dup":
             stack.append(stack[-1])
@@ -204,3 +204,168 @@ def walk_method(cf, method, callback, verbose):
             pass
         elif verbose:
             print("Unknown instruction %s: stack is %s" % (ins, stack))
+
+def get_enum_constants(cf, verbose):
+    # Gets enum constants declared in the given class.
+    # Consider the following code:
+    """
+    public enum TestEnum {
+        FOO(900),
+        BAR(42) {
+            @Override
+            public String toString() {
+                return "bar";
+            }
+        },
+        BAZ(Integer.getInteger("SomeSystemProperty"));
+
+        public static final TestEnum RECOMMENDED_VALUE = BAR;
+        private TestEnum(int i) {}
+    }
+    """
+    # which compiles to:
+    """
+    public final class TestEnum extends java.lang.Enum<TestEnum>
+      minor version: 0
+      major version: 52
+      flags: ACC_PUBLIC, ACC_FINAL, ACC_SUPER, ACC_ENUM
+    {
+      public static final TestEnum FOO;
+        descriptor: LTestEnum;
+        flags: ACC_PUBLIC, ACC_STATIC, ACC_FINAL, ACC_ENUM
+
+      public static final TestEnum BAR;
+        descriptor: LTestEnum;
+        flags: ACC_PUBLIC, ACC_STATIC, ACC_FINAL, ACC_ENUM
+
+      public static final TestEnum BAZ;
+        descriptor: LTestEnum;
+        flags: ACC_PUBLIC, ACC_STATIC, ACC_FINAL, ACC_ENUM
+
+      public static final TestEnum RECOMMENDED_VALUE;
+        descriptor: LTestEnum;
+        flags: ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+
+      private static final TestEnum[] $VALUES;
+        descriptor: [LTestEnum;
+        flags: ACC_PRIVATE, ACC_STATIC, ACC_FINAL, ACC_SYNTHETIC
+
+      public static TestEnum[] values();
+        // ...
+
+      public static TestEnum valueOf(java.lang.String);
+        // ...
+
+      private TestEnum(int);
+        // ...
+
+      static {};
+        descriptor: ()V
+        flags: ACC_STATIC
+        Code:
+          stack=5, locals=0, args_size=0
+            // Initializing enum constants:
+             0: new           #5                  // class TestEnum
+             3: dup
+             4: ldc           #8                  // String FOO
+             6: iconst_0
+             7: sipush        900
+            10: invokespecial #1                  // Method "<init>":(Ljava/lang/String;II)V
+            13: putstatic     #9                  // Field FOO:LTestEnum;
+            16: new           #10                 // class TestEnum$1
+            19: dup
+            20: ldc           #11                 // String BAR
+            22: iconst_1
+            23: bipush        42
+            25: invokespecial #12                 // Method TestEnum$1."<init>":(Ljava/lang/String;II)V
+            28: putstatic     #13                 // Field BAR:LTestEnum;
+            31: new           #5                  // class TestEnum
+            34: dup
+            35: ldc           #14                 // String BAZ
+            37: iconst_2
+            38: ldc           #15                 // String SomeSystemProperty
+            40: invokestatic  #16                 // Method java/lang/Integer.getInteger:(Ljava/lang/String;)Ljava/lang/Integer;
+            43: invokevirtual #17                 // Method java/lang/Integer.intValue:()I
+            46: invokespecial #1                  // Method "<init>":(Ljava/lang/String;II)V
+            49: putstatic     #18                 // Field BAZ:LTestEnum;
+            // Setting up $VALUES
+            52: iconst_3
+            53: anewarray     #5                  // class TestEnum
+            56: dup
+            57: iconst_0
+            58: getstatic     #9                  // Field FOO:LTestEnum;
+            61: aastore
+            62: dup
+            63: iconst_1
+            64: getstatic     #13                 // Field BAR:LTestEnum;
+            67: aastore
+            68: dup
+            69: iconst_2
+            70: getstatic     #18                 // Field BAZ:LTestEnum;
+            73: aastore
+            74: putstatic     #2                  // Field $VALUES:[LTestEnum;
+            // Other user-specified stuff
+            77: getstatic     #13                 // Field BAR:LTestEnum;
+            80: putstatic     #19                 // Field RECOMMENDED_VALUE:LTestEnum;
+            83: return
+    }
+    """
+    # We only care about the enum constants, not other random user stuff
+    # (such as RECOMMENDED_VALUE) or the $VALUES thing.  Fortunately,
+    # ACC_ENUM helps us with this.  It's worth noting that although MC's
+    # obfuscater gets rid of the field names, it does not get rid of the
+    # string constant for enum names (which is used by valueOf()), nor
+    # does it touch ACC_ENUM.
+    # For this method, we don't care about parameters other than the name.
+    if not cf.access_flags.acc_enum:
+        raise Exception(cf.this.name.value + " is not an enum!")
+
+    enum_fields = list(cf.fields.find(f=lambda field: field.access_flags.acc_enum))
+    enum_class = None
+    enum_name = None
+
+    result = {}
+
+    for ins in cf.methods.find_one(name="<clinit>").code.disassemble():
+        if ins == "new" and enum_class is None:
+            const = ins.operands[0]
+            enum_class = const.name.value
+        elif ins in ("ldc", "ldc_w") and enum_name is None:
+            const = ins.operands[0]
+            if isinstance(const, String):
+                enum_name = const.string.value
+        elif ins == "putstatic":
+            if enum_class is None or enum_name is None:
+                if verbose:
+                    print("Ignoring putstatic for %s as enum_class or enum_name is unset" % str(ins))
+                continue
+            const = ins.operands[0]
+            assigned_field = const.name_and_type
+            if not any(field.name == assigned_field.name and field.descriptor == assigned_field.descriptor for field in enum_fields):
+                # This could happen with an enum constant that sets a field in
+                # its constructor, which is unlikely but happens with e.g. this:
+                """
+                enum Foo {
+                    FOO(i = 2);
+                    static int i;
+                    private Foo(int n) {}
+                }
+                """
+                if verbose:
+                    print("Ignoring putstatic for %s as it is to a field not in enum_fields (%s)" % (str(ins), enum_fields))
+                continue
+            result[enum_name] = {
+                'name': enum_name,
+                'field': assigned_field.name.value,
+                'class': enum_class
+            }
+            enum_class = None
+            enum_name = None
+
+            if len(result) == len(enum_fields):
+                break
+
+    if verbose and len(result) != len(enum_fields):
+        print("Did not find assignments to all enum fields - fields are %s and result is %s" % (result, enum_fields))
+
+    return result
