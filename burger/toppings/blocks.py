@@ -197,10 +197,15 @@ class BlocksTopping(Topping):
                         obj["light"] = args[0]
                     elif method_name == "<init>":
                         # Call to the constructor for the block
-                        # We can't hardcode index 0 because sand has an extra parameter, so use the last one
-                        # There are also cases where it's an arg-less constructor; we don't want to do anything there.
-                        if len(args) > 0:
-                            obj.update(args[-1])
+                        # The majority of blocks have a 1-arg constructor simply taking the builder.
+                        # However, sand has public BlockSand(int color, Block.Builder builder), and
+                        # signs (as of 1.15-pre1) have public BlockSign(Block.builder builder, WoodType type)
+                        # (Prior to that 1.15-pre1, we were able to assume that the last argument was the builder)
+                        # There are also cases of arg-less constructors, which we just ignore as they are presumably not blocks.
+                        for idx, arg in enumerate(desc.args):
+                            if arg.name == builder_class:
+                                obj.update(args[idx])
+                                break
 
                     if desc.returns.name == builder_class or desc.returns.name == superclass:
                         return obj
