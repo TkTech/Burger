@@ -12,6 +12,7 @@ setup(
     url="http://github.com/mcdevs/Burger",
     keywords=["java", "minecraft"],
     install_requires=[
+        'six>=1.4.0',
         'Jawa>=2.2.0,<3'
     ],
     classifiers=[
