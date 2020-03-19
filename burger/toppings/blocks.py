@@ -193,7 +193,7 @@ class BlocksTopping(Topping):
                     elif method_name == hardness_setter_3.name.value and method_desc == hardness_setter_3.descriptor.value:
                         obj["hardness"] = 0.0
                         obj["resistance"] = 0.0
-                    elif method_name == light_setter.name.value and method_desc == light_setter.descriptor.value:
+                    elif light_setter and method_name == light_setter.name.value and method_desc == light_setter.descriptor.value:
                         obj["light"] = args[0]
                     elif method_name == "<init>":
                         # Call to the constructor for the block
