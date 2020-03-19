@@ -457,7 +457,7 @@ class PacketsTopping(Topping):
 
                 raise Exception("Unexpected new: %s" % str(ins))
 
-            def on_invokedynamic(self, ins, const):
+            def on_invokedynamic(self, ins, const, args):
                 return class_from_invokedynamic(ins, cf)
 
             def on_put_field(self, ins, const, obj, value):

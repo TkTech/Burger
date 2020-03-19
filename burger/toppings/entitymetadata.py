@@ -119,7 +119,7 @@ class EntityMetadataTopping(Topping):
                     if const.class_.name == dataserializers_class:
                         return dataserializers_by_field[const.name_and_type.name.value]
 
-                def on_invokedynamic(self, ins, const):
+                def on_invokedynamic(self, ins, const, args):
                     return object()
 
                 def on_new(self, ins, const):

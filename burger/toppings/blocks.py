@@ -230,7 +230,7 @@ class BlocksTopping(Topping):
                     value["field"] = field
                     block_fields[field] = value["text_id"]
 
-            def on_invokedynamic(self, ins, const):
+            def on_invokedynamic(self, ins, const, args):
                 # 1.15-pre2 introduced a Supplier<BlockEntityType> parameter,
                 # and while most blocks handled it in their own constructor,
                 # chests put it directly in initialization.  We don't care about

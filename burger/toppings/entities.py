@@ -116,7 +116,7 @@ class EntityTopping(Topping):
             def __init__(self):
                 self.cur_id = 0
 
-            def on_invokedynamic(self, ins, const):
+            def on_invokedynamic(self, ins, const, args):
                 # MC uses EntityZombie::new, similar; return the created class
                 return class_from_invokedynamic(ins, cf)
 
