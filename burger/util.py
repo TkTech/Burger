@@ -27,6 +27,44 @@ def class_from_invokedynamic(ins, cf):
     # from the constructor.
     return methodhandle.reference.class_.name.value
 
+def try_eval_lambda(ins, args, cf):
+    """
+    Attempts to call a lambda function that returns a constant value.
+    May throw; this code is very hacky.
+    """
+    const = ins.operands[0]
+    bootstrap = cf.bootstrap_methods[const.method_attr_index]
+    method = cf.constants.get(bootstrap.method_ref)
+    # Make sure this is a reference to LambdaMetafactory
+    assert method.reference_kind == 6 # REF_invokeStatic
+    assert method.reference.class_.name == "java/lang/invoke/LambdaMetafactory"
+    assert method.reference.name_and_type.name == "metafactory"
+    assert len(bootstrap.bootstrap_args) == 3 # Num arguments
+    methodhandle = cf.constants.get(bootstrap.bootstrap_args[1])
+    assert methodhandle.reference_kind == 6 # REF_invokeStatic
+    # We only want to deal with lambdas in the same class
+    assert methodhandle.reference.class_.name == cf.this.name
+
+    name2 = methodhandle.reference.name_and_type.name.value
+    desc2 = method_descriptor(methodhandle.reference.name_and_type.descriptor.value)
+
+    lambda_method = cf.methods.find_one(name=name2, args=desc2.args_descriptor, returns=desc2.returns_descriptor)
+    assert lambda_method
+
+    class Callback(WalkerCallback):
+        def on_new(self, ins, const):
+            raise Exception("Illegal new")
+        def on_invoke(self, ins, const, obj, args):
+            raise Exception("Illegal invoke")
+        def on_get_field(self, ins, const, obj):
+            raise Exception("Illegal getfield")
+        def on_put_field(self, ins, const, obj, value):
+            raise Exception("Illegal putfield")
+
+    # Set verbose to false because we don't want lots of output if this errors
+    # (since it is expected to for more complex methods)
+    return walk_method(cf, lambda_method, Callback(), False, args)
+
 class WalkerCallback(ABC):
     """
     Interface for use with walk_method.
