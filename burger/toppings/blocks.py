@@ -26,7 +26,8 @@ from .topping import Topping
 from jawa.constants import *
 from jawa.util.descriptor import method_descriptor
 
-from burger.util import WalkerCallback, walk_method
+from burger.util import WalkerCallback, walk_method, try_eval_lambda
+import traceback
 
 import six.moves
 
@@ -131,6 +132,13 @@ class BlocksTopping(Topping):
         assert hardness_setter_3 != None
 
         light_setter = builder_cf.methods.find_one(args='I')
+        if light_setter == None:
+            # 20w12a replaced the simple setter with one that takes a lambda
+            # that is called to compute the light level for a given block
+            # state.  Most blocks simply return a constant value, but some
+            # such as sea pickles have varying light levels by state.
+            light_setter = builder_cf.methods.find_one(args='Ljava/util/function/ToIntFunction;')
+        assert light_setter != None
 
         blocks = aggregate.setdefault("blocks", {})
         block = blocks.setdefault("block", {})
@@ -199,8 +207,9 @@ class BlocksTopping(Topping):
                     elif method_name == hardness_setter_3.name.value and method_desc == hardness_setter_3.descriptor.value:
                         obj["hardness"] = 0.0
                         obj["resistance"] = 0.0
-                    elif light_setter and method_name == light_setter.name.value and method_desc == light_setter.descriptor.value:
-                        obj["light"] = args[0]
+                    elif method_name == light_setter.name.value and method_desc == light_setter.descriptor.value:
+                        if args[0] != None:
+                            obj["light"] = args[0]
                     elif method_name == "<init>":
                         # Call to the constructor for the block
                         # The majority of blocks have a 1-arg constructor simply taking the builder.
@@ -243,9 +252,25 @@ class BlocksTopping(Topping):
                 # the value (we get block entities in a different way), but
                 # we still need to override this as the default implementation
                 # raises an exception
-                return object()
 
-        walk_method(cf, method, Walker(), verbose)
+                # 20w12a changed light levels to use a lambda, and we do
+                # care about those.  The light level is a ToIntFunction<BlockState>.
+                method_desc = const.name_and_type.descriptor.value
+                desc = method_descriptor(method_desc)
+                if desc.returns.name == "java/util/function/ToIntFunction":
+                    # Try to invoke the function.
+                    try:
+                        args.append(object()) # The state that the lambda gets
+                        return try_eval_lambda(ins, args, lcf)
+                    except:
+                        if verbose:
+                            print("Failed to call lambda")
+                            traceback.print_exc()
+                        return None
+                else:
+                    return object()
+
+        walk_method(lcf, method, Walker(), verbose)
 
     @staticmethod
     def _process_1point13(aggregate, classloader, verbose):
