@@ -155,18 +155,24 @@ class BlocksTopping(Topping):
 
                 if ins.mnemonic == "invokestatic":
                     if const.class_.name.value == listclass:
-                        # Call to the static register method.
-                        text_id = args[0]
-                        current_block = args[1]
-                        current_block["text_id"] = text_id
-                        current_block["numeric_id"] = self.cur_id
-                        self.cur_id += 1
-                        lang_key = "minecraft.%s" % text_id
-                        if language != None and lang_key in language:
-                            current_block["display_name"] = language[lang_key]
-                        block[text_id] = current_block
-                        ordered_blocks.append(text_id)
-                        return current_block
+                        if len(desc.args) == 2 and desc.args[0].name == "java/lang/String" and desc.args[1].name == superclass:
+                            # Call to the static register method.
+                            text_id = args[0]
+                            current_block = args[1]
+                            current_block["text_id"] = text_id
+                            current_block["numeric_id"] = self.cur_id
+                            self.cur_id += 1
+                            lang_key = "minecraft.%s" % text_id
+                            if language != None and lang_key in language:
+                                current_block["display_name"] = language[lang_key]
+                            block[text_id] = current_block
+                            ordered_blocks.append(text_id)
+                            return current_block
+                        else:
+                            # In 20w12a+ (1.16), some blocks (e.g. logs) use a separate method
+                            # for initialization.  Call them.
+                            sub_method = lcf.methods.find_one(name=method_name, args=desc.args_descriptor, returns=desc.returns_descriptor)
+                            return walk_method(lcf, sub_method, self, verbose, args)
                     elif const.class_.name.value == builder_class:
                         if desc.args[0].name == superclass: # Copy constructor
                             copy = dict(args[0])
