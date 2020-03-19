@@ -176,6 +176,12 @@ class BlocksTopping(Topping):
                             block[text_id] = current_block
                             ordered_blocks.append(text_id)
                             return current_block
+                        elif len(desc.args) == 1 and desc.args[0].name == "int" and desc.returns.name == "java/util/function/ToIntFunction":
+                            # 20w12a+: a method that takes a light level and returns a function
+                            # that checks if the current block state has the lit state set,
+                            # using light level 0 if not and the given light level if so.
+                            # For our purposes, just simplify it to always be the given light level.
+                            return args[0]
                         else:
                             # In 20w12a+ (1.16), some blocks (e.g. logs) use a separate method
                             # for initialization.  Call them.
