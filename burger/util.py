@@ -86,32 +86,49 @@ class WalkerCallback(ABC):
         """
         pass
 
-    def on_invokedynamic(self, ins, const):
+    def on_invokedynamic(self, ins, const, args):
         """
         Called for an invokedynamic instruction.
 
         ins: The instruction
         const: The constant, a InvokeDynamic
+        args: Arguments closed by the created object
 
         return value: what to put on the stack
         """
         raise Exception("Unexpected invokedynamic: %s" % str(ins))
 
-def walk_method(cf, method, callback, verbose):
+def walk_method(cf, method, callback, verbose, input_args=None):
+    """
+    Walks through a method, evaluating instructions and using the callback
+    for side-effects.
+
+    The method is assumed to not have any conditionals, and to only return
+    at the very end.
+    """
     assert isinstance(callback, WalkerCallback)
 
     stack = []
     locals = {}
-    # TODO: Allow passing argument values in or something like that
     cur_index = 0
+
     if not method.access_flags.acc_static:
-        locals[cur_index] = object()
-        cur_index += 1
-    for arg in method.args:
+        # TODO: allow specifying this
         locals[cur_index] = object()
         cur_index += 1
 
-    for ins in method.code.disassemble():
+    if input_args != None:
+        assert len(input_args) == len(method.args)
+        for arg in input_args:
+            locals[cur_index] = arg
+            cur_index += 1
+    else:
+        for arg in method.args:
+            locals[cur_index] = object()
+            cur_index += 1
+
+    ins_list = list(method.code.disassemble())
+    for ins in ins_list[:-1]:
         if ins in ("bipush", "sipush"):
             stack.append(ins.operands[0].value)
         elif ins.mnemonic.startswith("fconst") or ins.mnemonic.startswith("dconst"):
@@ -199,11 +216,31 @@ def walk_method(cf, method, callback, verbose):
             elif verbose:
                 print("Failed to execute %s: array %s index %s value %s" % (ins, array, index, value))
         elif ins == "invokedynamic":
-            stack.append(callback.on_invokedynamic(ins, ins.operands[0]))
-        elif ins in ("checkcast", "return"):
+            const = ins.operands[0]
+            method_desc = const.name_and_type.descriptor.value
+            desc = method_descriptor(method_desc)
+            num_args = len(desc.args)
+
+            args = []
+
+            for i in six.moves.range(num_args):
+                args.insert(0, stack.pop())
+
+            stack.append(callback.on_invokedynamic(ins, ins.operands[0], args))
+        elif ins == "checkcast":
             pass
         elif verbose:
             print("Unknown instruction %s: stack is %s" % (ins, stack))
+
+    last_ins = ins_list[-1]
+    if last_ins.mnemonic in ("ireturn", "lreturn", "freturn", "dreturn", "areturn"):
+        # Non-void method returning
+        return stack.pop()
+    elif last_ins.mnemonic == "return":
+        # Void method returning
+        pass
+    elif verbose:
+        print("Unexpected final instruction %s: stack is %s" % (ins, stack))
 
 def get_enum_constants(cf, verbose):
     # Gets enum constants declared in the given class.
