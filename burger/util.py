@@ -233,9 +233,9 @@ def walk_method(cf, method, callback, verbose, input_args=None):
                 break
             if desc.returns.name != "void":
                 stack.append(ret)
-        elif ins in ("astore", "istore"):
+        elif ins in ("astore", "istore", "lstore", "fstore", "dstore"):
             locals[ins.operands[0].value] = stack.pop()
-        elif ins in ("aload", "iload"):
+        elif ins in ("aload", "iload", "lload", "fload", "dload"):
             stack.append(locals[ins.operands[0].value])
         elif ins == "dup":
             stack.append(stack[-1])
@@ -245,7 +245,7 @@ def walk_method(cf, method, callback, verbose, input_args=None):
             stack.append([None] * stack.pop())
         elif ins == "newarray":
             stack.append([0] * stack.pop())
-        elif ins in ("aastore", "iastore", "fastore"):
+        elif ins in ("aastore", "bastore", "castore", "sastore", "iastore", "lastore", "fastore", "dastore"):
             value = stack.pop()
             index = stack.pop()
             array = stack.pop()
@@ -253,6 +253,13 @@ def walk_method(cf, method, callback, verbose, input_args=None):
                 array[index] = value
             elif verbose:
                 print("Failed to execute %s: array %s index %s value %s" % (ins, array, index, value))
+        elif ins in ("aaload", "baload", "caload", "saload", "iaload", "laload", "faload", "daload"):
+            index = stack.pop()
+            array = stack.pop()
+            if isinstance(array, list) and isinstance(index, int):
+                stack.push(array[index])
+            elif verbose:
+                print("Failed to execute %s: array %s index %s" % (ins, array, index))
         elif ins == "invokedynamic":
             const = ins.operands[0]
             method_desc = const.name_and_type.descriptor.value
