@@ -469,3 +469,6 @@ class EntityTopping(Topping):
         abstract_entity("insentient", "ender_dragon", "EnderDragon") # EntityLiving
         abstract_entity("monster", "enderman", "Enderman") # EntityMob
         abstract_entity("tameable", "wolf", "Wolf") # EntityTameable
+        abstract_entity("animal", "sheep", "Sheep") # EntityAnimal
+        abstract_entity("ageable", "~abstract_animal") # EntityAgeable
+        abstract_entity("creature", "~abstract_ageable") # EntityCreature
