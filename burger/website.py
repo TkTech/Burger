@@ -56,6 +56,10 @@ def get_version_meta(version, verbose):
     and then falling back to the legacy site if that fails.
     Note that the main manifest should include all versions as of august 2018.
     """
+    if version == "20w14~":
+        # April fools snapshot, labeled 20w14~ ingame but 20w14infinite in the launcher
+        version = "20w14infinite"
+
     if version in _cached_version_metas:
         return _cached_version_metas[version]
 
