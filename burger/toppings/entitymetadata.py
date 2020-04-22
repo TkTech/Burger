@@ -380,10 +380,16 @@ class EntityMetadataTopping(Topping):
 
         # Decompile the serialization code.
         # Note that we are using the bridge method that takes an object, and not the more find
-        write_args = "L" + classes["packet.packetbuffer"] + ";Ljava/lang/Object;"
-        operations = _PIT.operations(classloader, cls + ".class",  # XXX This .class only exists because PIT needs it, for no real reason
-                classes, verbose,
-                args=write_args, arg_names=("this", "packetbuffer", "value"))
-        serializer.update(_PIT.format(operations))
+        try:
+            write_args = "L" + classes["packet.packetbuffer"] + ";Ljava/lang/Object;"
+            operations = _PIT.operations(classloader, cls + ".class",  # XXX This .class only exists because PIT needs it, for no real reason
+                    classes, verbose,
+                    args=write_args, arg_names=("this", "packetbuffer", "value"))
+            serializer.update(_PIT.format(operations))
+        except:
+            if verbose:
+                print("Failed to process operations for metadata serializer", serializer)
+                import traceback
+                traceback.print_exc()
 
         return serializer
