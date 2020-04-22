@@ -62,7 +62,7 @@ MATCHES = (
 # This stops being an issue later into 1.13 when biome names become translatable.
 IGNORE_DUPLICATES = [ "biome.register" ]
 
-def identify(classloader, path):
+def identify(classloader, path, verbose):
     """
     The first pass across the jar will identify all possible classes it
     can, maping them by the 'type' it implements.
@@ -93,9 +93,22 @@ def identify(classloader, path):
             # We want the interface for chat components, but it has no
             # string constants, so we need to use the abstract class and then
             # get its first implemented interface.
-            assert len(class_file.interfaces) == 1
-            const = class_file.interfaces[0]
-            return 'chatcomponent', const.name.value
+
+            # As of 20w17a, there is another interface in the middle that we don't
+            # want, but the interface we do want extends Brigadier's Message interface.
+            # So, loop up until a good-looking interface is present.
+            while len(class_file.interfaces) == 1:
+                parent = class_file.interfaces[0].name.value
+                if "com/mojang/brigadier" in parent:
+                    break
+                class_file = classloader[parent]
+            else:
+                # There wasn't the same number of interfaces, can't do anything really
+                if verbose:
+                    print(class_file, "(parent of " + path + ", BaseComponent) has an unexpected number of interfaces:", class_file.interfaces)
+                # Just hope for the best with the current class file
+
+            return 'chatcomponent', class_file.this.name.value
 
         if value == 'ambient.cave':
             # This is found in both the sounds list class and sounds event class.
@@ -225,7 +238,7 @@ class IdentifyTopping(Topping):
             if not path.endswith(".class"):
                 continue
 
-            result = identify(classloader, path[:-len(".class")])
+            result = identify(classloader, path[:-len(".class")], verbose)
             if result:
                 if result[0] in classes:
                     if result[0] in IGNORE_DUPLICATES:
