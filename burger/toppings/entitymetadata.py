@@ -365,6 +365,8 @@ class EntityMetadataTopping(Topping):
                 elif content_cf.constants.find_one(type_=String, f=lambda c: c == "FALL_FLYING"):
                     assert content_cf.access_flags.acc_enum
                     name = "Pose"
+                elif content_cf.constants.find_one(type_=String, f=lambda c: c == "profession"):
+                    name = "VillagerData"
                 elif content_cf.access_flags.acc_interface:
                     # Make some _very_ bad assumptions here; both of these are hard to identify:
                     name = "Particle"
