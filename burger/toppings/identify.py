@@ -97,9 +97,10 @@ def identify(classloader, path, verbose):
             # As of 20w17a, there is another interface in the middle that we don't
             # want, but the interface we do want extends Brigadier's Message interface.
             # So, loop up until a good-looking interface is present.
-            while len(class_file.interfaces) == 1:
+            # In other versions, the interface extends Iterable.  In some versions, it extends both.
+            while len(class_file.interfaces) in (1, 2):
                 parent = class_file.interfaces[0].name.value
-                if "com/mojang/brigadier" in parent:
+                if "com/mojang/brigadier" in parent or "java/lang/Iterable" == parent:
                     break
                 class_file = classloader[parent]
             else:
