@@ -209,7 +209,19 @@ def identify(classloader, path, verbose):
                             return 'blockstate', method.returns.name
             else:
                 if verbose:
-                    print("Found chunk, but didn't find the method that returns blockstate")
+                    print("Found chunk as %s, but didn't find the method that returns blockstate" % path)
+
+        if value == 'particle.notFound':
+            # This is in ParticleArgument, which is used for commands and
+            # implements brigadier's ArgumentType<IParticleData>.
+            class_file = classloader[path]
+
+            if len(class_file.interfaces) == 1 and class_file.interfaces[0].name == "com/mojang/brigadier/arguments/ArgumentType":
+                sig = class_file.attributes.find_one(name="Signature").signature.value
+                inner_type = sig[sig.index("<") + 1 : sig.rindex(">")][1:-1]
+                return "particle", inner_type
+            elif verbose:
+                print("Found ParticleArgument as %s, but it didn't implement the expected interface" % path)
 
 
 class IdentifyTopping(Topping):
@@ -237,6 +249,7 @@ class IdentifyTopping(Topping):
         "identify.nethandler.server",
         "identify.packet.connectionstate",
         "identify.packet.packetbuffer",
+        "identify.particle",
         "identify.position",
         "identify.recipe.superclass",
         "identify.resourcelocation",
