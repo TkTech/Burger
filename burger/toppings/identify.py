@@ -196,6 +196,21 @@ def identify(classloader, path, verbose):
             if cf:
                 return 'position', cf.this.name.value
 
+        if value == 'Getting block state':
+            # This message is found in Chunk, in the method getBlockState.
+            # We could also theoretically identify BlockPos from this method,
+            # but currently identify only allows marking one class at a time.
+            class_file = classloader[path]
+
+            for method in class_file.methods:
+                for ins in method.code.disassemble():
+                    if ins.mnemonic in ("ldc", "ldc_w"):
+                        if ins.operands[0] == 'Getting block state':
+                            return 'blockstate', method.returns.name
+            else:
+                if verbose:
+                    print("Found chunk, but didn't find the method that returns blockstate")
+
 
 class IdentifyTopping(Topping):
     """Finds important superclasses needed by other toppings."""
@@ -207,6 +222,7 @@ class IdentifyTopping(Topping):
         "identify.block.list",
         "identify.block.register",
         "identify.blockstatecontainer",
+        "identify.blockstate",
         "identify.chatcomponent",
         "identify.entity.list",
         "identify.entity.trackerentry",

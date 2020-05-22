@@ -352,6 +352,8 @@ class EntityMetadataTopping(Topping):
             name = "Chat"
         elif inner_type == classes["position"]:
             name = "BlockPos"
+        elif inner_type == classes["blockstate"]:
+            name = "BlockState"
         else:
             # Try some more tests, based on the class itself:
             try:
@@ -360,18 +362,12 @@ class EntityMetadataTopping(Topping):
                     name = "Rotations"
                 elif content_cf.constants.find_one(type_=String, f=lambda c: c == "down"):
                     name = "Facing"
-                elif content_cf.constants.find_one(type_=String, f=lambda c: c == "minecraft:air"):
-                    # This method only works in 1.14, where BlockState isn't an interface
-                    name = "BlockState"
                 elif content_cf.constants.find_one(type_=String, f=lambda c: c == "FALL_FLYING"):
                     assert content_cf.access_flags.acc_enum
                     name = "Pose"
                 elif content_cf.access_flags.acc_interface:
                     # Make some _very_ bad assumptions here; both of these are hard to identify:
-                    if name_prefix == "Opt":
-                        name = "BlockState"
-                    else:
-                        name = "Particle"
+                    name = "Particle"
             except:
                 if verbose:
                     print("Failed to determine name of metadata content type %s" % inner_type)
