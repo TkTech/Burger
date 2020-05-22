@@ -314,9 +314,18 @@ class PacketInstructionsTopping(Topping):
                             )
                     elif num_arguments == 2:
                         if arg_type == "java/lang/String" and descriptor.args[1].name == "int":
-                            max_length = arguments[1] # not using this at the time
+                            max_length = arguments[1] # not using this at this time
                             operations.append(Operation(instruction.pos, "write",
                                                         type="string",
+                                                        field=field))
+                        elif arg_type == "com/mojang/serialization/Codec":
+                            codec = arguments[0]
+                            value = arguments[1]
+                            # This isn't the exact syntax used by DataFixerUpper,
+                            # but it's close enough for our purposes
+                            field = "%s.encode(%s)" % (codec, value)
+                            operations.append(Operation(instruction.pos, "write",
+                                                        type="nbtcompound",
                                                         field=field))
                         else:
                             raise Exception("Unexpected descriptor " + desc)
