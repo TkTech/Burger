@@ -356,7 +356,7 @@ class EntityMetadataTopping(Topping):
             name = "BlockPos"
         elif inner_type == classes["blockstate"]:
             name = "BlockState"
-        elif inner_type == classes["particle"]:
+        elif inner_type == classes.get("particle"): # doesn't exist in all versions
             name = "Particle"
         else:
             # Try some more tests, based on the class itself:
