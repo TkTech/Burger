@@ -17,9 +17,11 @@ class EntityMetadataTopping(Topping):
         # For serializers
         "packets.instructions",
         "identify.packet.packetbuffer",
-        "identify.nbtcompound",
+        "identify.blockstate",
+        "identify.chatcomponent",
         "identify.itemstack",
-        "identify.chatcomponent"
+        "identify.nbtcompound",
+        "identify.particle"
     ]
 
     @staticmethod
@@ -354,6 +356,8 @@ class EntityMetadataTopping(Topping):
             name = "BlockPos"
         elif inner_type == classes["blockstate"]:
             name = "BlockState"
+        elif inner_type == classes["particle"]:
+            name = "Particle"
         else:
             # Try some more tests, based on the class itself:
             try:
@@ -367,9 +371,6 @@ class EntityMetadataTopping(Topping):
                     name = "Pose"
                 elif content_cf.constants.find_one(type_=String, f=lambda c: c == "profession"):
                     name = "VillagerData"
-                elif content_cf.access_flags.acc_interface:
-                    # Make some _very_ bad assumptions here; both of these are hard to identify:
-                    name = "Particle"
             except:
                 if verbose:
                     print("Failed to determine name of metadata content type %s" % inner_type)
