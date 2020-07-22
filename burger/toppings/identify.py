@@ -31,7 +31,6 @@ import traceback
 # We can identify almost every class we need just by
 # looking for consistent strings.
 MATCHES = (
-    (['Skipping Entity with id'], 'entity.list'),
     (['Fetching addPacket for removed entity'], 'entity.trackerentry'),
     (['#%04d/%d%s', 'attribute.modifier.equals.'], 'itemstack'),
     (['disconnect.lost'], 'nethandler.client'),
@@ -55,12 +54,35 @@ MATCHES = (
     ((['HORIZONTAL'], True), 'enumfacing.plane')
 )
 
+# Enforce a lower priority on some matches, since some classes may match both
+# these and other strings, which we want to be grouped with the other string
+# if it exists, and with this if it doesn't
+MAYBE_MATCHES = (
+    (['Skipping Entity with id'], 'entity.list'),
+)
+
 # In some cases there really isn't a good way to verify that it's a specific
 # class and we need to just depend on it coming first (bad!)
 # The biome class specifically is an issue because in 18w06a, the old name is
 # present in the biome's own class, but the ID is still in the register class.
 # This stops being an issue later into 1.13 when biome names become translatable.
 IGNORE_DUPLICATES = [ "biome.register" ]
+
+def check_match(value, match_list):
+    exact = False
+    if isinstance(match_list, tuple):
+        match_list, exact = match_list
+
+    for match in match_list:
+        if exact:
+            if value != match:
+                continue
+        else:
+            if match not in value:
+                continue
+
+        return True
+    return False
 
 def identify(classloader, path, verbose):
     """
@@ -71,23 +93,21 @@ def identify(classloader, path, verbose):
     check for known signatures and predictable constants. In the next pass,
     we'll have the initial mapping from this pass available to us.
     """
+    possible_match = None
+
     for c in classloader.search_constant_pool(path=path, type_=String):
         value = c.string.value
         for match_list, match_name in MATCHES:
-            exact = False
-            if isinstance(match_list, tuple):
-                match_list, exact = match_list
-
-            for match in match_list:
-                if exact:
-                    if value != match:
-                        continue
-                else:
-                    if match not in value:
-                        continue
-
+            if check_match(value, match_list):
                 class_file = classloader[path]
                 return match_name, class_file.this.name.value
+
+        for match_list, match_name in MAYBE_MATCHES:
+            if check_match(value, match_list):
+                class_file = classloader[path]
+                possible_match = (match_name, class_file.this.name.value)
+                # Continue searching through the other constants in the class
+
         if 'BaseComponent' in value:
             class_file = classloader[path]
             # We want the interface for chat components, but it has no
@@ -223,6 +243,9 @@ def identify(classloader, path, verbose):
                 return "particle", inner_type
             elif verbose:
                 print("Found ParticleArgument as %s, but it didn't implement the expected interface" % path)
+
+    # May (will usually) be None
+    return possible_match
 
 
 class IdentifyTopping(Topping):
