@@ -51,7 +51,8 @@ MATCHES = (
         'anvilchunkloader'
     ),
     (['has invalidly named property'], 'blockstatecontainer'),
-    ((['HORIZONTAL'], True), 'enumfacing.plane')
+    ((['HORIZONTAL'], True), 'enumfacing.plane'),
+    ((['bubble'], True), 'particletypes')
 )
 
 # Enforce a lower priority on some matches, since some classes may match both
@@ -274,6 +275,7 @@ class IdentifyTopping(Topping):
         "identify.packet.connectionstate",
         "identify.packet.packetbuffer",
         "identify.particle",
+        "identify.particletypes",
         "identify.position",
         "identify.recipe.superclass",
         "identify.resourcelocation",
