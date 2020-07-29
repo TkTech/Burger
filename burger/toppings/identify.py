@@ -67,7 +67,11 @@ MAYBE_MATCHES = (
 # The biome class specifically is an issue because in 18w06a, the old name is
 # present in the biome's own class, but the ID is still in the register class.
 # This stops being an issue later into 1.13 when biome names become translatable.
-IGNORE_DUPLICATES = [ "biome.register" ]
+# This stops being an issue later into 1.13 when biome names become translatable.
+# Similarly, in 1.13, "bubble" is ambiguous between the particle class and
+# particle list, but the particletypes topping doesn't work in that version
+# for other reasons so it's fine to ignore this issue for now.
+IGNORE_DUPLICATES = [ "biome.register", "particletypes" ]
 
 def check_match(value, match_list):
     exact = False
