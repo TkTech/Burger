@@ -1,6 +1,6 @@
 from .topping import Topping
 
-class TagsTopping(Topping):
+class ParticleTypesTopping(Topping):
     """Provides a list of all particle types"""
 
     PROVIDES = [
