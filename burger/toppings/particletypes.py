@@ -12,7 +12,12 @@ class ParticleTypesTopping(Topping):
     def act(aggregate, classloader, verbose=False):
         particletypes = []
         cf = classloader[aggregate["classes"]["particletypes"]]
-        ops = tuple(cf.methods.find_one(name = '<clinit>').code.disassemble())
+        # Method is either <clinit> or a void with no parameters, check both
+        # until we find one that loads constants
+        for meth in cf.methods.find(args = '', returns = 'V'):
+            ops = tuple(meth.code.disassemble())
+            if(next(x for x in ops if 'ldc' in x.name), False):
+                break
         for idx, op in enumerate(ops):
             if 'ldc' in op.name:
                 str_val = op.operands[0].string.value
