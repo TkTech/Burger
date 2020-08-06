@@ -35,6 +35,7 @@ from jawa.constants import *
 from jawa.transforms import simple_swap
 
 from .topping import Topping
+from burger.util import stringify_invokedynamic
 
 class PacketInstructionsTopping(Topping):
     """Provides the instructions used to construct network packets."""
@@ -389,6 +390,9 @@ class PacketInstructionsTopping(Topping):
                                                         field=obj,
                                                         args=_PIT.join(arguments)))
                                 break
+
+            elif mnemonic == "invokedynamic":
+                stack.append(stringify_invokedynamic(stack.pop(), instruction, cf))
 
             # Conditional statements and loops
             elif mnemonic.startswith("if"):
