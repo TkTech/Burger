@@ -27,6 +27,27 @@ def class_from_invokedynamic(ins, cf):
     # from the constructor.
     return methodhandle.reference.class_.name.value
 
+def stringify_invokedynamic(obj, ins, cf):
+    """
+    Converts an invokedynamic instruction into a string.
+
+    This is a rather limited implementation for now, only handling obj::method.
+    """
+    const = cf.constants[ins.operands[0].value] # Hack due to packetinstructions not expanding constants
+    bootstrap = cf.bootstrap_methods[const.method_attr_index]
+    method = cf.constants.get(bootstrap.method_ref)
+    # Make sure this is a reference to LambdaMetafactory
+    assert method.reference_kind == 6 # REF_invokeStatic
+    assert method.reference.class_.name == "java/lang/invoke/LambdaMetafactory"
+    assert method.reference.name_and_type.name == "metafactory"
+    assert len(bootstrap.bootstrap_args) == 3 # Num arguments
+    # Actual implementation.
+    methodhandle = cf.constants.get(bootstrap.bootstrap_args[1])
+    if methodhandle.reference_kind == 7: # REF_invokeSpecial
+        return "%s::%s" % (obj, methodhandle.reference.name_and_type.name.value)
+    else:
+        raise Exception("Unhandled reference_kind %d" % methodhandle.reference_kind)
+
 def try_eval_lambda(ins, args, cf):
     """
     Attempts to call a lambda function that returns a constant value.
