@@ -158,8 +158,15 @@ class BlockStateTopping(Topping):
 
                     if const.class_.name == blockstatecontainer:
                         # Case 3.
-                        assert properties == None
-                        properties = stack.pop()
+                        # Note that the register method actually adds multiple
+                        # states. The only block that calls it multiple times
+                        # is Chain in 1.16.2-pre1+ though, with everything else
+                        # using only 1 varargs call.  (There also are no calls
+                        # to the superclass' register states method.)
+                        if properties is None:
+                            properties = stack.pop()
+                        else:
+                            properties.extend(stack.pop())
                         assert desc.returns.name == blockstatecontainer
                         # Don't pop anything, since we'd just pop and re-add the builder
                     elif desc.returns.name == "boolean":
