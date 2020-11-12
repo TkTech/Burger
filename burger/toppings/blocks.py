@@ -241,6 +241,10 @@ class BlocksTopping(Topping):
                     return "air"
                 elif const.class_.name.value == listclass:
                     return block[block_fields[const.name_and_type.name.value]]
+                elif const.name_and_type.descriptor == "Ljava/util/function/ToIntFunction;":
+                    # Light level lambda, used by candles.  Not something we
+                    # can evaluate (it depends on the block state).
+                    return None
                 else:
                     return object()
 
