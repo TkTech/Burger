@@ -85,6 +85,10 @@ class EntityTopping(Topping):
         builderclass = None
         funcclass = None # 19w08a+ - a functional interface for creating new entities
         for entry in inner_classes:
+            if entry.outer_class_info_index == 0:
+                # Ignore anonymous classes
+                continue
+
             outer = cf.constants.get(entry.outer_class_info_index)
             if outer.name == listclass:
                 inner = cf.constants.get(entry.inner_class_info_index)
