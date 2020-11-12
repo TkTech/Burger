@@ -49,9 +49,8 @@ class TileEntityTopping(Topping):
             # Yes, it is
             listclass = superclass
         else:
-            # It isn't, but we can figure it out by looking at the constructor's only parameter.
+            # It isn't, but we can figure it out by looking at the constructor's first parameter.
             method = cf.methods.find_one(name="<init>")
-            assert len(method.args) == 1
             listclass = method.args[0].name
             cf = classloader[listclass]
 
@@ -97,7 +96,7 @@ class TileEntityTopping(Topping):
 
         tileentityprovider = cf.interfaces[0].name.value
         cf = classloader[tileentityprovider]
-        methods = list(cf.methods.find())
+        methods = list(cf.methods.find(returns="L" + aggregate["classes"]["tileentity.superclass"] + ";"))
         assert len(methods) == 1
         create_te_name = methods[0].name.value
         create_te_desc = methods[0].descriptor.value
