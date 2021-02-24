@@ -336,6 +336,26 @@ class PacketInstructionsTopping(Topping):
                             operations.append(Operation(instruction.pos, "write",
                                                         type="nbtcompound",
                                                         field=field))
+                        elif arg_type == "java/util/Collection" and \
+                                descriptor.args[1].name == "java/util/function/BiConsumer":
+                            # Loop that calls the consumer with the packetbuffer
+                            # and value for each value in collection
+                            operations.append(Operation(instruction.pos, "store",
+                                                        type="Iterator",
+                                                        var="it",
+                                                        value=field.value + ".iterator()"))
+                            # TODO: inline the referenced function - would require
+                            # changing how stringify_invokedynamic works
+                            target = arguments[1][:arguments[1].find(":")]
+                            name2 = arguments[1][arguments[1].rfind(":")+1:]
+                            operations.append(Operation(instruction.pos, "loop",
+                                                        condition="it.hasNext()"))
+                            operations.append(Operation(instruction.pos, "interfacecall",
+                                                        type="dynamic",
+                                                        target=target, name=name,
+                                                        method=name, field=target,
+                                                        args="buf, it.next()"))
+                            operations.append(Operation(instruction.pos, "endloop"))
                         else:
                             raise Exception("Unexpected descriptor " + desc)
                     else:
@@ -400,7 +420,7 @@ class PacketInstructionsTopping(Topping):
                                 break
 
             elif mnemonic == "invokedynamic":
-                stack.append(stringify_invokedynamic(stack.pop(), instruction, cf))
+                stack.append(stringify_invokedynamic(stack, instruction, cf))
 
             # Conditional statements and loops
             elif mnemonic.startswith("if"):

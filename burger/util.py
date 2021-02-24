@@ -45,11 +45,12 @@ def class_from_invokedynamic(ins, cf):
         assert desc.returns.name != "void"
         return desc.returns.name
 
-def stringify_invokedynamic(obj, ins, cf):
+def stringify_invokedynamic(stack, ins, cf):
     """
     Converts an invokedynamic instruction into a string.
 
-    This is a rather limited implementation for now, only handling obj::method.
+    This is a rather limited implementation for now, only handling obj::method
+    and Class::method.
     """
     const = cf.constants[ins.operands[0].value] # Hack due to packetinstructions not expanding constants
     bootstrap = cf.bootstrap_methods[const.method_attr_index]
@@ -61,10 +62,18 @@ def stringify_invokedynamic(obj, ins, cf):
     assert len(bootstrap.bootstrap_args) == 3 # Num arguments
     # Actual implementation.
     methodhandle = cf.constants.get(bootstrap.bootstrap_args[1])
-    if methodhandle.reference_kind == 7: # REF_invokeSpecial
-        return "%s::%s" % (obj, methodhandle.reference.name_and_type.name.value)
+    if methodhandle.reference_kind == 5: # REF_invokeVirtual
+        target = stack.pop()
+        name = methodhandle.reference.name_and_type.name.value
+    elif methodhandle.reference_kind == 6: # REF_invokeStatic
+        target = methodhandle.reference.class_.name.value
+        name = methodhandle.reference.name_and_type.name.value
+    elif methodhandle.reference_kind == 7: # REF_invokeSpecial
+        target = stack.pop()
+        name = methodhandle.reference.name_and_type.name.value
     else:
         raise Exception("Unhandled reference_kind %d" % methodhandle.reference_kind)
+    return "%s::%s" % (target, name)
 
 def try_eval_lambda(ins, args, cf):
     """
