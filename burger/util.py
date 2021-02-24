@@ -9,6 +9,19 @@ def class_from_invokedynamic(ins, cf):
     """
     Gets the class type for an invokedynamic instruction that
     calls a constructor.
+
+    This function is used for the packet list.  Prior to 21w08a, packets
+    had a no-arg constructor, and were registered as a Supplier<Packet>.
+    In 21w08a, the packet fields were made final, and the no-arg constructor
+    was replaced with a constructor taking the PacketBuffer and registered as
+    a Function<PacketBuffer, Packet> instead.  However, some packets (such as
+    the movement-related ones) have a class hierarchy and don't use the
+    constructor approach, and instead have a static method taking the
+    PacketBuffer and creating the packet instead.  Thus, for invokedynamic uses
+    that construct an object (REF_newInvokeSpecial), this function returns the
+    type of object that is constructed, while invokedynamic uses that invoke a
+    static method (REF_invokeStatic) have this function return the invoked
+    function's return type.
     """
     const = ins.operands[0]
     bootstrap = cf.bootstrap_methods[const.method_attr_index]
@@ -21,11 +34,16 @@ def class_from_invokedynamic(ins, cf):
     # Now check the arguments.  Note that LambdaMetafactory has some
     # arguments automatically filled in.
     methodhandle = cf.constants.get(bootstrap.bootstrap_args[1])
-    assert methodhandle.reference_kind == 8 # REF_newInvokeSpecial
-    assert methodhandle.reference.name_and_type.name == "<init>"
-    # OK, now that we've done all those checks, just get the type
-    # from the constructor.
-    return methodhandle.reference.class_.name.value
+    assert methodhandle.reference_kind in (6, 8)
+    if methodhandle.reference_kind == 8: # REF_newInvokeSpecial
+        assert methodhandle.reference.name_and_type.name == "<init>"
+        # OK, now that we've done all those checks, just get the type
+        # from the constructor.
+        return methodhandle.reference.class_.name.value
+    elif methodhandle.reference_kind == 6: # REF_invokeStatic
+        desc = method_descriptor(methodhandle.reference.name_and_type.descriptor.value)
+        assert desc.returns.name != "void"
+        return desc.returns.name
 
 def stringify_invokedynamic(obj, ins, cf):
     """

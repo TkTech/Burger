@@ -141,7 +141,15 @@ class PacketInstructionsTopping(Topping):
             methods = list(cf.methods.find(returns="V", args="L" + classes["packet.packetbuffer"] + ";"))
 
             if len(methods) == 2:
+                # Assume the second method is the one that writes
                 method = methods[1]
+            elif len(methods) == 1:
+                # 21w08a+: A constructor or static method now handles reading.
+                # The constructor still returns void, so the above case is still
+                # usually hit, but the static method returns the packet.  When
+                # the static method exists, there only is one matching method,
+                # so just assume that that method handles writing.
+                method = methods[0]
             else:
                 if cf.super_.name.value != "java/lang/Object":
                     return _PIT.operations(classloader, cf.super_.name.value + ".class", classes, verbose)
