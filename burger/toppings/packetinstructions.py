@@ -705,12 +705,9 @@ class PacketInstructionsTopping(Topping):
         return operations
 
     @staticmethod
-    def join(arguments, seperator=", "):
-        """Converts a list of object into a comma seperated list"""
-        buffer = ""
-        for arg in arguments:
-            buffer += "%s%s" % (arg, seperator)
-        return buffer[:-len(seperator)]
+    def join(arguments, separator=", "):
+        """Converts a list of object into a comma separated list"""
+        return separator.join(str(arg) for arg in arguments)
 
     @staticmethod
     def find_next(operations, position, operation_search):
