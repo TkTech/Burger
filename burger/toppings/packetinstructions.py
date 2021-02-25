@@ -165,9 +165,9 @@ class PacketInstructionsTopping(Topping):
 
         if method.access_flags.acc_abstract:
             # Abstract method call -- just log that, since we can't view it
-            return [Operation(instruction.pos, "interfacecall",
-                              type="abstract", target=operands[0].c, name=name,
-                              method=name + desc, field=obj, args=_PIT.join(arguments))]
+            return [Operation(0, "interfacecall",
+                              type="abstract", target=classname[:-len(".class")], name=methodname,
+                              method=methodname + args, field=arg_names[0], args=_PIT.join(arg_names))]
 
         # Decode the instructions
         operations = []
