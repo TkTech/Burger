@@ -35,7 +35,10 @@ from jawa.constants import *
 from jawa.transforms import simple_swap
 
 from .topping import Topping
-from burger.util import stringify_invokedynamic
+from burger.util import InvokeDynamicInfo
+
+SUB_INS_EPSILON = .01
+PACKETBUF_NAME = "packetbuffer" # Used to specially identify the PacketBuffer we care about
 
 class PacketInstructionsTopping(Topping):
     """Provides the instructions used to construct network packets."""
@@ -131,7 +134,7 @@ class PacketInstructionsTopping(Topping):
 
     @staticmethod
     def operations(classloader, classname, classes, verbose, args=None,
-                   methodname=None, arg_names=("this", "packetbuffer")):
+                   methodname=None, arg_names=("this", PACKETBUF_NAME)):
         """Gets the instructions of the specified method"""
 
         # Find the writing method
@@ -232,7 +235,7 @@ class PacketInstructionsTopping(Topping):
                                                 type=_PIT.TYPES[name],
                                                 field=arguments[0]))
                     stack.append(obj)
-                elif len(name) == 1 and isinstance(obj, StackOperand) and obj.value == "packetbuffer":
+                elif len(name) == 1 and isinstance(obj, StackOperand) and obj.value == PACKETBUF_NAME:
                     # Checking len(name) == 1 is used to see if it's a Minecraft
                     # method (due to obfuscation).  Netty methods have real
                     # (and thus longer) names.
@@ -340,22 +343,88 @@ class PacketInstructionsTopping(Topping):
                                 descriptor.args[1].name == "java/util/function/BiConsumer":
                             # Loop that calls the consumer with the packetbuffer
                             # and value for each value in collection
+                            # TODO: Disambiguate names it and itv if there are multiple loops
+                            operations.append(Operation(instruction.pos, "write",
+                                                        type="varint",
+                                                        field=field.value + ".size()"))
                             operations.append(Operation(instruction.pos, "store",
                                                         type="Iterator",
                                                         var="it",
                                                         value=field.value + ".iterator()"))
-                            # TODO: inline the referenced function - would require
-                            # changing how stringify_invokedynamic works
-                            target = arguments[1][:arguments[1].find(":")]
-                            name2 = arguments[1][arguments[1].rfind(":")+1:]
                             operations.append(Operation(instruction.pos, "loop",
                                                         condition="it.hasNext()"))
-                            operations.append(Operation(instruction.pos, "interfacecall",
-                                                        type="dynamic",
-                                                        target=target, name=name,
-                                                        method=name, field=target,
-                                                        args="buf, it.next()"))
-                            operations.append(Operation(instruction.pos, "endloop"))
+                            info = arguments[1]
+                            assert isinstance(info, InvokeDynamicInfo)
+                            assert len(info.method_desc.args) >= 2 # May be more if locals are referenced
+                            operations.append(Operation(instruction.pos, "store",
+                                                        type=info.method_desc.args[-1].name.replace("/", "."),
+                                                        var="itv", value="it.next()"))
+                            operations += _PIT.sub_operations2(
+                                classloader, cf, classes, instruction,
+                                info.method_class + ".class", info.method_name,
+                                info.method_desc.descriptor, verbose,
+                                info.stored_args + [PACKETBUF_NAME, "itv"]
+                            )
+                            # Jank: the part of the program that converts loop+endloop
+                            # to a nested setup sorts the operations.
+                            # Thus, if instruction.pos is used, sub_operations
+                            # adds epsilon to each sub-instruction, making them
+                            # come after the endloop.
+                            # Assume that 1 - SUB_INS_EPSILON (e.g. .99) will put
+                            # the endloop past everything.
+                            operations.append(Operation(instruction.pos + 1 - SUB_INS_EPSILON, "endloop"))
+                        else:
+                            raise Exception("Unexpected descriptor " + desc)
+                    elif num_arguments == 3:
+                        if arg_type == "java/util/Map" and \
+                                descriptor.args[1].name == "java/util/function/BiConsumer" and \
+                                descriptor.args[1].name == "java/util/function/BiConsumer":
+                            # Loop that calls the consumers with the packetbuffer
+                            # and key, and then packetbuffer and value, for each
+                            # (key, value) pair in the map.
+                            # TODO: Disambiguate names it and itv if there are multiple loops
+                            operations.append(Operation(instruction.pos, "write",
+                                                        type="varint",
+                                                        field=field.value + ".size()"))
+                            operations.append(Operation(instruction.pos, "store",
+                                                        type="Iterator",
+                                                        var="it",
+                                                        value=field.value + ".iterator()"))
+                            operations.append(Operation(instruction.pos, "loop",
+                                                        condition="it.hasNext()"))
+                            key_info = arguments[1]
+                            val_info = arguments[2]
+                            assert isinstance(key_info, InvokeDynamicInfo)
+                            assert isinstance(val_info, InvokeDynamicInfo)
+                            # TODO: these are violated
+                            assert len(key_info.method_desc.args) >= 2 # May be more if locals are referenced
+                            assert len(val_info.method_desc.args) >= 2 # May be more if locals are referenced
+                            key_type = key_info.method_desc.args[-1].name.replace("/", ".")
+                            val_type = val_info.method_desc.args[-1].name.replace("/", ".")
+                            operations.append(Operation(instruction.pos, "store",
+                                                        type="Map.Entry<" + key_type + ", " + val_type + ">",
+                                                        var="itv", value="it.next()"))
+                            operations += _PIT.sub_operations2(
+                                classloader, cf, classes, instruction,
+                                key_info.method_class + ".class", key_info.method_name,
+                                key_info.method_desc.descriptor, verbose,
+                                key_info.stored_args + [PACKETBUF_NAME, "itv.getKey()"]
+                            )
+                            # TODO: Does the SUB_INS_EPSILON work correctly here?
+                            operations += _PIT.sub_operations2(
+                                classloader, cf, classes, instruction,
+                                val_info.method_class + ".class", val_info.method_name,
+                                val_info.method_desc.descriptor, verbose,
+                                val_info.stored_args + [PACKETBUF_NAME, "itv.getValue()"]
+                            )
+                            # Jank: the part of the program that converts loop+endloop
+                            # to a nested setup sorts the operations.
+                            # Thus, if instruction.pos is used, sub_operations
+                            # adds epsilon to each sub-instruction, making them
+                            # come after the endloop.
+                            # Assume that 1 - SUB_INS_EPSILON (e.g. .99) will put
+                            # the endloop past everything.
+                            operations.append(Operation(instruction.pos + 1 - SUB_INS_EPSILON, "endloop"))
                         else:
                             raise Exception("Unexpected descriptor " + desc)
                     else:
@@ -420,7 +489,7 @@ class PacketInstructionsTopping(Topping):
                                 break
 
             elif mnemonic == "invokedynamic":
-                stack.append(stringify_invokedynamic(stack, instruction, cf))
+                InvokeDynamicInfo(instruction, cf).apply_to_stack(stack)
 
             # Conditional statements and loops
             elif mnemonic.startswith("if"):
@@ -663,7 +732,13 @@ class PacketInstructionsTopping(Topping):
         invoked_class = operand.c + ".class"
         name = operand.name
         descriptor = operand.descriptor
-        args = method_descriptor(descriptor).args_descriptor
+        return _PIT.sub_operations2(classloader, cf, classes, instruction,
+                    invoked_class, name, descriptor, verbose, arg_names)
+
+    @staticmethod
+    def sub_operations2(classloader, cf, classes, instruction, invoked_class,
+                        name, descriptor, verbose, arg_names=[""]):
+        """Gets the instructions of a different class"""
         cache_key = "%s/%s/%s/%s" % (invoked_class, name,
                                      descriptor, _PIT.join(arg_names, ","))
 
@@ -671,12 +746,22 @@ class PacketInstructionsTopping(Topping):
             cache = _PIT.CACHE[cache_key]
             operations = [op.clone() for op in cache]
         else:
+            args = method_descriptor(descriptor).args_descriptor
             operations = _PIT.operations(classloader, invoked_class, classes, verbose,
                                          args, name, arg_names)
 
+        # Sort operations by position, and try to ensure all of them fit between
+        # two normal instructions.  Note that since operations are renumbered
+        # on each use of sub_operations, this is safe (recursive calls to
+        # sub_operations will produce [1.01, 1.02, 1.03, 1.04], not
+        # [1.01, 1.0101, 1.0102, 1.02] or [1.01, 1.02, 1.03, 1.02]).
         position = 0
         for operation in _PIT.ordered_operations(operations):
-            position += 0.01
+            position += SUB_INS_EPSILON
+            # However, it will break if the position gets too large, as then
+            # something like [1.01, 1.02, ..., 1.99, 2.00, 2.01, 2] could occur.
+            # If this happens, just shrink SUB_INS_EPSILON.
+            assert(position < 1)
             operation.position = instruction.pos + (position)
 
         _PIT.CACHE[cache_key] = operations
