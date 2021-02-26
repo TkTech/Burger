@@ -389,6 +389,7 @@ class EntityMetadataTopping(Topping):
     def identify_serializer(classloader, cls, classes, verbose):
         # In here because otherwise the import messes with finding the topping in this file
         from .packetinstructions import PacketInstructionsTopping as _PIT
+        from .packetinstructions import PACKETBUF_NAME
 
         cf = classloader[cls]
         sig = cf.attributes.find_one(name="Signature").signature.value
@@ -459,9 +460,10 @@ class EntityMetadataTopping(Topping):
         # Note that we are using the bridge method that takes an object, and not the more find
         try:
             write_args = "L" + classes["packet.packetbuffer"] + ";Ljava/lang/Object;"
-            operations = _PIT.operations(classloader, cls + ".class",  # XXX This .class only exists because PIT needs it, for no real reason
-                    classes, verbose,
-                    args=write_args, arg_names=("this", "packetbuffer", "value"))
+            methods = list(cf.methods.find(returns="V", args=write_args))
+            assert len(methods) == 1
+            operations = _PIT.operations(classloader, cf, classes, verbose,
+                    methods[0], arg_names=("this", PACKETBUF_NAME, "value"))
             serializer.update(_PIT.format(operations))
         except:
             if verbose:
