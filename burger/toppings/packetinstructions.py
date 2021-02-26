@@ -503,6 +503,11 @@ class PacketInstructionsTopping(Topping):
             assert isinstance(obj, StackOperand)
             obj.value += "(" + _PIT.join(arguments) + ")";
             return []
+        elif name == "forEach":
+            assert num_arguments == 1
+            assert not is_static
+            return _PIT._handle_foreach(classloader, classes, instruction, verbose,
+                                        cls, name, desc, obj, arguments[0])
         else:
             if desc.returns.name != "void":
                 # Assume that any function that returns something does not write
@@ -707,6 +712,28 @@ class PacketInstructionsTopping(Topping):
             return operations
         else:
             raise Exception("Unexpected descriptor " + desc)
+
+    @staticmethod
+    def _handle_foreach(classloader, classes, instruction, verbose,
+                        cls, name, desc, instance, consumer):
+        assert isinstance(instance, StackOperand)
+        assert isinstance(consumer, InvokeDynamicInfo)
+        assert "Consumer" in desc.args[0].name
+        operations = []
+        operations.append(Operation(instruction.pos, "store",
+                                    type="Iterator", var="it",
+                                    value=instance.value + ".iterator()"))
+        operations.append(Operation(instruction.pos, "loop",
+                                    condition="it.hasNext()"))
+        operations.append(Operation(instruction.pos, "store",
+                                    type=consumer.method_desc.args[-1].name.replace("/", "."),
+                                    var="itv", value="it.next()"))
+        operations += _PIT._lambda_operations(
+            classloader, classes, instruction, verbose, consumer, ["itv"]
+        )
+        # See comment in _handle_1_arg_buffer_call
+        operations.append(Operation(instruction.pos + 1 - SUB_INS_EPSILON, "endloop"))
+        return operations
 
     @staticmethod
     def join(arguments, separator=", "):
