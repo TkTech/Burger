@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
 
+from jawa.assemble import assemble
+from jawa.cf import ClassFile
+from jawa.methods import Method
 from jawa.constants import *
 from jawa.util.descriptor import method_descriptor
 from jawa.util.bytecode import Operand
@@ -17,12 +20,17 @@ REF_invokeSpecial = 7
 REF_newInvokeSpecial = 8
 REF_invokeInterface = 9
 
+FIELD_REFS = (REF_getField, REF_getStatic, REF_putField, REF_putStatic)
+
 class InvokeDynamicInfo:
     """
     Stores information related to an invokedynamic instruction.
     """
 
     def __init__(self, ins, cf):
+        self._ins = ins
+        self._cf = cf
+
         if isinstance(ins.operands[0], Operand):
             # Hack due to packetinstructions not expanding constants
             const = cf.constants[ins.operands[0].value]
@@ -73,7 +81,7 @@ class InvokeDynamicInfo:
         assert self.ref_kind >= REF_getField and self.ref_kind <= REF_invokeInterface
         # Javac does not appear to use REF_getField, REF_getStatic,
         # REF_putField, or REF_putStatic, so don't bother handling fields here.
-        assert self.ref_kind not in (REF_getField, REF_getStatic, REF_putField, REF_putStatic)
+        assert self.ref_kind not in FIELD_REFS
 
         self.method_class = methodhandle.reference.class_.name.value
         self.method_name = methodhandle.reference.name_and_type.name.value
@@ -170,6 +178,7 @@ class InvokeDynamicInfo:
         self.dynamic_desc = method_descriptor(const.name_and_type.descriptor.value)
 
         assert self.dynamic_desc.returns.name != "void"
+        self.implemented_iface = self.dynamic_desc.returns.name
 
         # created_type is the type returned by the function we return.
         if self.ref_kind == REF_newInvokeSpecial:
@@ -178,6 +187,8 @@ class InvokeDynamicInfo:
             self.created_type = self.method_desc.returns.name
 
         self.stored_args = None
+        self.generated_cf = None
+        self.generated_method = None
 
     def apply_to_stack(self, stack):
         """
@@ -199,6 +210,88 @@ class InvokeDynamicInfo:
     def __str__(self):
         # TODO: be closer to Java syntax (using the stored args)
         return "%s::%s" % (self.method_class, self.method_name)
+
+    def create_method(self):
+        """
+        Creates a Method that corresponds to the generated function call.
+        It will be part of a class that implements the right interface, and will
+        have the appropriate name and signature.
+        """
+        assert self.stored_args != None
+        if self.generated_method != None:
+            return (self.generated_cf, self.generated_method)
+
+        class_name = self._cf.this.name.value + "_lambda_" + str(self._ins.pos)
+        self.generated_cf = ClassFile.create(class_name)
+        # Jawa doesn't seem to expose this cleanly.  Technically we don't need
+        # to implement the interface because the caller doesn't actually care,
+        # but it's better to implement it anyways for the future.
+        # (Due to the hacks below, the interface isn't even implemented properly
+        # since the method we create has additional parameters and is static.)
+        iface_const = self.generated_cf.constants.create_class(self.implemented_iface)
+        self.generated_cf._interfaces.append(iface_const.index)
+
+        # HACK: This officially should use instantiated_desc.descriptor,
+        # but instead use a combination of the stored arguments and the
+        # instantiated descriptor to make packetinstructions work better
+        # (otherwise we'd need to generate and load fields in a way that
+        # packetinstructions understands)
+        descriptor = "(" + self.dynamic_desc.args_descriptor + \
+                        self.instantiated_desc.args_descriptor + ")" + \
+                        self.instantiated_desc.returns_descriptor
+        method = self.generated_cf.methods.create(self.dynamic_name,
+                                                  descriptor, code=True)
+        self.generated_method = method
+        # Similar hack: make the method static, so that packetinstructions
+        # doesn't look for the corresponding instance.
+        method.access_flags.acc_static = True
+        # Third hack: the extra arguments are in the local variables/arguments
+        # list, not on the stack.  So we need to move them to the stack.
+        # (In a real implementation, these would probably be getfield instructions)
+        # Also, this uses aload for everything, instead of using the appropriate
+        # instruction for each type.
+        instructions = []
+        for i in range(len(method.args)):
+            instructions.append(("aload", i))
+
+        cls_ref = self.generated_cf.constants.create_class(self.method_class)
+        if self.ref_kind in FIELD_REFS:
+            # This case is not currently hit, but provided for future use
+            # (Likely method_name and method_descriptor would no longer be used though)
+            ref = self.generated_cf.constants.create_field_ref(
+                    self.method_class, self.method_name, self.method_desc.descriptor)
+        elif self.ref_kind == REF_invokeInterface:
+            ref = self.generated_cf.constants.create_interface_method_ref(
+                    self.method_class, self.method_name, self.method_desc.descriptor)
+        else:
+            ref = self.generated_cf.constants.create_method_ref(
+                    self.method_class, self.method_name, self.method_desc.descriptor)
+
+        # See https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.4.3.5
+        if self.ref_kind == REF_getField:
+            instructions.append(("getfield", ref))
+        elif self.ref_kind == REF_getStatic:
+            instructions.append(("getstatic", ref))
+        elif self.ref_kind == REF_putField:
+            instructions.append(("putfield", ref))
+        elif self.ref_kind == REF_putStatic:
+            instructions.append(("putstatic", ref))
+        elif self.ref_kind == REF_invokeVirtual:
+            instructions.append(("invokevirtual", ref))
+        elif self.ref_kind == REF_invokeStatic:
+            instructions.append(("invokestatic", ref))
+        elif self.ref_kind == REF_invokeSpecial:
+            instructions.append(("invokespecial", ref))
+        elif self.ref_kind == REF_newInvokeSpecial:
+            instructions.append(("new", cls_ref))
+            instructions.append(("dup",))
+            instructions.append(("invokespecial", ref))
+        elif self.ref_kind == REF_invokeInterface:
+            instructions.append(("invokeinterface", ref))
+
+        method.code.assemble(assemble(instructions))
+
+        return (self.generated_cf, self.generated_method)
 
 def class_from_invokedynamic(ins, cf):
     """

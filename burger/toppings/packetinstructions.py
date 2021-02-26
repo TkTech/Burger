@@ -446,6 +446,7 @@ class PacketInstructionsTopping(Topping):
         """
 
         num_arguments = len(desc.args)
+        assert len(stack) >= num_arguments
         if num_arguments > 0:
             arguments = stack[-num_arguments:]
         else:
@@ -701,6 +702,7 @@ class PacketInstructionsTopping(Topping):
                 classloader, classes, instruction, verbose,
                 val_info, [instance, "itv.getValue()"]
             )
+            # Same jank as with the one in _handle_2_arg_buffer_call
             operations.append(Operation(instruction.pos + 1 - SUB_INS_EPSILON, "endloop"))
             return operations
         else:
@@ -790,10 +792,20 @@ class PacketInstructionsTopping(Topping):
             # case (as that'd require reordering them to make `this` first).
             assert len(info.stored_args) == 0 or len(info.stored_args) == 1
 
-        return _PIT._sub_operations(
-            classloader, classes, instruction, verbose, info.method_class,
-            info.method_name, info.method_desc, effective_args
-        )
+        # Now just call the (generated) method.
+        # Note that info is included because this is
+        cf, method = info.create_method()
+        operations = _PIT.operations(classloader, cf, classes, verbose,
+                                     method, effective_args)
+
+        position = 0
+        # See note in _sub_operations
+        for operation in _PIT.ordered_operations(operations):
+            position += SUB_INS_EPSILON
+            assert(position < 1)
+            operation.position = instruction.pos + (position)
+
+        return operations
 
     @staticmethod
     def format(operations):
