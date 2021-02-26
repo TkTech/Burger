@@ -35,7 +35,7 @@ from jawa.constants import *
 from jawa.transforms import simple_swap
 
 from .topping import Topping
-from burger.util import InvokeDynamicInfo
+from burger.util import InvokeDynamicInfo, REF_invokeStatic
 
 SUB_INS_EPSILON = .01
 PACKETBUF_NAME = "packetbuffer" # Used to specially identify the PacketBuffer we care about
@@ -641,15 +641,12 @@ class PacketInstructionsTopping(Topping):
                                         condition="it.hasNext()"))
             info = args[1]
             assert isinstance(info, InvokeDynamicInfo)
-            assert len(info.method_desc.args) >= 2 # May be more if locals are referenced
             operations.append(Operation(instruction.pos, "store",
                                         type=info.method_desc.args[-1].name.replace("/", "."),
                                         var="itv", value="it.next()"))
-            operations += _PIT._sub_operations(
+            operations += _PIT._lambda_operations(
                 classloader, classes, instruction, verbose,
-                info.method_class, info.method_name,
-                info.method_desc,
-                info.stored_args + [PACKETBUF_NAME, "itv"]
+                info, [instance, "itv"]
             )
             # Jank: the part of the program that converts loop+endloop
             # to a nested setup sorts the operations.
@@ -688,33 +685,22 @@ class PacketInstructionsTopping(Topping):
             assert isinstance(key_info, InvokeDynamicInfo)
             assert isinstance(val_info, InvokeDynamicInfo)
             # TODO: these are violated
-            assert len(key_info.method_desc.args) >= 2 # May be more if locals are referenced
-            assert len(val_info.method_desc.args) >= 2 # May be more if locals are referenced
             key_type = key_info.method_desc.args[-1].name.replace("/", ".")
             val_type = val_info.method_desc.args[-1].name.replace("/", ".")
             operations.append(Operation(instruction.pos, "store",
                                         type="Map.Entry<" + key_type + ", " + val_type + ">",
                                         var="itv", value="it.next()"))
-            operations += _PIT._sub_operations(
+            operations += _PIT._lambda_operations(
                 classloader, classes, instruction, verbose,
-                key_info.method_class, key_info.method_name,
-                key_info.method_desc,
-                key_info.stored_args + [PACKETBUF_NAME, "itv.getKey()"]
+                key_info, [instance, "itv.getKey()"]
             )
             # TODO: Does the SUB_INS_EPSILON work correctly here?
-            operations += _PIT._sub_operations(
+            # I think this will lead to [1.01, 1.02, 1.03, 1.01, 1.02, 1.03]
+            # which would get sorted wrongly, but I'm not sure
+            operations += _PIT._lambda_operations(
                 classloader, classes, instruction, verbose,
-                val_info.method_class, val_info.method_name,
-                val_info.method_desc,
-                val_info.stored_args + [PACKETBUF_NAME, "itv.getValue()"]
+                val_info, [instance, "itv.getValue()"]
             )
-            # Jank: the part of the program that converts loop+endloop
-            # to a nested setup sorts the operations.
-            # Thus, if instruction.pos is used, _sub_operations
-            # adds epsilon to each sub-instruction, making them
-            # come after the endloop.
-            # Assume that 1 - SUB_INS_EPSILON (e.g. .99) will put
-            # the endloop past everything.
             operations.append(Operation(instruction.pos + 1 - SUB_INS_EPSILON, "endloop"))
             return operations
         else:
@@ -785,6 +771,29 @@ class PacketInstructionsTopping(Topping):
         _PIT.CACHE[cache_key] = operations
 
         return operations
+
+    @staticmethod
+    def _lambda_operations(classloader, classes, instruction, verbose, info, args):
+        assert isinstance(info, InvokeDynamicInfo)
+        assert len(args) == len(info.instantiated_desc.args)
+
+        effective_args = info.stored_args + args
+        if info.ref_kind == REF_invokeStatic:
+            assert len(effective_args) == len(info.method_desc.args)
+        else:
+            # The `this` parameter must be supplied.  Usually this will be in
+            # effective_args, but it's also valid to use Class::function
+            # and then provide an instance of class along with the parameters
+            # to function.
+            assert len(effective_args) == len(info.method_desc.args) + 1
+            # I don't think Java allows pre-supplying other arguments in this
+            # case (as that'd require reordering them to make `this` first).
+            assert len(info.stored_args) == 0 or len(info.stored_args) == 1
+
+        return _PIT._sub_operations(
+            classloader, classes, instruction, verbose, info.method_class,
+            info.method_name, info.method_desc, effective_args
+        )
 
     @staticmethod
     def format(operations):
