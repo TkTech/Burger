@@ -56,7 +56,7 @@ class InvokeDynamicInfo:
         # arguments automatically filled in.  The bootstrap arguments are:
         # args[0] is samMethodType, signature of the implemented method
         # args[1] is implMethod, the method handle that is used
-        # args[2] is instantiatedMethodType, runtime signature of the implemented method
+        # args[2] is instantiatedMethodType, narrower signature of the implemented method
         # We only really care about the method handle, and just assume that the
         # method handle satisfies instantiatedMethodType, and that that also
         # satisfies samMethodType.  instantiatedMethodType could maybe be used
@@ -64,6 +64,11 @@ class InvokeDynamicInfo:
         # sure if there's a reason to do that over just looking at the handle.
         methodhandle = cf.constants.get(bootstrap.bootstrap_args[1])
         self.ref_kind = methodhandle.reference_kind
+
+        # instantiatedMethodType does have a use when executing the created
+        # object, so store it for later.
+        instantiated = cf.constants.get(bootstrap.bootstrap_args[2])
+        self.instantiated_desc = method_descriptor(instantiated.descriptor.value)
 
         assert self.ref_kind >= REF_getField and self.ref_kind <= REF_invokeInterface
         # Javac does not appear to use REF_getField, REF_getStatic,
