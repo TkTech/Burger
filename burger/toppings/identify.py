@@ -31,7 +31,7 @@ import traceback
 # We can identify almost every class we need just by
 # looking for consistent strings.
 MATCHES = (
-    (['Fetching addPacket for removed entity'], 'entity.trackerentry'),
+    (['Fetching addPacket for removed entity', 'Fetching packet for removed entity'], 'entity.trackerentry'),
     (['#%04d/%d%s', 'attribute.modifier.equals.'], 'itemstack'),
     (['disconnect.lost'], 'nethandler.client'),
     (['Outdated server!', 'multiplayer.disconnect.outdated_client'],
