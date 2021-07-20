@@ -116,6 +116,8 @@ class ItemsTopping(Topping):
                     if isinstance(const, String) and const.string.value == "Unable to have damage AND stack.":
                         max_stack_method = method
                         break
+            if max_stack_method:
+                break
         if not max_stack_method:
             raise Exception("Couldn't find max stack size setter in " + builder_class)
 
@@ -166,9 +168,10 @@ class ItemsTopping(Topping):
                         current_item = {}
 
                         text_id = None
-                        idx = 0
-                        for arg in desc.args:
+                        for idx, arg in enumerate(desc.args):
                             if arg.name == blockclass:
+                                if isinstance(args[idx], list):
+                                    continue
                                 block = args[idx]
                                 text_id = block["text_id"]
                                 if "name" in block:
@@ -182,7 +185,6 @@ class ItemsTopping(Topping):
                                 text_id = current_item["text_id"]
                             elif arg.name == "java/lang/String":
                                 text_id = args[idx]
-                            idx += 1
 
                         if current_item == {} and not text_id:
                             if verbose:
