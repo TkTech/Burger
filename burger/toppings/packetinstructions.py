@@ -222,7 +222,7 @@ class PacketInstructionsTopping(Topping):
                 ))
 
             elif mnemonic == "invokedynamic":
-                InvokeDynamicInfo(instruction, cf).apply_to_stack(stack)
+                InvokeDynamicInfo.create(instruction, cf).apply_to_stack(stack)
 
             # Conditional statements and loops
             elif mnemonic.startswith("if"):
