@@ -1,7 +1,7 @@
 import six
 
 from .topping import Topping
-from burger.util import WalkerCallback, walk_method
+from burger.util import WalkerCallback, walk_method, string_from_invokedymanic
 
 from jawa.constants import *
 from jawa.util.descriptor import method_descriptor
@@ -48,6 +48,10 @@ class EntityMetadataTopping(Topping):
             elif dataserializers_class and ins in ("ldc", "ldc_w"):
                 const = ins.operands[0]
                 if const == "Unregistered serializer ":
+                    break
+            elif dataserializers_class and ins == "invokedynamic":
+                text = string_from_invokedymanic(ins, datamanager_cf)
+                if "Unregistered serializer " in text:
                     break
         else:
             raise Exception("Failed to identify dataserializers")

@@ -22,20 +22,63 @@ REF_invokeInterface = 9
 
 FIELD_REFS = (REF_getField, REF_getStatic, REF_putField, REF_putStatic)
 
-class InvokeDynamicInfo:
-    """
-    Stores information related to an invokedynamic instruction.
-    """
-
-    def __init__(self, ins, cf):
-        self._ins = ins
-        self._cf = cf
-
+class InvokeDynamicInfo(ABC):
+    @staticmethod
+    def create(ins, cf):
         if isinstance(ins.operands[0], Operand):
             # Hack due to packetinstructions not expanding constants
             const = cf.constants[ins.operands[0].value]
         else:
             const = ins.operands[0]
+
+        bootstrap = cf.bootstrap_methods[const.method_attr_index]
+        method = cf.constants.get(bootstrap.method_ref)
+        if method.reference.class_.name == "java/lang/invoke/LambdaMetafactory":
+            return LambdaInvokeDynamicInfo(ins, cf, const)
+        elif method.reference.class_.name == "java/lang/invoke/StringConcatFactory":
+            return StringConcatInvokeDynamicInfo(ins, cf, const)
+        else:
+            raise Exception("Unknown invokedynamic class: " + method.reference.class_.name.value)
+
+    def __init__(self, ins, cf, const):
+        self._ins = ins
+        self._cf = cf
+        self.stored_args = None
+
+    @abstractmethod
+    def __str__():
+        pass
+
+    def apply_to_stack(self, stack):
+        """
+        Used to simulate an invokedynamic instruction.  Pops relevant args, and
+        puts this object (used to simulate the function we return) onto the stack.
+        """
+        assert self.stored_args == None # Should only be called once
+
+        num_arguments = len(self.dynamic_desc.args)
+        if num_arguments > 0:
+            self.stored_args = stack[-len(self.dynamic_desc.args):]
+        else:
+            self.stored_args = []
+        for _ in six.moves.range(num_arguments):
+            stack.pop()
+
+        stack.append(self)
+
+    @abstractmethod
+    def create_method(self):
+        pass
+
+class LambdaInvokeDynamicInfo(InvokeDynamicInfo):
+    """
+    Stores information related to an invokedynamic instruction.
+    """
+
+    def __init__(self, ins, cf, const):
+        super().__init__(ins, cf, const)
+        self.generated_cf = None
+        self.generated_method = None
 
         bootstrap = cf.bootstrap_methods[const.method_attr_index]
         method = cf.constants.get(bootstrap.method_ref)
@@ -186,27 +229,6 @@ class InvokeDynamicInfo:
         else:
             self.created_type = self.method_desc.returns.name
 
-        self.stored_args = None
-        self.generated_cf = None
-        self.generated_method = None
-
-    def apply_to_stack(self, stack):
-        """
-        Used to simulate an invokedynamic instruction.  Pops relevant args, and
-        puts this object (used to simulate the function we return) onto the stack.
-        """
-        assert self.stored_args == None # Should only be called once
-
-        num_arguments = len(self.dynamic_desc.args)
-        if num_arguments > 0:
-            self.stored_args = stack[-len(self.dynamic_desc.args):]
-        else:
-            self.stored_args = []
-        for _ in six.moves.range(num_arguments):
-            stack.pop()
-
-        stack.append(self)
-
     def __str__(self):
         # TODO: be closer to Java syntax (using the stored args)
         return "%s::%s" % (self.method_class, self.method_name)
@@ -293,12 +315,80 @@ class InvokeDynamicInfo:
 
         return (self.generated_cf, self.generated_method)
 
+class StringConcatInvokeDynamicInfo(InvokeDynamicInfo):
+    """
+    Java 9+ uses invokedynamic for string concatenation:
+    https://www.guardsquare.com/blog/string-concatenation-java-9-untangling-invokedynamic
+    """
+    # An example:
+    """
+    public static String foo(int num, int num2) {
+      return "num=" + num + " and num2=" + num2;
+    }
+    """
+    # Becomes:
+    """
+    Constant pool:
+      #7 = InvokeDynamic      #0:#8          // #0:makeConcatWithConstants:(II)Ljava/lang/String;
+    public static java.lang.String foo(int, int);
+      descriptor: (II)Ljava/lang/String;
+      flags: (0x0009) ACC_PUBLIC, ACC_STATIC
+      Code:
+        stack=2, locals=2, args_size=2
+           0: iload_0
+           1: iload_1
+           2: invokedynamic #7,  0              // InvokeDynamic #0:makeConcatWithConstants:(II)Ljava/lang/String;
+           7: areturn
+        LineNumberTable:
+          line 3: 0
+    BootstrapMethods:
+      0: #19 REF_invokeStatic -snip- StringConcatFactory.makeConcatWithConstants -snip-
+        Method arguments:
+          #25 num=\u0001 and num2=\u0001
+    """
+    # Note that the format string can have \u0002 in it as well to indicate a constant.
+    # I haven't seen any cases of \u0002 yet.
+
+    def __init__(self, ins, cf, const):
+        super().__init__(ins, cf, const)
+
+        bootstrap = cf.bootstrap_methods[const.method_attr_index]
+        method = cf.constants.get(bootstrap.method_ref)
+        # Make sure this is a reference to StringConcatFactory.makeConcatWithConstants
+        assert method.reference_kind == REF_invokeStatic
+        assert method.reference.class_.name == "java/lang/invoke/StringConcatFactory"
+        assert method.reference.name_and_type.name == "makeConcatWithConstants"
+        assert len(bootstrap.bootstrap_args) == 1 # Num arguments - may change with constants
+
+        # Now check the arguments.  Note that StringConcatFactory has some
+        # arguments automatically filled in.  The bootstrap arguments are:
+        # args[0] is recipe, format string
+        # Further arguments presumably go into the constants varargs array, but I haven't seen this
+        # (and I'm not sure how you get a constant that can't be converted to a string at compile time)
+        self.recipe = cf.constants.get(bootstrap.bootstrap_args[0]).string.value
+        assert '\u0002' not in self.recipe
+
+        self.dynamic_name = const.name_and_type.name.value
+        self.dynamic_desc = method_descriptor(const.name_and_type.descriptor.value)
+
+        assert self.dynamic_desc.returns.name == "java/lang/String"
+
+    def __str__(self):
+        recipe = self.recipe.replace("\u0001", "\\u0001").replace("\u0002", "\\u0002")
+        if (self.stored_args == None):
+            return "format_concat(\"%s\", ...)" % (recipe,)
+        else:
+            return "format_concat(\"%s\", %s)" % (recipe, ", ".join(str(a) for a in self.stored_args))
+
+    def create_method(self):
+        raise NotImplementedError()
+
 def class_from_invokedynamic(ins, cf):
     """
     Gets the class type for an invokedynamic instruction that
     calls a constructor.
     """
-    info = InvokeDynamicInfo(ins, cf)
+    info = InvokeDynamicInfo.create(ins, cf)
     assert info.created_type != "void"
     return info.created_type
 
@@ -307,7 +397,7 @@ def try_eval_lambda(ins, args, cf):
     Attempts to call a lambda function that returns a constant value.
     May throw; this code is very hacky.
     """
-    info = InvokeDynamicInfo(ins, cf)
+    info = InvokeDynamicInfo.create(ins, cf)
     # We only want to deal with lambdas in the same class
     assert info.ref_kind == REF_invokeStatic
     assert info.method_class == cf.this.name
@@ -328,6 +418,14 @@ def try_eval_lambda(ins, args, cf):
     # Set verbose to false because we don't want lots of output if this errors
     # (since it is expected to for more complex methods)
     return walk_method(cf, lambda_method, Callback(), False, args)
+
+def string_from_invokedymanic(ins, cf):
+    """
+    Gets the recipe string for a string concatenation implemented via invokedynamc.
+    """
+    info = InvokeDynamicInfo.create(ins, cf)
+    assert isinstance(info, StringConcatInvokeDynamicInfo)
+    return info.recipe
 
 class WalkerCallback(ABC):
     """
