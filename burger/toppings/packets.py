@@ -434,13 +434,21 @@ class PacketsTopping(Topping):
                     obj.append(cls)
                     return obj
 
+                if const.name_and_type.descriptor == "()[L" + connectionstate + ";":
+                    # Calling $values() to construct the values array -- this is
+                    # is the endpoint for us in versions starting with 21w19a.
+                    # 21w19a updated to require Java 16.
+                    # This function was added by a Javac change from Java 15:
+                    # https://bugs.java.com/bugdatabase/view_bug.do?bug_id=8241798
+                    raise StopIteration()
+
             def on_get_field(self, ins, const, obj):
                 if const.class_.name == direction_class:
                     return directions_by_field[const.name_and_type.name.value]["name"]
 
                 if const.class_.name == connectionstate:
                     # Getting the enum fields to create the values array -- this
-                    # is the endpoint for us
+                    # is the endpoint for us in versions before 21w19a
                     raise StopIteration()
 
                 raise Exception("Unexpected getfield: %s" % str(ins))
