@@ -663,8 +663,34 @@ class PacketInstructionsTopping(Topping):
             # the endloop past everything.
             operations.append(Operation(instruction.pos + 1 - SUB_INS_EPSILON, "endloop"))
             return operations
+        elif desc.args[0].name == "java/util/Optional" and \
+                desc.args[1].name == "java/util/function/BiConsumer":
+            # Write a boolean indicating whether the optional is present.
+            # Call the consumer with the packetbuffer and value if the optional is present.
+            operations = []
+            field = args[0]
+            assert isinstance(field, StackOperand)
+            operations.append(Operation(instruction.pos, "write", type="boolean",
+                                        field=field.value + ".isPresent()"))
+            operations.append(Operation(instruction.pos, "if",
+                                        condition=field.value + ".isPresent()"))
+            info = args[1]
+            assert isinstance(info, InvokeDynamicInfo)
+            operations += _PIT._lambda_operations(
+                classloader, classes, instruction, verbose,
+                info, [instance, field.value + ".get()"]
+            )
+            # Jank: the part of the program that converts loop+endloop
+            # to a nested setup sorts the operations.
+            # Thus, if instruction.pos is used, _sub_operations
+            # adds epsilon to each sub-instruction, making them
+            # come after the endloop.
+            # Assume that 1 - SUB_INS_EPSILON (e.g. .99) will put
+            # the endloop past everything.
+            operations.append(Operation(instruction.pos + 1 - SUB_INS_EPSILON, "endif"))
+            return operations
         else:
-            raise Exception("Unexpected descriptor " + desc)
+            raise Exception("Unexpected descriptor " + desc.descriptor)
 
     @staticmethod
     def _handle_3_arg_buffer_call(classloader, classes, instruction, verbose,
@@ -711,7 +737,7 @@ class PacketInstructionsTopping(Topping):
             operations.append(Operation(instruction.pos + 1 - SUB_INS_EPSILON, "endloop"))
             return operations
         else:
-            raise Exception("Unexpected descriptor " + desc)
+            raise Exception("Unexpected descriptor " + desc.descriptor)
 
     @staticmethod
     def _handle_foreach(classloader, classes, instruction, verbose,
