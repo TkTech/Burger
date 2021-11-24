@@ -70,7 +70,10 @@ MAYBE_MATCHES = (
 
 # Similarly, in 1.13, "bubble" is ambiguous between the particle class and
 # particle list, but the particletypes topping works with the first result in that case.
-IGNORE_DUPLICATES = [ "biome.register", "particletypes" ]
+
+# In 1.18-pre8, the "Getting block state" message now appears in both rendering
+# code and world code, but in both cases the return type is correct.
+IGNORE_DUPLICATES = [ "biome.register", "particletypes", "blockstate" ]
 
 def check_match(value, match_list):
     exact = False
